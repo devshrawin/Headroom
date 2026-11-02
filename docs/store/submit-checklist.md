@@ -5,16 +5,15 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 ## 0. Blockers: do these before you submit
 
 - [ ] **Check that "Headroom" is free for you.** It was chosen as the name; availability has not been checked. Search the Chrome Web Store for an existing "Headroom" extension, your trademark office's database, and the domain and GitHub names you want. If the Web Store title is taken, the store title can stay "Headroom: AI usage limit tracker" only if it is not a copy of another listing.
-- [ ] **Decide about the GitHub repository name.** The code, privacy URL and support URL still say `ai-meter` (`github.com/devshrawin/ai-meter`, `devshrawin.github.io/ai-meter/privacy`). If you rename the repo to `headroom`, GitHub redirects the old links, but the Pages privacy URL changes to `devshrawin.github.io/headroom/privacy`; then update the three URLs in `docs/store/listing.md` and in this checklist. Keeping the repo name is fine too.
 
 - [ ] **Confirm the real-number claims you can't see in code.** The listing says Headroom reads real numbers for Perplexity and Kimi (and ChatGPT's Codex usage). Those three have only been checked signed out, not signed in (`README.md`, "Verified live" says no). Either (a) load the unpacked extension in your Chrome, sign in, and check the pill against each site's own usage page, or (b) delete those lines from the long description in `docs/store/listing.md` so the store text only claims what is verified. Claude, Gemini and Grok are verified.
-- [ ] **Try the exact build.** `chrome://extensions` → Developer mode → Load unpacked → pick the `AI Meter` project folder (or unzip `release/<date>/headroom-<version>.zip` and load that folder: it is what the store will get). Open a supported site: pill appears, click opens the panel, Iris moves. Open the toolbar popup and Settings. Remove the extension and load it again: the welcome page should open once.
+- [ ] **Try the exact build.** `chrome://extensions` → Developer mode → Load unpacked → pick the `Headroom` project folder (or unzip `release/<date>/headroom-<version>.zip` and load that folder: it is what the store will get). Open a supported site: pill appears, click opens the panel, Iris moves. Open the toolbar popup and Settings. Remove the extension and load it again: the welcome page should open once.
 - [ ] **Try Export / Import** in Settings: export, change a limit, import the file, check the limit came back.
 
 ## 1. One-time setup
 
 - [ ] A Chrome Web Store developer account: <https://chrome.google.com/webstore/devconsole> (one-time registration fee, paid by you, and two-step verification on the Google account).
-- [ ] **Publish the privacy policy.** Repo on GitHub → Settings → Pages → Deploy from a branch → `main` / `/docs`. Then open `https://devshrawin.github.io/ai-meter/privacy` in a private window: it must load without signing in. (The Stage 3 to 5 branches must be merged to `main` first, or the page shows the old policy.)
+- [ ] **Publish the privacy policy.** Repo on GitHub → Settings → Pages → Deploy from a branch → `main` / `/docs`. Then open `https://devshrawin.github.io/Headroom/privacy` in a private window: it must load without signing in. (The Stage 3 to 5 branches must be merged to `main` first, or the page shows the old policy.)
 - [ ] Merge the release branches into `main` (open the PRs, review, merge). The store upload should come from a commit that is on `main`.
 
 ## 2. Upload
@@ -33,7 +32,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 - [ ] Paste the **single-purpose statement**.
 - [ ] Paste each **permission justification** (`storage`, `alarms`, `notifications`, `scripting`, the host permissions, the optional host permission, remote code = No).
 - [ ] Answer the **data usage** questions using the table in the listing, **checking them against the dashboard's current wording** (the questions change). Tick all three certifications.
-- [ ] Privacy policy URL: `https://devshrawin.github.io/ai-meter/privacy`.
+- [ ] Privacy policy URL: `https://devshrawin.github.io/Headroom/privacy`.
 
 ## 5. Distribution and submit
 

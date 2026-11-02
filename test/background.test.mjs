@@ -144,9 +144,9 @@ test('loadPet is refused without a sender tab and injects the Iris bundle otherw
   const bg = loadBackground();
   const replies = [];
   const [fn] = bg.listeners.message;
-  assert.equal(fn({ type: 'aimeter:loadPet' }, {}, (r) => replies.push(r)), undefined);
+  assert.equal(fn({ type: 'headroom:loadPet' }, {}, (r) => replies.push(r)), undefined);
   assert.equal(replies[0].ok, false);
-  assert.equal(fn({ type: 'aimeter:loadPet' }, { tab: { id: 3 }, frameId: 0 }, (r) => replies.push(r)), true);
+  assert.equal(fn({ type: 'headroom:loadPet' }, { tab: { id: 3 }, frameId: 0 }, (r) => replies.push(r)), true);
   await bg.settle();
   assert.equal(replies[1].ok, true);
 });

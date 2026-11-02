@@ -1,7 +1,7 @@
 // Counting adapter for sites that expose no usage numbers, and for sites the user adds.
 // Must load after the named adapters: adapterFor() falls back to it.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
 
   const SEND_HINT = /(conversation|completions?|chat|ask|generate|messages?|responses?|prompt|query|stream)s?(\/|$)/i;
   const NOT_SEND = /(title|feedback|rename|delete|share|upload|history|list|search|settings|suggest|autocomplete|typeahead|vote|rating|stop|cancel|report|read|seen|sync)/i;

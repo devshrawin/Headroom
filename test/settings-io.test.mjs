@@ -8,14 +8,14 @@ const read = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const AM = (() => {
   const ctx = vm.createContext({ console });
   for (const f of ['src/core/quotas.js', 'src/core/common.js']) vm.runInContext(read(f), ctx, { filename: f });
-  return ctx.AIMeter;
+  return ctx.Headroom;
 })();
 const plain = (v) => JSON.parse(JSON.stringify(v));
-const wrap = (settings) => JSON.stringify({ app: 'ai-meter', format: 1, settings });
+const wrap = (settings) => JSON.stringify({ app: 'headroom', format: 1, settings });
 
 test('export holds settings only, with a version and a timestamp', () => {
   const file = plain(AM.buildExport({ notify: false, thresholds: [60, 95], usage: { secret: 1 }, 'debug.log': ['x'], customSites: [{ host: 'chat.example.com', limit: 5, windowHours: 2 }] }, '1.0.0', new Date('2026-10-31T10:00:00Z')));
-  assert.equal(file.app, 'ai-meter');
+  assert.equal(file.app, 'headroom');
   assert.equal(file.version, '1.0.0');
   assert.equal(file.exportedAt, '2026-10-31T10:00:00.000Z');
   assert.equal(file.settings.notify, false);
@@ -41,8 +41,8 @@ test('import rejects things that are not a backup', () => {
     ['not json', /valid JSON/],
     ['[]', /not an Headroom backup/],
     ['{"app":"other","settings":{}}', /not an Headroom backup/],
-    ['{"app":"ai-meter"}', /not an Headroom backup/],
-    ['{"app":"ai-meter","settings":[]}', /not an Headroom backup/],
+    ['{"app":"headroom"}', /not an Headroom backup/],
+    ['{"app":"headroom","settings":[]}', /not an Headroom backup/],
     [' '.repeat(200001), /too large/],
     [null, /too large/],
   ]) {
@@ -82,7 +82,7 @@ test('import keeps only well-typed values and drops the rest', () => {
 });
 
 test('import cannot pollute prototypes', () => {
-  const r = AM.parseImport('{"app":"ai-meter","settings":{"quotas":{"__proto__":[{"id":"a","label":"b","pattern":".*","limit":1,"windowHours":1}],"constructor":[]}}}');
+  const r = AM.parseImport('{"app":"headroom","settings":{"quotas":{"__proto__":[{"id":"a","label":"b","pattern":".*","limit":1,"windowHours":1}],"constructor":[]}}}');
   assert.equal(r.ok, true);
   assert.equal({}.limit, undefined);
   assert.equal(Object.keys(r.settings.quotas).includes('__proto__'), false);

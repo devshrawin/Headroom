@@ -11,7 +11,7 @@
 // Selectors are comma-separated lists; the first visible match wins. Anything not mapped, and
 // user-added sites, fall back to the generic finders below.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
 
   // Verified 2026-09-28 by inspecting each site's live DOM while signed out (desktop, 1280x800).
   // Only states visible without sending a message could be seen: stop buttons and reply bubbles
@@ -52,7 +52,7 @@
     if (!sel) return null;
     let found = null;
     for (const el of document.querySelectorAll(sel)) {
-      if (el.closest('[data-aimeter]') || !visible(el)) continue;
+      if (el.closest('[data-headroom]') || !visible(el)) continue;
       found = el;
       if (!pickLast) break;
     }
@@ -81,7 +81,7 @@
   // The chat box: the lowest visible text input on the page, widened to its styled container.
   function genericComposer(minWidth) {
     const inputs = [...document.querySelectorAll(editableSel)]
-      .filter((el) => !el.closest('[data-aimeter]') && visible(el));
+      .filter((el) => !el.closest('[data-headroom]') && visible(el));
     if (!inputs.length) return null;
     inputs.sort((a, b) => b.getBoundingClientRect().bottom - a.getBoundingClientRect().bottom);
     return styledBox(inputs[0], minWidth);
@@ -116,7 +116,7 @@
     new MutationObserver((muts) => {
       for (const m of muts) {
         const t = m.target.nodeType === 1 ? m.target : m.target.parentElement;
-        if (t && !t.closest('[data-aimeter]')) { lastMutation = Date.now(); return; }
+        if (t && !t.closest('[data-headroom]')) { lastMutation = Date.now(); return; }
       }
     }).observe(document.body, { childList: true, subtree: true, characterData: true });
   };

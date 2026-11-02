@@ -1,7 +1,7 @@
 // Claude: reads the same usage endpoint that powers Settings > Usage (real numbers),
 // plus per-chat length / cache / next-message estimates from the open conversation.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const LABELS = {
     five_hour: 'Session (5h)',
     seven_day: 'Weekly',

@@ -28,9 +28,9 @@ export function loadPet({ reduce = false, calm = false } = {}) {
     chrome: { runtime: { getURL: (p) => p } },
   };
   const ctx = vm.createContext(sandbox);
-  vm.runInContext('globalThis.AIMeter = {}', ctx);
+  vm.runInContext('globalThis.Headroom = {}', ctx);
   for (const f of ['src/core/iris-frames.js', 'src/core/walk8-frames.js', 'src/core/pet.js']) vm.runInContext(read(f), ctx, { filename: f });
-  const AM = ctx.AIMeter;
+  const AM = ctx.Headroom;
   AM.bus = new EventTarget();
   AM.siteId = 'claude';
 

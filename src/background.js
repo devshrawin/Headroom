@@ -1,6 +1,6 @@
 importScripts('core/quotas.js', 'core/common.js');
 
-const AM = globalThis.AIMeter;
+const AM = globalThis.Headroom;
 const COLORS = { low: '#16a34a', mid: '#d97706', high: '#dc2626', none: '#78716c' };
 const ICON = chrome.runtime.getURL('icons/icon128.png');
 
@@ -35,7 +35,7 @@ async function checkThresholds(entry, settings) {
       notified[key] = reached;
       changed = true;
       const reset = AM.resetText(m);
-      chrome.notifications.create(`aimeter|${key}|${reached}|${Date.now()}`, {
+      chrome.notifications.create(`headroom|${key}|${reached}|${Date.now()}`, {
         type: 'basic',
         iconUrl: ICON,
         title: `${entry.name}: ${m.label} at ${Math.round(pct)}%`,
@@ -52,7 +52,7 @@ async function checkThresholds(entry, settings) {
 
 let queue = Promise.resolve();
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg && msg.type === 'aimeter:loadPet') {
+  if (msg && msg.type === 'headroom:loadPet') {
     // Inject Iris's engine and frames into the asking frame's content-script world (the same one widget.js runs in).
     if (!sender.tab || sender.tab.id == null) { sendResponse({ ok: false, error: 'no tab' }); return; }
     chrome.scripting.executeScript({ target: { tabId: sender.tab.id, frameIds: [sender.frameId || 0] }, files: AM.PET_BUNDLE })
@@ -60,7 +60,7 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e) }));
     return true; // async response
   }
-  if (!msg || msg.type !== 'aimeter:usage') return;
+  if (!msg || msg.type !== 'headroom:usage') return;
   const report = AM.validateUsageMessage(msg);
   if (!report) { console.warn('[Headroom] ignored a malformed usage report'); return; }
   // One at a time: two tabs reporting together would otherwise both read "notified" before either wrote it back.
@@ -82,7 +82,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     delete notified[`${provider}|${id}`];
     await chrome.storage.local.set({ notified });
     if (!settings.notify) return;
-    chrome.notifications.create(`aimeter|reset|${provider}|${id}|${Date.now()}`, {
+    chrome.notifications.create(`headroom|reset|${provider}|${id}|${Date.now()}`, {
       type: 'basic',
       iconUrl: ICON,
       title: `${name}: ${label} has reset`,

@@ -16,7 +16,7 @@ function load(fetchImpl) {
   for (const f of ['src/core/quotas.js', 'src/core/common.js', 'src/core/parsers.js']) {
     vm.runInContext(readFileSync(new URL('../' + f, import.meta.url), 'utf8'), ctx, { filename: f });
   }
-  const AM = ctx.AIMeter;
+  const AM = ctx.Headroom;
   AM.register = (a) => { adapter = a; };
   AM.estimator = () => ({ record() {}, refresh() {} });
   vm.runInContext(readFileSync(new URL('../src/adapters/grok.js', import.meta.url), 'utf8'), ctx, { filename: 'grok.js' });

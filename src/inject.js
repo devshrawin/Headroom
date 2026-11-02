@@ -1,9 +1,9 @@
 // Runs in the page's own JS world. Mirrors network activity to the content script via postMessage.
 (() => {
-  if (window.__aimeterInjected) return;
-  window.__aimeterInjected = true;
+  if (window.__headroomInjected) return;
+  window.__headroomInjected = true;
 
-  const TAG = 'aimeter-inject';
+  const TAG = 'headroom-inject';
   // Endpoints whose full response bodies adapters need (usage / limits / billing).
   const WATCH = /rate[-_]?limit|usage|limits|conversation\/init|quota|credit|billing|balance|entitlement|subscription|rpcids=[^&]*jSf9Qc/i;
   // Analytics/telemetry endpoints that would flood the discovery log.
@@ -37,7 +37,7 @@
     post({ kind: 'pong', fetchHooked: window.fetch === ourFetch });
   };
   window.addEventListener('message', (e) => {
-    if (e.source !== window || !e.data || e.data.source !== 'aimeter-content' || e.data.kind !== 'hello') return;
+    if (e.source !== window || !e.data || e.data.source !== 'headroom-content' || e.data.kind !== 'hello') return;
     e.stopImmediatePropagation(); // never let a page script see (or steal) the port
     if (port || e.origin !== location.origin || !e.ports || !e.ports[0]) return;
     port = e.ports[0];
@@ -153,11 +153,11 @@
   const XO = XMLHttpRequest.prototype.open;
   const XS = XMLHttpRequest.prototype.send;
   XMLHttpRequest.prototype.open = function (method, url) {
-    this.__aimeter = { method: String(method).toUpperCase(), url: abs(url) };
+    this.__headroom = { method: String(method).toUpperCase(), url: abs(url) };
     return XO.apply(this, arguments);
   };
   XMLHttpRequest.prototype.send = function (b) {
-    const info = this.__aimeter;
+    const info = this.__headroom;
     if (info) {
       const body = PRIVATE.test(info.url) ? null : bodyText(b);
       post({ kind: 'request', ...info, body });

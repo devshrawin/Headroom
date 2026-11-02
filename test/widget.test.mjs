@@ -149,7 +149,7 @@ test('dragging the pill moves it and remembers the position; a drag is not a cli
   p.fire('pointermove', { clientX: 450, clientY: 480 });
   p.fire('pointerup', { clientX: 450, clientY: 480 });
   assert.equal(w.panelText(), null, 'a drag does not open the panel');
-  const saved = JSON.parse(w.store['aimeter.pos']);
+  const saved = JSON.parse(w.store['headroom.pos']);
   assert.equal(saved.right, 1280 - 1000 + 50);
   assert.equal(saved.bottom, 800 - 700 + 20);
 });

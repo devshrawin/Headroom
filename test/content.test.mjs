@@ -8,7 +8,7 @@ const read = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const quotas = (() => {
   const c = vm.createContext({ console });
   vm.runInContext(read('src/core/quotas.js'), c);
-  return c.AIMeter;
+  return c.Headroom;
 })();
 
 // Runs the real content-script bundle (exactly the manifest's file order) on a fake page at `host`.
@@ -55,12 +55,12 @@ async function loadContent(host, { settings, top = true, beforeContent } = {}) {
   const files = ['src/core/quotas.js', ...quotas.CONTENT_BUNDLE.filter((f) => f !== 'src/core/quotas.js')];
   const unique = [...new Set(files)];
   for (const f of unique) {
-    if (f === 'src/content.js' && beforeContent) beforeContent(ctx.AIMeter);
+    if (f === 'src/content.js' && beforeContent) beforeContent(ctx.Headroom);
     vm.runInContext(read(f), ctx, { filename: f });
   }
   await new Promise((r) => setTimeout(r, 30));
-  const usage = () => sent.filter((m) => m.type === 'aimeter:usage');
-  return { AM: ctx.AIMeter, sent, usage, onMessage, onChanged, stored, document, ctx };
+  const usage = () => sent.filter((m) => m.type === 'headroom:usage');
+  return { AM: ctx.Headroom, sent, usage, onMessage, onChanged, stored, document, ctx };
 }
 
 test('every built-in provider host gets its own adapter', async () => {
@@ -124,7 +124,7 @@ test('the refresh message from the popup is answered', async () => {
   const c = await loadContent('claude.ai');
   assert.equal(c.onMessage.length > 0, true);
   let replied;
-  const keep = c.onMessage.map((fn) => fn({ type: 'aimeter:refresh' }, {}, (r) => { replied = r; }));
+  const keep = c.onMessage.map((fn) => fn({ type: 'headroom:refresh' }, {}, (r) => { replied = r; }));
   assert.ok(keep.includes(true), 'async reply is kept open');
   await new Promise((r) => setTimeout(r, 30));
   assert.deepEqual(JSON.parse(JSON.stringify(replied)), { ok: true });
@@ -155,7 +155,7 @@ test('an adapter whose refresh throws (sync or async) is contained: the request 
   for (const refresh of [() => { throw new Error('sync'); }, async () => { throw new Error('async'); }]) {
     const c = await loadContent('broken.example', { beforeContent: brokenAdapter({ refresh }) });
     let replied = null;
-    c.onMessage.forEach((fn) => fn({ type: 'aimeter:refresh' }, {}, (r) => { replied = r; }));
+    c.onMessage.forEach((fn) => fn({ type: 'headroom:refresh' }, {}, (r) => { replied = r; }));
     await new Promise((r) => setTimeout(r, 30));
     assert.equal(replied && replied.ok, true);
     c.onChanged.forEach((fn) => fn({ settings: { newValue: {} } }, 'local')); // a settings change must not throw either

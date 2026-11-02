@@ -53,17 +53,17 @@ export function loadBackground({ storage = makeStorage(), contains = async () =>
 
   const settle = () => new Promise((r) => setTimeout(r, 10));
   return {
-    AM: ctx.AIMeter, notifications, alarms, badges, registeredScripts, tabsCreated, listeners, storage, settle,
+    AM: ctx.Headroom, notifications, alarms, badges, registeredScripts, tabsCreated, listeners, storage, settle,
     // what content.js sends after each refresh
     async usage(provider, name, meters, problem = null, sender = { tab: { id: 1 } }) {
-      listeners.message.forEach((fn) => fn({ type: 'aimeter:usage', provider, name, meters, problem }, sender, () => {}));
+      listeners.message.forEach((fn) => fn({ type: 'headroom:usage', provider, name, meters, problem }, sender, () => {}));
       await settle();
     },
     // two senders at the same moment, without waiting in between
     async usageTogether(provider, name, meters) {
       listeners.message.forEach((fn) => {
-        fn({ type: 'aimeter:usage', provider, name, meters }, { tab: { id: 1 } }, () => {});
-        fn({ type: 'aimeter:usage', provider, name, meters }, { tab: { id: 2 } }, () => {});
+        fn({ type: 'headroom:usage', provider, name, meters }, { tab: { id: 1 } }, () => {});
+        fn({ type: 'headroom:usage', provider, name, meters }, { tab: { id: 2 } }, () => {});
       });
       await settle();
     },

@@ -8,13 +8,13 @@ First store-ready release.
 
 ### Changed
 - **Meter redesign.** The pill, panel and bar follow a new design: every usage level has its own shape as well as its colour (filled dot, half dot, triangle, square, dashed ring), so it reads in greyscale and for colour-blind users; deeper status colours that pass WCAG contrast; three source-tag shapes (solid with a tick for real, dashed with "≈" for estimate, flagged for banner); small gaps at 75% and 90% on every bar and striped fill from 90%; the reset time only shows from "close" up; the cache timer uses the accent colour with a clock; a hairline and soft shadow so the pill separates on dark and busy pages. The bar style shows a label chip in the middle on hover or focus and grows from 6 to 10 px. The toolbar popup, the settings page and the first-run guide use the same tokens, level glyphs and source-tag shapes, so every surface matches.
-- **Renamed from AI Meter to Headroom.** New name in the extension, popup, settings, first-run guide, notifications, privacy policy, store listing and README. Internal identifiers and saved data are unchanged.
+- **Renamed from AI Meter to Headroom.** New name in the extension, popup, settings, first-run guide, notifications, privacy policy, store listing and README. Internal identifiers were renamed too; old settings exports and the saved pill position still load.
 - **New Iris art.** Redrawn sprite pack: clearer worried and stressed faces, a soft lavender edge so she stands out on white pages, and a smooth 12-frame walk cycle. Fur colour and size are matched across every pose.
 - Popup is one collapsible line per service (0.9.2) with a lavender look and dark mode (0.9.1).
 
 ### Added
 - **Bar style (experimental).** Settings → Meter style can show a thin full-width bar along the top or bottom of the page instead of the pill. It fills to your usage, shows the details when you point at it or focus it, and opens the same panel on click. No Iris in this style.
-- **First-run guide.** A short page opens once on install: what AI Meter reads, how to add a site, and what the real / estimate / banner tags mean. It is also linked from Settings.
+- **First-run guide.** A short page opens once on install: what Headroom reads, how to add a site, and what the real / estimate / banner tags mean. It is also linked from Settings.
 - **Export and import settings.** Save your limits, thresholds and Iris options to a file and load them back. A backup holds settings only. Sites you added need Chrome's permission again, so you add them again after importing.
 - `npm run store-zip` builds the Web Store zip and refuses to if something is wrong.
 

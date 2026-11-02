@@ -2,7 +2,7 @@
 // because it runs inside the content-script bundle. Shapes: ok = filled dot, close = half dot, critical = triangle,
 // empty = square, unknown = dashed ring, problem = ring with "!", hollow = a stale "ok".
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const NS = 'http://www.w3.org/2000/svg';
   const CUR = 'currentColor';
   const node = (tag, attrs) => {

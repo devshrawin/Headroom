@@ -1,5 +1,5 @@
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   if (window.top !== window) return;
 
   const host = location.hostname;
@@ -103,13 +103,13 @@
     const meters = current();
     const shown = AM.problemToShow(problem, meters);
     AM.widget.update(adapter.name, meters, settings, settings.chatStats ? chat : null, shown);
-    send({ type: 'aimeter:usage', provider: adapter.id, name: adapter.name, meters, problem: shown });
+    send({ type: 'headroom:usage', provider: adapter.id, name: adapter.name, meters, problem: shown });
   }
 
   // Iris's code is not in the always-loaded bundle: the background script injects it into this tab on request.
   AM.loadPet = () => new Promise((resolve, reject) => {
     try {
-      chrome.runtime.sendMessage({ type: 'aimeter:loadPet' }, (r) => {
+      chrome.runtime.sendMessage({ type: 'headroom:loadPet' }, (r) => {
         if (chrome.runtime.lastError || !r || !r.ok) reject(new Error((r && r.error) || 'could not load Iris'));
         else resolve();
       });
@@ -178,12 +178,12 @@
       if (adapter) handle(d);
       else if (pending.length < 200) pending.push(d);
     };
-    window.postMessage({ source: 'aimeter-content', kind: 'hello' }, location.origin, [ch.port2]);
+    window.postMessage({ source: 'headroom-content', kind: 'hello' }, location.origin, [ch.port2]);
     setTimeout(connect, 1500); // no answer yet (inject.js may start later): try again with a fresh channel
   }
   // inject.js announces itself when it starts, in case we sent our hello before it was listening.
   window.addEventListener('message', (e) => {
-    if (!port && e.source === window && e.data && e.data.source === 'aimeter-inject' && e.data.kind === 'ready') connect();
+    if (!port && e.source === window && e.data && e.data.source === 'headroom-inject' && e.data.kind === 'ready') connect();
   });
   connect();
 
@@ -206,7 +206,7 @@
   };
 
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-    if (msg && msg.type === 'aimeter:refresh' && adapter) {
+    if (msg && msg.type === 'headroom:refresh' && adapter) {
       refreshAdapter().finally(() => reply({ ok: true }));
       return true;
     }

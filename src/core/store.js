@@ -5,7 +5,7 @@
 // "Extension context invalidated". Such an orphaned copy detects that, stops its timers,
 // removes its widget and goes quiet. The freshly injected copy takes over after a tab reload.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const KEEP_MS = 8 * 24 * 3600e3;
 
   // Track intervals created by our scripts so an orphaned copy can stop all of them.

@@ -1,6 +1,6 @@
 # Headroom
 
-*Formerly AI Meter. The code keeps the old name in a few internal identifiers (`AIMeter`, `aimeter:` messages, the `aimeter.pos` storage key) so nothing a user has saved is lost.*
+*Formerly AI Meter. Old exported settings files and the saved pill position still import and load.*
 
 A Chrome extension that shows how much of your usage limit is left on **Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek, Qwen, Le Chat, Copilot, Meta AI, Poe — and any other AI chat site you add** — as a small draggable meter on the page, a toolbar badge, and a popup with every provider in one place. Desktop notifications fire at 75 / 90 / 100 % and again when a limit resets.
 
@@ -68,7 +68,7 @@ She only stands on top edges. Only her visible sprite takes clicks, so the page 
 - **Jumps and falls** follow real arcs.
 - **Idle:** she breathes, trembles when stressed, and sways when dizzy.
 
-Debug knobs: `AIMeter.irisGait = 'walk8' | 'hop' | 'frames'`, `AIMeter.irisTimeScale` (slow motion).
+Debug knobs: `Headroom.irisGait = 'walk8' | 'hop' | 'frames'`, `Headroom.irisTimeScale` (slow motion).
 
 The other poses are 16 sprite frames in `src/assets/iris/`. The current art is the October 2026 redesign: three generated sheets, background keyed out, each pose scaled to one cat size and its fur colour matched across all frames. The sprites are committed; `scripts/build-sprites.py` documents the earlier pipeline and does **not** regenerate this art. The animation code only reads frames by name.
 
@@ -150,7 +150,7 @@ Bump `manifest.json`, `package.json` and `CHANGELOG.md` together. One dated rele
 Create `src/adapters/<name>.js`:
 
 ```js
-AIMeter.register({
+Headroom.register({
   id: 'example', name: 'Example', hosts: ['example.com'],
   init(ctx) {
     ctx.onResponse((d) => { /* d.url, d.status, d.body, d.reqBody */ });

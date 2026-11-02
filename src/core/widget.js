@@ -2,8 +2,8 @@
 // The pill stays mounted between updates so Iris (pet.js) isn't reset on every refresh.
 // Look and tokens: the Headroom meter redesign (levels = glyph + colour + bar pattern, source tags = three shapes).
 (() => {
-  const AM = globalThis.AIMeter;
-  const POS_KEY = 'aimeter.pos';
+  const AM = globalThis.Headroom;
+  const POS_KEY = 'headroom.pos';
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
   const CSS = `
@@ -184,7 +184,7 @@
 
   const loadPos = () => {
     try {
-      const p = JSON.parse(localStorage.getItem(POS_KEY));
+      const p = JSON.parse(localStorage.getItem(POS_KEY) || localStorage.getItem('aimeter.pos')); // old key from before the rename
       const ok = (n) => Number.isFinite(n) && n >= -20 && n <= 20000;
       return p && ok(p.right) && ok(p.bottom) ? { right: p.right, bottom: p.bottom } : null;
     } catch { return null; }
@@ -245,7 +245,7 @@
   function mount() {
     if (host || !document.body) return;
     host = document.createElement('div');
-    host.setAttribute('data-aimeter', '');
+    host.setAttribute('data-headroom', '');
     const ms = lastSettings.meterStyle;
     barMode = ms === 'bar-top' ? 'top' : ms === 'bar-bottom' ? 'bottom' : null;
     const pos = loadPos() || { right: 16, bottom: 16 };
@@ -559,7 +559,7 @@
 
   AM.widget = {
     destroy: unmount,
-    get pet() { return pet; }, // for debugging from the console: AIMeter.widget.pet.play('yarn')
+    get pet() { return pet; }, // for debugging from the console: Headroom.widget.pet.play('yarn')
     update(name, meters, settings, chat, problem) {
       if (AM.dead) return;
       last = { name, meters, chat: chat || null, problem: problem || null };

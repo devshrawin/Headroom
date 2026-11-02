@@ -10,7 +10,7 @@ const read = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const AM = (() => {
   const ctx = vm.createContext({ console });
   for (const f of ['src/core/quotas.js', 'src/core/common.js']) vm.runInContext(read(f), ctx, { filename: f });
-  return ctx.AIMeter;
+  return ctx.Headroom;
 })();
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
@@ -65,7 +65,7 @@ function loadInject() {
   vm.runInContext(read('src/inject.js'), sandbox, { filename: 'inject.js' });
   const fakePort = () => ({ sent: [], postMessage(d) { this.sent.push(d); }, onmessage: null });
   const hello = (port, over = {}) => {
-    const ev = { source: vm.runInContext('window', sandbox), origin: 'https://example.test', data: { source: 'aimeter-content', kind: 'hello' }, ports: port ? [port] : [], swallowed: false, stopImmediatePropagation() { this.swallowed = true; }, ...over };
+    const ev = { source: vm.runInContext('window', sandbox), origin: 'https://example.test', data: { source: 'headroom-content', kind: 'hello' }, ports: port ? [port] : [], swallowed: false, stopImmediatePropagation() { this.swallowed = true; }, ...over };
     handlers.filter((h) => h.type === 'message').forEach((h) => h.fn(ev));
     return ev;
   };

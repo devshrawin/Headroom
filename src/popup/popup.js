@@ -1,4 +1,4 @@
-const AM = globalThis.AIMeter;
+const AM = globalThis.Headroom;
 const list = document.getElementById('list');
 const summary = document.getElementById('summary');
 
@@ -183,7 +183,7 @@ document.getElementById('add').addEventListener('click', () => chrome.runtime.op
 document.getElementById('refresh').addEventListener('click', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab && tab.id != null) {
-    try { await chrome.tabs.sendMessage(tab.id, { type: 'aimeter:refresh' }); } catch {}
+    try { await chrome.tabs.sendMessage(tab.id, { type: 'headroom:refresh' }); } catch {}
   }
   setTimeout(render, 800);
 });

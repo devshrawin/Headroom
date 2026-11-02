@@ -22,7 +22,7 @@ Headroom is a Chrome extension that shows how much of your usage limit is left o
 | **Chat length** (for the "This chat" figures) | The number of characters in the open conversation on the page | A character and message count only. Never the text | No |
 | **Your settings** | You | Estimate limits, thresholds, added sites, Iris on or off, in `chrome.storage.local` | No |
 | **A settings backup** (only if you ask for one) | You, with **Export settings** in Settings | A file the browser saves where you choose, holding your settings only: estimate limits, thresholds, Iris options and the addresses of sites you added. No usage numbers, message counts or debug log. Importing reads a file you pick, on your machine | No. Nothing is uploaded; the file stays wherever you put it |
-| **Meter position** | You, when you drag the meter | The pill position, saved under the key `aimeter.pos` in the page's own `localStorage` | No |
+| **Meter position** | You, when you drag the meter | The pill position, saved under the key `headroom.pos` in the page's own `localStorage` | No |
 | **Debug log** (off by default) | The extension itself, only if you tick Debug | Key names and short model-like values of requests, full bodies only of usage and limit endpoints, and only the *shape* (keys and types) of anything else. Emails, tokens and long ids in it are masked. Stored locally, capped to the latest entries; clear it any time in Settings | No, unless you choose to copy and paste it yourself |
 
 ## How the page-world script works
@@ -77,7 +77,7 @@ If this policy changes, the new version is published at this address with a new 
 
 ## Contact
 
-Open an issue at <https://github.com/devshrawin/ai-meter/issues>.
+Open an issue at <https://github.com/devshrawin/Headroom/issues>.
 
 ## Not affiliated
 

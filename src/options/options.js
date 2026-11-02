@@ -1,4 +1,4 @@
-const AM = globalThis.AIMeter;
+const AM = globalThis.Headroom;
 const $ = (id) => document.getElementById(id);
 let settings;
 
@@ -149,7 +149,7 @@ function renderSites() {
   }
 }
 
-const scriptIds = (host) => ['aimeter-main-' + host, 'aimeter-iso-' + host];
+const scriptIds = (host) => ['headroom-main-' + host, 'headroom-iso-' + host];
 
 async function addSite() {
   const host = $('siteHost').value.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/[/?#].*$/, '');
@@ -200,7 +200,7 @@ $('exportSettings').addEventListener('click', () => {
   const url = URL.createObjectURL(new Blob([JSON.stringify(file, null, 2)], { type: 'application/json' }));
   const a = document.createElement('a');
   a.href = url;
-  a.download = 'ai-meter-settings-' + new Date().toISOString().slice(0, 10) + '.json';
+  a.download = 'headroom-settings-' + new Date().toISOString().slice(0, 10) + '.json';
   document.body.append(a);
   a.click();
   a.remove();

@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const manifest = JSON.parse(readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
 const ctx = vm.createContext({ console });
 vm.runInContext(readFileSync(new URL('../src/core/quotas.js', import.meta.url), 'utf8'), ctx, { filename: 'quotas.js' });
-const AM = ctx.AIMeter;
+const AM = ctx.Headroom;
 
 const covers = (patterns, host) => patterns.some((p) => {
   const m = p.match(/^https:\/\/([^/]+)\/\*$/);
@@ -52,8 +52,8 @@ test('the widget loads and works without the pet engine present', () => {
   const sb = { console, document: { createElement() { return {}; } }, localStorage: {}, setInterval: () => 0, chrome: {} };
   const c = vm.createContext(sb);
   for (const f of ['src/core/quotas.js', 'src/core/common.js', 'src/core/widget.js']) vm.runInContext(readFileSync(new URL('../' + f, import.meta.url), 'utf8'), c, { filename: f });
-  assert.equal(typeof c.AIMeter.widget.update, 'function');
-  assert.equal(c.AIMeter.createPet, undefined, 'no pet until it is requested');
+  assert.equal(typeof c.Headroom.widget.update, 'function');
+  assert.equal(c.Headroom.createPet, undefined, 'no pet until it is requested');
 });
 
 test('every file the manifest points at exists (icons, popup, options, background, content scripts)', () => {

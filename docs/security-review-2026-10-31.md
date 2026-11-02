@@ -1,4 +1,4 @@
-# Security review: AI Meter 0.10.0 → 1.0.0 (Stage 3)
+# Security review: Headroom 0.10.0 → 1.0.0 (Stage 3)
 
 Date: 2026-10-31. Scope: the whole extension (`manifest.json`, `src/`). Method: line-by-line read of the page-world hook, content script, service worker, shared helpers, adapters and options page; the agent-skills pre-ship checklist (secrets, dependencies, remote code, CSP, input validation); runtime tests for every fix (`test/hardening.test.mjs`, `test/channel.test.mjs`, `test/content.test.mjs`). Not done: a live pen-test against a hostile page in a real browser (see "Not verified").
 

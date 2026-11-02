@@ -1,6 +1,6 @@
 // Kimi: MembershipService/GetSubscription → balances[].amountUsedRatio (real). Connect-RPC JSON.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const SUB_PATH = '/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscription';
 
   AM.register({

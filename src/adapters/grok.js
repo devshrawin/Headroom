@@ -3,7 +3,7 @@
 // is a separate (Grok Build) credit pool: when it carries no usage figure we ignore it instead of showing a false 0%.
 // Messages are sent over the /ws/mgw WebSocket.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const CREDITS_PATH = '/grok_api_v2.GrokBuildBilling/GetGrokCreditsConfig';
   // Empty request message wrapped in a gRPC-web frame, as the app sends it.
   const CREDITS_BODY = new Uint8Array([0x00, 0x00, 0x00, 0x00, 0x02, 0x08, 0x00]);

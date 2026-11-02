@@ -1,7 +1,7 @@
 // Provider registry, default estimate rules and settings. No chrome.* or DOM access here.
 // Estimate rules are matched top-down against the model name seen in each send; first match wins.
 (() => {
-  const AM = (globalThis.AIMeter = globalThis.AIMeter || { adapters: [] });
+  const AM = (globalThis.Headroom = globalThis.Headroom || { adapters: [] });
 
   // source: what kind of number we can get. 'real' = provider-reported, 'estimate' = local counting.
   AM.PROVIDERS = [
@@ -49,8 +49,8 @@
   AM.siteScripts = (host) => {
     const matches = [`https://${host}/*`];
     return [
-      { id: 'aimeter-main-' + host, matches, js: ['src/inject.js'], world: 'MAIN', runAt: 'document_start' },
-      { id: 'aimeter-iso-' + host, matches, js: AM.CONTENT_BUNDLE, runAt: 'document_start' },
+      { id: 'headroom-main-' + host, matches, js: ['src/inject.js'], world: 'MAIN', runAt: 'document_start' },
+      { id: 'headroom-iso-' + host, matches, js: AM.CONTENT_BUNDLE, runAt: 'document_start' },
     ];
   };
 

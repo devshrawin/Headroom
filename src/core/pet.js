@@ -8,7 +8,7 @@
 //  • continuous breathing, sleep frames cross-breathe, stressed tremble, dizzy sway
 //  • all timing on a virtual clock (AM.irisTimeScale for slow-mo), cancellable behaviours
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const FRONT = new Set(['sit', 'sit-blink', 'sit-happy', 'sit-worried', 'sit-stressed', 'mew', 'purr', 'groom', 'dazed', 'fall']);
   const REST = new Set(['sit', 'sit-blink', 'sit-happy', 'sit-worried', 'sit-stressed', 'mew', 'purr', 'groom']);
   const WALK = ['walk-1', 'walk-2', 'walk-3', 'walk-4'];

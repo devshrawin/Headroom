@@ -1,6 +1,6 @@
 // Pure helpers shared by content scripts, popup and tests. No chrome.* or DOM access here.
 (() => {
-  const AM = (globalThis.AIMeter = globalThis.AIMeter || { adapters: [] });
+  const AM = (globalThis.Headroom = globalThis.Headroom || { adapters: [] });
   const HOUR = 3600e3;
 
   AM.register = (adapter) => AM.adapters.push(adapter);
@@ -317,7 +317,7 @@
     const s = AM.mergeSettings(settings);
     const keep = {};
     for (const k of ['widget', 'chatStats', 'pet', 'irisEnergy', 'meterStyle', 'explore', 'notify', 'thresholds', 'debug', 'quotas', 'customSites']) keep[k] = s[k];
-    return { app: 'ai-meter', format: 1, version: version || '', exportedAt: now.toISOString(), settings: keep };
+    return { app: 'headroom', format: 1, version: version || '', exportedAt: now.toISOString(), settings: keep };
   };
 
   // Everything in a file the user picked is untrusted: rebuilt field by field with type and size checks.
@@ -328,7 +328,7 @@
     if (typeof text !== 'string' || text.length > 200000) return fail('That file is too large to be an Headroom backup.');
     let j;
     try { j = JSON.parse(text); } catch { return fail('That is not a valid JSON file.'); }
-    if (!j || typeof j !== 'object' || j.app !== 'ai-meter' || !j.settings || typeof j.settings !== 'object' || Array.isArray(j.settings)) {
+    if (!j || typeof j !== 'object' || (j.app !== 'headroom' && j.app !== 'ai-meter') || !j.settings || typeof j.settings !== 'object' || Array.isArray(j.settings)) {
       return fail('That file is not an Headroom backup.');
     }
     const s = j.settings;

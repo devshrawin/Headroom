@@ -42,7 +42,7 @@ const shots = {
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const port = 9333;
 const chrome = spawn(CHROME, ['--headless=new', '--disable-gpu', '--hide-scrollbars', '--force-device-scale-factor=1',
-  `--remote-debugging-port=${port}`, `--user-data-dir=${join(tmpdir(), 'aimeter-shots-profile')}`, 'about:blank'], { stdio: 'ignore' });
+  `--remote-debugging-port=${port}`, `--user-data-dir=${join(tmpdir(), 'headroom-shots-profile')}`, 'about:blank'], { stdio: 'ignore' });
 try {
   for (let i = 0; i < 50; i++) {
     try { await fetch(`http://127.0.0.1:${port}/json/version`); break; } catch { await sleep(200); }

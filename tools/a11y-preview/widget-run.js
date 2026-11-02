@@ -1,6 +1,6 @@
 const CHAT = `<div class="chat"><div class="msg me">Can you summarise the main risks in this contract?</div><div class="msg ai">Three things stand out: the auto-renewal clause, the liability cap, and the unusual termination notice period. Want me to go through each one?</div><div class="msg me">Yes, start with the liability cap.</div><div class="msg ai">The cap is set at the fees paid in the last twelve months, which is common, but it excludes data loss. That is the part worth negotiating.</div></div>`;
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const q = new URLSearchParams(location.search);
   const state = q.get('state') || 'ok';
   const PCT = { ok: 32, warn: 80, hot: 96, full: 100 };
@@ -21,7 +21,7 @@ const CHAT = `<div class="chat"><div class="msg me">Can you summarise the main r
   AM.siteId = 'claude';
   AM.widget.update('Claude', meters, { widget: true, pet: q.get('pet') !== '0', explore: false, irisEnergy: 'calm', meterStyle: q.get('style') || 'pill' }, q.get('bare') === '1' ? null : chat, problem);
   if (q.get('open') === '1') setTimeout(() => {
-    const pill = document.querySelector('[data-aimeter]').shadowRoot.querySelector('.pill');
+    const pill = document.querySelector('[data-headroom]').shadowRoot.querySelector('.pill');
     const ev = (t) => pill.dispatchEvent(new PointerEvent(t, { bubbles: true, clientX: 5, clientY: 5, pointerId: 1 }));
     ev('pointerdown'); ev('pointerup');
   }, 400);

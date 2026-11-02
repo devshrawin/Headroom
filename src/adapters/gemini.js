@@ -1,7 +1,7 @@
 // Gemini: real 5h + weekly usage from the batchexecute RPC behind gemini.google.com/usage (jSf9Qc).
 // Replay params (at, bl, f.sid) come from the app's own batchexecute calls or the page's WIZ_global_data.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const RPC = 'jSf9Qc';
 
   AM.register({

@@ -1,6 +1,6 @@
 // Watches for the provider's own "you've hit your limit" / "N messages remaining" notices.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
 
   // Only wording a site uses to tell *you* you're blocked. Bare phrases like "rate limit" or
   // "usage limit" are excluded: they turn up in ordinary conversation (e.g. chatting about limits).

@@ -80,7 +80,7 @@ export function loadWidget({ settings = {}, pet = false } = {}) {
   };
   const ctx = vm.createContext(sandbox);
   for (const f of ['src/core/quotas.js', 'src/core/common.js', 'src/core/parsers.js', 'src/core/widget.js']) vm.runInContext(read(f), ctx, { filename: f });
-  const AM = ctx.AIMeter;
+  const AM = ctx.Headroom;
   const pets = [];
   if (pet) {
     AM.loadPet = () => Promise.resolve();
@@ -95,7 +95,7 @@ export function loadWidget({ settings = {}, pet = false } = {}) {
   return {
     AM, document, store, timers, pets, sandbox, tick,
     update(name, meters, over = {}, chat = null, problem = null) { AM.widget.update(name, meters, { ...base, ...over }, chat, problem); },
-    get host() { return document.body.children.find((c) => c.attrs && 'data-aimeter' in c.attrs) || null; },
+    get host() { return document.body.children.find((c) => c.attrs && 'data-headroom' in c.attrs) || null; },
     get root() { return this.host && this.host.shadow; },
     pill() { return this.root.byClass('pill')[0]; },
     pillText() { return this.pill().byClass('info')[0].textContent; },

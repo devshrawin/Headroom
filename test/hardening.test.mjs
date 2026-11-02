@@ -8,7 +8,7 @@ const read = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const AM = (() => {
   const ctx = vm.createContext({ console });
   for (const f of ['src/core/quotas.js', 'src/core/common.js']) vm.runInContext(read(f), ctx, { filename: f });
-  return ctx.AIMeter;
+  return ctx.Headroom;
 })();
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
@@ -38,7 +38,7 @@ test('diagnostics: stored log lines are redacted again when copied out', () => {
 
 // ---------- usage report validation ----------
 
-const good = () => ({ type: 'aimeter:usage', provider: 'claude', name: 'Claude', meters: [{ id: 'session', label: 'Session', pct: 12, resetAt: 1e12, source: 'real', secondary: false }], problem: null });
+const good = () => ({ type: 'headroom:usage', provider: 'claude', name: 'Claude', meters: [{ id: 'session', label: 'Session', pct: 12, resetAt: 1e12, source: 'real', secondary: false }], problem: null });
 
 test('validateUsageMessage: a good report passes, rebuilt without unknown fields', () => {
   const r = plain(AM.validateUsageMessage({ ...good(), evil: 1, meters: [{ ...good().meters[0], evil: { a: 1 } }] }));

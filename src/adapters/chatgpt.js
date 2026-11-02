@@ -2,7 +2,7 @@
 // (estimate). Real numbers where they exist: Codex 5h/weekly windows from /backend-api/wham/usage
 // and feature counters (deep research, images) from conversation/init.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const SEND_RE = /\/(backend-api|unauth-mweb)\/(f\/)?conversation(\?|$)/;
   // The anti-bot token is fetched right before every send, signed in or out, even when the
   // send itself isn't visible to the page hook (signed-out chat streams it elsewhere).

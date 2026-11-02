@@ -6,7 +6,7 @@ import vm from 'node:vm';
 const AM = (() => {
   const ctx = vm.createContext({ console });
   for (const f of ['src/core/quotas.js', 'src/core/common.js']) vm.runInContext(readFileSync(new URL('../' + f, import.meta.url), 'utf8'), ctx, { filename: f });
-  return ctx.AIMeter;
+  return ctx.Headroom;
 })();
 const now = 1_000_000_000_000;
 const H = 3600e3;
