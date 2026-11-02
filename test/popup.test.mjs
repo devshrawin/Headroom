@@ -48,3 +48,17 @@ test('sortEntries: fresh before stale, then closest to its limit, then provider 
   const out = AM.sortEntries([e('claude', 90, 48 * H), e('chatgpt', 10, H), e('gemini', 60, H)], order, now);
   assert.deepEqual(out.map((x) => x.provider), ['gemini', 'chatgpt', 'claude']);
 });
+
+test('usageLevel: ok under 75, close from 75, crit from 90, empty at 100 or on a banner, unk without a number', () => {
+  const lv = (pct, m) => AM.usageLevel(m || {}, pct);
+  assert.equal(lv(0), 'ok');
+  assert.equal(lv(74.9), 'ok');
+  assert.equal(lv(75), 'close');
+  assert.equal(lv(89.9), 'close');
+  assert.equal(lv(90), 'crit');
+  assert.equal(lv(99.9), 'crit');
+  assert.equal(lv(100), 'empty');
+  assert.equal(lv(null), 'unk');
+  assert.equal(lv(undefined), 'unk');
+  assert.equal(lv(10, { source: 'banner' }), 'empty');
+});

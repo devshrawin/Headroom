@@ -197,6 +197,9 @@
     return order(a.provider) - order(b.provider) || a.name.localeCompare(b.name);
   });
 
+  // Usage level for the glyph, colour and bar pattern: ok under 75, close 75-89, crit 90-99, empty at 100 (or a banner hit), unk = no number.
+  AM.usageLevel = (m, pct) => (m && m.source === 'banner' ? 'empty' : pct == null ? 'unk' : pct >= 100 ? 'empty' : pct >= 90 ? 'crit' : pct >= 75 ? 'close' : 'ok');
+
   AM.level = (pct) => (pct == null ? 'none' : pct >= 90 ? 'high' : pct >= 75 ? 'mid' : 'low');
 
   // Window length in hours, from explicit data or the meter's id/label; unknown sorts between day and week.

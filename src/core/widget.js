@@ -171,7 +171,7 @@
   };
 
   // usage levels: ok under 75, close 75-89, crit 90-99, empty 100 (or a banner hit), unk = no number
-  const levelOf = (m, pct) => (m && m.source === 'banner' ? 'empty' : pct == null ? 'unk' : pct >= 100 ? 'empty' : pct >= 90 ? 'crit' : pct >= 75 ? 'close' : 'ok');
+  const levelOf = AM.usageLevel;
   const LEVEL_WORDS = { ok: 'plenty left', close: 'getting close', crit: 'nearly out', empty: 'limit reached', unk: '' };
   const problemKind = (p) => (p && p.kind === 'signin' ? 'unk' : 'problem');
 
