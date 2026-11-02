@@ -131,7 +131,7 @@ They show the real extension UI (the on-page meter, popup and settings page, ren
 | 4 | `4-popup.png` | Toolbar popup with several providers | Every provider in one popup | Popup after visiting a few sites |
 | 5 | `5-settings.png` | Settings: added site, estimate rules, backup | Add any AI site, set your own limits | Settings page |
 | 6 | `6-problem.png` | The "can't read usage here" state with Copy debug log | Tells you when it can't read a number | A provider whose usage cannot be read |
-| – | `promo-tile-440x280.png`, `marquee-1400x560.png` | Icon, name and "Know your limit before the cat does." | | |
+| – | `promo-tile-440x280.png`, `marquee-1400x560.png` | Icon, name and "Limits, in sight." | | |
 
 Upload 1 to 5 screenshots (the store allows five); 1, 2, 3, 4 and 6 are the strongest set. A desktop-notification shot is not included: a notification cannot be rendered outside the browser.
 

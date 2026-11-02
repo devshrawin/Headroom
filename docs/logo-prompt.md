@@ -18,4 +18,4 @@ Avoid: realistic cat photos, whiskers or eyes that become noise at small size, s
 
 Also ask for: a horizontal lockup (mark + the word "Headroom" in a rounded geometric sans, semi-bold) for the store marquee.
 
-How to use the result: save the square PNG as `icons/icon128.png`, or give me the SVG and I will drop it into `assets/headroom-logo.svg` and run `node scripts/make-icons.mjs`, which writes the 16, 32, 48 and 128 px icons.
+How to use the result: give me the PNG and I will drop it into `assets/headroom-logo-source.png` and run `python scripts/make-icons.py`, which writes the master and the 16, 32, 48 and 128 px icons.
