@@ -104,13 +104,20 @@
     notify: true,
     thresholds: [75, 90, 100],
     debug: false,
+    asciiBgEnabled: true,
+    asciiBgPreset: 'mixed',
     quotas: AM.DEFAULT_QUOTAS,
     customSites: [],
   };
 
+  // Creature sets for the popup's animated ASCII background (src/core/ascii-bg.js).
+  AM.ASCII_BG_PRESETS = ['mixed', 'koi', 'butterflies', 'ambient'];
+
   AM.mergeSettings = (s) => ({
     ...AM.DEFAULT_SETTINGS,
     ...(s || {}),
+    asciiBgEnabled: !(s && s.asciiBgEnabled === false),
+    asciiBgPreset: AM.ASCII_BG_PRESETS.includes(s && s.asciiBgPreset) ? s.asciiBgPreset : AM.DEFAULT_SETTINGS.asciiBgPreset,
     quotas: { ...AM.DEFAULT_QUOTAS, ...((s && s.quotas) || {}) },
     customSites: Array.isArray(s && s.customSites) ? s.customSites : [],
   });

@@ -74,6 +74,8 @@
     }
   });
 
+  // Settings live under one 'settings' key; AM.mergeSettings (quotas.js) fills in defaults,
+  // including the popup background's asciiBgEnabled / asciiBgPreset.
   AM.loadSettings = async () => {
     const { settings } = await storage.get('settings');
     return AM.mergeSettings(settings);

@@ -140,3 +140,11 @@ test('formatDuration', () => {
   assert.equal(AM.formatDuration(3 * 86400e3), '3d 0h');
   assert.equal(AM.formatDuration(-5), 'now');
 });
+
+test('mergeSettings: ASCII background defaults on, mixed preset; unknown presets fall back', () => {
+  assert.equal(AM.mergeSettings(null).asciiBgEnabled, true);
+  assert.equal(AM.mergeSettings(null).asciiBgPreset, 'mixed');
+  assert.equal(AM.mergeSettings({ asciiBgEnabled: false }).asciiBgEnabled, false);
+  assert.equal(AM.mergeSettings({ asciiBgPreset: 'koi' }).asciiBgPreset, 'koi');
+  assert.equal(AM.mergeSettings({ asciiBgPreset: 'dragons' }).asciiBgPreset, 'mixed');
+});

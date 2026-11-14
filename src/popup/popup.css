@@ -12,6 +12,8 @@
   --accent: #9a80e0;
   --chip: #f4f2fb;
   --shadow: 0 1px 2px rgba(60, 40, 120, .06), 0 4px 14px rgba(60, 40, 120, .06);
+  --grid: color-mix(in srgb, var(--line) 55%, transparent);
+  --glass: color-mix(in srgb, var(--card) 86%, transparent);
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -24,6 +26,8 @@
     --none: #6b6780;
     --chip: #26242f;
     --shadow: 0 1px 2px rgba(0, 0, 0, .3);
+    --grid: color-mix(in srgb, var(--line) 45%, transparent);
+    --glass: color-mix(in srgb, var(--card) 82%, transparent);
   }
 }
 * { box-sizing: border-box; }
@@ -33,7 +37,16 @@ body {
   background: var(--bg);
   color: var(--fg);
   font: 13px/1.4 system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* Faint graph-paper grid behind the ASCII creatures. */
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 18px 18px;
+  background-position: -1px -1px;
 }
+/* Canvas drawn by src/core/ascii-bg.js; the UI sits above it. */
+canvas.ascii-bg { position: fixed; inset: 0; z-index: 0; pointer-events: none; }
+header, main#list, footer { position: relative; z-index: 1; }
 header { display: flex; align-items: center; gap: 10px; padding: 12px 12px 8px 14px; }
 .avatar { border-radius: 10px; background: var(--card); border: 1px solid var(--line); object-fit: contain; }
 .title { flex: 1; min-width: 0; }
@@ -49,7 +62,7 @@ button.icon:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px
 
 main { display: flex; flex-direction: column; gap: 10px; padding: 4px 12px 10px; max-height: 520px; overflow-y: auto; }
 .card {
-  background: var(--card); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow);
+  background: var(--glass); -webkit-backdrop-filter: blur(2px); backdrop-filter: blur(2px); border: 1px solid var(--line); border-radius: 16px; padding: 12px 14px; box-shadow: var(--shadow);
 }
 .card.stale { opacity: .72; }
 .card { padding: 0; }
@@ -104,7 +117,7 @@ details.more .chips { margin-top: 6px; }
 .problem .why { color: var(--muted); font-size: 11.5px; margin: 2px 0 7px; }
 .problem button { font: inherit; font-size: 11.5px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--card); color: var(--fg); cursor: pointer; }
 .none { color: var(--muted); }
-.empty { padding: 22px 16px; text-align: center; color: var(--muted); background: var(--card); border: 1px dashed var(--line); border-radius: 16px; }
+.empty { padding: 22px 16px; text-align: center; color: var(--muted); background: var(--glass); backdrop-filter: blur(2px); border: 1px dashed var(--line); border-radius: 16px; }
 .empty b { display: block; color: var(--fg); margin-bottom: 4px; font-size: 14px; }
 
 footer { display: flex; gap: 12px; align-items: center; padding: 8px 14px 12px; color: var(--muted); font-size: 11px; }

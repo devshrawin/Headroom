@@ -90,6 +90,9 @@ function renderGeneral() {
   $('notify').checked = settings.notify;
   $('debug').checked = settings.debug;
   $('thresholds').value = settings.thresholds.join(', ');
+  $('asciiBg').checked = settings.asciiBgEnabled;
+  $('asciiBgPreset').value = settings.asciiBgPreset;
+  $('asciiBgPresetRow').classList.toggle('off', !settings.asciiBgEnabled);
 }
 
 async function renderLog() {
@@ -115,6 +118,8 @@ async function save() {
       irisEnergy: $('irisEnergy').value,
       notify: $('notify').checked,
       debug: $('debug').checked,
+      asciiBgEnabled: $('asciiBg').checked,
+      asciiBgPreset: AM.ASCII_BG_PRESETS.includes($('asciiBgPreset').value) ? $('asciiBgPreset').value : 'mixed',
       thresholds: thresholds.length ? thresholds : AM.DEFAULT_SETTINGS.thresholds,
       quotas: { ...settings.quotas, ...readQuotas() },
     };
@@ -196,6 +201,9 @@ $('irisHome').addEventListener('click', async () => {
 });
 $('irisEnergy').addEventListener('change', save);
 $('explore').addEventListener('change', save);
+// Appearance settings also apply straight away (an open popup picks them up live).
+$('asciiBg').addEventListener('change', save);
+$('asciiBgPreset').addEventListener('change', save);
 $('defaults').addEventListener('click', async () => {
   settings = { ...AM.mergeSettings(null), customSites: settings.customSites };
   await chrome.storage.local.set({ settings });

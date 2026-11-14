@@ -156,8 +156,25 @@ document.getElementById('refresh').addEventListener('click', async () => {
   setTimeout(render, 800);
 });
 
+// Animated ASCII creatures behind the cards, per the user's Appearance settings.
+let asciiBg = null;
+function applyBackground(settings) {
+  if (!settings.asciiBgEnabled || !AM.AsciiBg) {
+    if (asciiBg) asciiBg.destroy();
+    asciiBg = null;
+    return;
+  }
+  if (asciiBg) asciiBg.setPreset(settings.asciiBgPreset);
+  else asciiBg = AM.AsciiBg.mount({ preset: settings.asciiBgPreset });
+}
+chrome.storage.local.get('settings')
+  .then(({ settings }) => applyBackground(AM.mergeSettings(settings)))
+  .catch(() => {});
+
 chrome.storage.onChanged.addListener((changes, area) => {
-  if (area === 'local' && Object.keys(changes).some((k) => k.startsWith('usage.'))) render();
+  if (area !== 'local') return;
+  if (changes.settings) applyBackground(AM.mergeSettings(changes.settings.newValue));
+  if (Object.keys(changes).some((k) => k.startsWith('usage.'))) render();
 });
 render();
 setInterval(render, 30000);
