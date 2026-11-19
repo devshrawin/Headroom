@@ -1,0 +1,34 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Headroom koi pond (demo)</title>
+<style>
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{font:16px/1.55 system-ui,"Segoe UI",sans-serif;color:#f1f7f6;background:#06222f;overflow:hidden}
+  .app{position:relative;z-index:1;height:100%;display:flex;flex-direction:column;align-items:center}
+  header{width:100%;max-width:760px;padding:22px 20px 0;display:flex;align-items:center;gap:10px;font-weight:700;letter-spacing:-.01em}
+  header small{font-weight:500;opacity:.6}
+  .chat{width:100%;max-width:760px;flex:1;overflow:hidden;padding:28px 20px 0}
+  .u,.a{backdrop-filter:blur(10px) saturate(1.1);-webkit-backdrop-filter:blur(10px) saturate(1.1);border-radius:18px;padding:13px 17px;margin:0 0 16px;max-width:86%}
+  .u{margin-left:auto;background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.18)}
+  .a{background:rgba(4,30,40,.46);border:1px solid rgba(255,255,255,.10)}
+  .box{width:100%;max-width:760px;padding:0 20px 26px}
+  .input{display:flex;align-items:center;gap:12px;background:rgba(4,30,40,.55);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(12px);border-radius:22px;padding:14px 18px;color:rgba(241,247,246,.55)}
+  .hint{position:fixed;right:16px;top:14px;z-index:2;font-size:13px;opacity:.65}
+</style>
+<div class="app">
+  <header>Headroom <small>· koi pond background demo</small></header>
+  <div class="chat">
+    <div class="u">Can you summarise the main risks in this contract?</div>
+    <div class="a">Three things stand out: the auto-renewal clause, the liability cap, and the unusual termination notice period. Want me to go through each one?</div>
+    <div class="u">Yes, start with the liability cap.</div>
+    <div class="a">The cap is set at the fees paid in the last twelve months, which is common, but it excludes data loss. That is the part worth negotiating.</div>
+  </div>
+  <div class="box"><div class="input">Message Claude…</div></div>
+</div>
+<div class="hint">click anywhere: the koi dart away</div>
+<script src="../../src/core/koi-pond.js"></script>
+<script>
+  window.__pond = Headroom.KoiPond.mount({ scene: 'water', parent: document.body, manual: /manual/.test(location.search) });
+</script>
