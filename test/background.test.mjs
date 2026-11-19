@@ -150,3 +150,16 @@ test('loadPet is refused without a sender tab and injects the Iris bundle otherw
   await bg.settle();
   assert.equal(replies[1].ok, true);
 });
+
+test('loadBg refuses a missing tab or unknown theme and injects the engine plus one theme otherwise', async () => {
+  const bg = loadBackground();
+  const replies = [];
+  const [fn] = bg.listeners.message;
+  assert.equal(fn({ type: 'headroom:loadBg', theme: 'koi' }, {}, (r) => replies.push(r)), undefined);
+  assert.equal(replies[0].ok, false);
+  assert.equal(fn({ type: 'headroom:loadBg', theme: 'rain' }, { tab: { id: 3 }, frameId: 0 }, (r) => replies.push(r)), undefined);
+  assert.equal(replies[1].ok, false);
+  assert.equal(fn({ type: 'headroom:loadBg', theme: 'butterflies' }, { tab: { id: 3 }, frameId: 0 }, (r) => replies.push(r)), true);
+  await bg.settle();
+  assert.equal(replies[2].ok, true);
+});

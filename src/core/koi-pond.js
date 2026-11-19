@@ -71,48 +71,24 @@
   }
 
   function mount(opts = {}) {
-    const doc = document;
-    const win = window;
-    const parent = opts.parent || doc.documentElement;
-    const isDark = opts.isDark || (() => win.matchMedia('(prefers-color-scheme: dark)').matches);
-    const water = opts.scene === 'water'; // a full pond with its own water, instead of a blended overlay
-
-    const canvas = doc.createElement('canvas');
-    canvas.setAttribute('aria-hidden', 'true');
-    canvas.setAttribute('data-headroom', 'pond');
-    Object.assign(canvas.style, {
-      position: 'fixed', inset: '0', width: '100%', height: '100%', zIndex: water ? '0' : '2147483000',
-      pointerEvents: 'none', opacity: water ? '1' : '0', transition: water ? 'none' : 'opacity 1.2s ease', background: 'transparent',
-    });
-    parent.appendChild(canvas);
+    // A scene for the living-background engine: it draws into opts.canvas and never touches the page itself.
+    // opts.overlay: draw only the fish, pads and ripples on a transparent canvas (no water), to sit over a page.
+    const water = !opts.overlay;
+    const canvas = opts.canvas;
     const ctx = canvas.getContext('2d');
-    const reduceMq = win.matchMedia('(prefers-reduced-motion: reduce)');
 
     let W = 0, H = 0, dpr = 1;
     let koi = [];
     let pads = [];
     let ripples = [];
     let lights = [];
-    let dark = isDark();
+    const dark = false;
     let clock = 0;
     let last = 0;
-    let raf = 0;
     let destroyed = false;
-    let themeTimer = 0;
 
-    const applyMode = () => {
-      if (water) { canvas.style.mixBlendMode = 'normal'; return; }
-      canvas.style.mixBlendMode = dark ? 'screen' : 'multiply';
-      canvas.style.opacity = dark ? '0.55' : '0.6';
-    };
-
-    function resize() {
-      const w = win.innerWidth, h = win.innerHeight;
-      const d = Math.min(2, win.devicePixelRatio || 1);
-      if (w === W && h === H && d === dpr) return;
+    function resize(w, h, d) {
       W = w; H = h; dpr = d;
-      canvas.width = Math.max(1, Math.round(W * dpr));
-      canvas.height = Math.max(1, Math.round(H * dpr));
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
       const wantKoi = water ? clamp(Math.round((W * H) / 170000), 5, 9) : clamp(Math.round((W * H) / 260000), 3, 7);
       while (koi.length < wantKoi) koi.push(makeKoi(W, H));
@@ -127,8 +103,12 @@
     // ---- simulation -------------------------------------------------------------------------
     function step(k, dt) {
       const head0 = k.spine[0];
+      if (k.pending && clock >= k.pending.at) {
+        k.goal = { x: k.pending.x + rand(-90, 90), y: k.pending.y + rand(-70, 70), until: clock + rand(4, 6) };
+        k.pending = null;
+      }
       // Each fish drifts toward a pond spot of its own and picks a new one now and then, so the pond fills evenly.
-      if (!k.goal || clock > k.goal.until || Math.hypot(k.goal.x - head0.x, k.goal.y - head0.y) < k.size * 0.6) {
+      if (!k.goal || (clock > k.goal.until && !k.pending) || Math.hypot(k.goal.x - head0.x, k.goal.y - head0.y) < k.size * 0.6) {
         k.goal = { x: rand(W * 0.06, W * 0.94), y: rand(H * 0.08, H * 0.92), until: clock + rand(7, 14) };
       }
       k.heading += angleDiff(Math.atan2(k.goal.y - head0.y, k.goal.x - head0.x), k.heading) * 0.55 * dt;
@@ -151,6 +131,12 @@
       k.speed += (target - k.speed) * Math.min(1, dt * 2.5);
       head.x += Math.cos(k.heading) * k.speed * dt;
       head.y += Math.sin(k.heading) * k.speed * dt;
+      if (opts.onWake) {
+        const w = clamp(k.speed / (k.size * 0.45), 0, 2.4) * dt * 60;
+        opts.onWake(head.x, head.y, w);
+        const tail = k.spine[N - 1];
+        opts.onWake(tail.x, tail.y, w * 0.5);
+      }
       for (let i = 1; i < N; i++) {
         const a = k.spine[i - 1], b = k.spine[i];
         let dx = b.x - a.x, dy = b.y - a.y;
@@ -178,7 +164,10 @@
         if (p.y < -80) p.y = H + 80; if (p.y > H + 80) p.y = -80;
       }
       ripples = ripples.filter((r) => clock - r.t < r.life);
-      if (Math.random() < dt * 0.25) ripples.push({ x: rand(0, W), y: rand(0, H), t: clock, life: rand(3, 4.5), max: rand(36, 70), soft: true });
+      if (Math.random() < dt * 0.25) {
+        if (opts.onDrop) opts.onDrop(rand(0, W), rand(0, H), rand(0.25, 0.5));
+        else ripples.push({ x: rand(0, W), y: rand(0, H), t: clock, life: rand(3, 4.5), max: rand(36, 70), soft: true });
+      }
     }
 
     // ---- drawing ----------------------------------------------------------------------------
@@ -411,29 +400,16 @@
 
     function drawFrame() {
       if (destroyed || !W) return;
-      const pal = water ? PALETTE.water : dark ? PALETTE.dark : PALETTE.light;
+      const pal = PALETTE.water;
       if (water) drawWater(); else ctx.clearRect(0, 0, W, H);
       drawRipples(pal);
       for (const p of pads) { drawPad(p, pal); if (p.lotus) drawLotus(p); }
       for (const k of koi) drawKoi(k, pal);
     }
 
-    function tick(now) {
-      raf = 0;
-      if (destroyed) return;
-      const dt = last ? Math.min(0.05, (now - last) / 1000) : 0;
-      last = now;
-      stepAll(dt);
-      drawFrame();
-      raf = win.requestAnimationFrame(tick);
-    }
-    const start = () => { if (!raf && !destroyed && !doc.hidden && !reduceMq.matches) { last = 0; raf = win.requestAnimationFrame(tick); } };
-    const stop = () => { if (raf) { win.cancelAnimationFrame(raf); raf = 0; } };
-
     // ---- interaction ------------------------------------------------------------------------
     function onPointerDown(e) {
-      if (reduceMq.matches) return;
-      ripples.push({ x: e.clientX, y: e.clientY, t: clock, life: 2.2, max: 46, soft: false });
+      if (!opts.onDrop) ripples.push({ x: e.clientX, y: e.clientY, t: clock, life: 2.2, max: 46, soft: false });
       for (const k of koi) {
         const h = k.spine[0];
         const dx = h.x - e.clientX, dy = h.y - e.clientY;
@@ -444,63 +420,22 @@
           k.heading += angleDiff(away, k.heading) * (0.6 + 0.4 * f);
           k.flee = Math.max(k.flee, 0.35 + f);
         }
+        if (d < 520) k.pending = { x: e.clientX, y: e.clientY, at: clock + rand(1.1, 2.2) }; // curious: they come back to look
       }
     }
-    const onVisibility = () => (doc.hidden ? stop() : start());
-    const onMotion = () => { if (reduceMq.matches) { stop(); drawFrame(); } else start(); };
-    const ro = typeof ResizeObserver === 'function' ? new ResizeObserver(resize) : null;
-
-    win.addEventListener('pointerdown', onPointerDown, { passive: true, capture: true });
-    win.addEventListener('resize', resize);
-    doc.addEventListener('visibilitychange', onVisibility);
-    reduceMq.addEventListener('change', onMotion);
-    if (ro) ro.observe(doc.documentElement);
-    themeTimer = win.setInterval(() => {
-      const d = isDark();
-      if (d !== dark) { dark = d; applyMode(); if (!raf) drawFrame(); }
-    }, 1500);
-
-    applyMode();
-    resize();
+    resize(opts.W, opts.H, opts.dpr);
     // Let the fish settle into a natural arrangement before the first frame.
     for (let i = 0; i < 90; i++) stepAll(1 / 30);
     drawFrame();
-    if (!water) win.requestAnimationFrame(() => { canvas.style.opacity = dark ? '0.55' : '0.6'; });
-    if (!opts.manual) start();
 
-    function destroy() {
-      if (destroyed) return;
-      destroyed = true;
-      stop();
-      win.clearInterval(themeTimer);
-      win.removeEventListener('pointerdown', onPointerDown, { capture: true });
-      win.removeEventListener('resize', resize);
-      doc.removeEventListener('visibilitychange', onVisibility);
-      reduceMq.removeEventListener('change', onMotion);
-      if (ro) ro.disconnect();
-      canvas.remove();
-    }
-    // Manual stepping (used to render the demo video frame by frame).
-    const advance = (dt) => { stepAll(dt); drawFrame(); };
-    const poke = (x, y) => onPointerDown({ clientX: x, clientY: y });
-    return { destroy, canvas, advance, poke };
+    return {
+      resize,
+      advance(dt) { stepAll(dt); drawFrame(); },
+      poke: (x, y) => onPointerDown({ clientX: x, clientY: y }),
+      destroy() { destroyed = true; },
+      params: { refr: 0.016, spec: 1.1, damp: 0.991, shade: 0.35, tint: [0.75, 0.93, 1] },
+    };
   }
 
-  // Whether the page itself is dark: read its own background, fall back to the browser preference.
-  AM.pageIsDark = () => {
-    const lum = (css) => {
-      const m = /rgba?\((\d+)[ ,]+(\d+)[ ,]+(\d+)(?:[ ,/]+([\d.]+))?/.exec(css || '');
-      if (!m) return null;
-      if (m[4] !== undefined && +m[4] < 0.5) return null;
-      return (0.2126 * +m[1] + 0.7152 * +m[2] + 0.0722 * +m[3]) / 255;
-    };
-    for (const el of [document.body, document.documentElement]) {
-      if (!el) continue;
-      const l = lum(getComputedStyle(el).backgroundColor);
-      if (l !== null) return l < 0.45;
-    }
-    return window.matchMedia('(prefers-color-scheme: dark)').matches;
-  };
-
-  AM.KoiPond = { mount };
+  if (AM.Living) AM.Living.themes.koi = mount;
 })();

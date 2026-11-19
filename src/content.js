@@ -116,6 +116,33 @@
     } catch (e) { reject(e); }
   });
 
+  // Living background (Settings → Background): fish, butterflies or fireflies that drift over the page and react to
+  // clicks. Never blocks the page (pointer-events: none). Its code is injected on demand, like Iris.
+  AM.loadBg = (theme) => new Promise((resolve, reject) => {
+    try {
+      chrome.runtime.sendMessage({ type: 'headroom:loadBg', theme }, (r) => {
+        if (chrome.runtime.lastError || !r || !r.ok) reject(new Error((r && r.error) || 'could not load the background'));
+        else resolve();
+      });
+    } catch (e) { reject(e); }
+  });
+  let bgView = null;
+  let bgToken = 0;
+  const applyBackground = async () => {
+    const want = settings.bg;
+    const token = ++bgToken;
+    if (want === 'off' || !adapter) {
+      if (bgView) { bgView.destroy(); bgView = null; }
+      return;
+    }
+    try {
+      if (!(AM.Living && AM.Living.themes[want])) await AM.loadBg(want);
+      if (token !== bgToken || !AM.Living || !AM.Living.themes[want]) return;
+      if (!bgView) bgView = AM.Living.mount({ theme: want, overlay: true });
+      else if (bgView.theme !== want) bgView.setTheme(want);
+    } catch (e) { console.warn('[Headroom] background', e); }
+  };
+
   // "Copy debug log": diagnostics for the current provider, from this tab's state plus the stored debug log.
   AM.copyDiagnostics = async () => {
     let log = [];
@@ -217,6 +244,7 @@
     const wasDebug = settings.debug;
     settings = AM.mergeSettings(changes.settings.newValue);
     if (settings.debug !== wasDebug) checkHook();
+    applyBackground();
     refreshAdapter();
     publish();
   });
@@ -238,5 +266,6 @@
       pending.splice(0).forEach(handle);
       publish();
       checkHook();
+      applyBackground();
     });
 })();

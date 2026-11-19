@@ -316,7 +316,7 @@
   AM.buildExport = (settings, version, now = new Date()) => {
     const s = AM.mergeSettings(settings);
     const keep = {};
-    for (const k of ['widget', 'chatStats', 'pet', 'irisEnergy', 'meterStyle', 'explore', 'notify', 'thresholds', 'debug', 'quotas', 'customSites']) keep[k] = s[k];
+    for (const k of ['widget', 'chatStats', 'pet', 'irisEnergy', 'meterStyle', 'bg', 'explore', 'notify', 'thresholds', 'debug', 'quotas', 'customSites']) keep[k] = s[k];
     return { app: 'headroom', format: 1, version: version || '', exportedAt: now.toISOString(), settings: keep };
   };
 
@@ -337,6 +337,7 @@
     for (const k of ['widget', 'chatStats', 'pet', 'explore', 'notify', 'debug']) if (typeof s[k] === 'boolean') out[k] = s[k];
     if (s.irisEnergy === 'calm' || s.irisEnergy === 'lively') out.irisEnergy = s.irisEnergy;
     if (['pill', 'bar-top', 'bar-bottom'].includes(s.meterStyle)) out.meterStyle = s.meterStyle;
+    if (typeof s.bg === 'string' && (s.bg === 'off' || AM.BG_THEMES.includes(s.bg))) out.bg = s.bg;
     if (Array.isArray(s.thresholds)) {
       const t = s.thresholds.filter((n) => num(n) && n > 0 && n <= 100).slice(0, 10);
       if (t.length) out.thresholds = t;

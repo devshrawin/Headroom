@@ -60,6 +60,15 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e) }));
     return true; // async response
   }
+  if (msg && msg.type === 'headroom:loadBg') {
+    // The living background's engine and one theme, injected into the asking frame like Iris.
+    const files = AM.bgFiles(msg.theme);
+    if (!sender.tab || sender.tab.id == null || !files.length) { sendResponse({ ok: false, error: 'bad request' }); return; }
+    chrome.scripting.executeScript({ target: { tabId: sender.tab.id, frameIds: [sender.frameId || 0] }, files })
+      .then(() => sendResponse({ ok: true }))
+      .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e) }));
+    return true;
+  }
   if (!msg || msg.type !== 'headroom:usage') return;
   const report = AM.validateUsageMessage(msg);
   if (!report) { console.warn('[Headroom] ignored a malformed usage report'); return; }

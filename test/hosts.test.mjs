@@ -67,3 +67,14 @@ test('every file the manifest points at exists (icons, popup, options, backgroun
   assert.ok(manifest.web_accessible_resources.some((r) => r.resources.some((g) => g.startsWith('src/assets/iris/'))));
   assert.ok(existsSync(new URL('../src/assets/iris/sit.webp', import.meta.url)));
 });
+
+test('every living-background file exists and each theme loads the engine plus its own scene', () => {
+  for (const t of AM.BG_THEMES) {
+    const files = AM.bgFiles(t);
+    assert.equal(files.length, 2);
+    assert.equal(files[0], 'src/core/living-bg.js');
+    for (const f of files) assert.ok(existsSync(new URL('../' + f, import.meta.url)), f + ' is missing');
+  }
+  assert.equal(AM.bgFiles('nope').length, 0);
+  for (const f of AM.bgFiles('koi')) assert.ok(!AM.CONTENT_BUNDLE.includes(f), f + ' must be injected on demand, not always loaded');
+});

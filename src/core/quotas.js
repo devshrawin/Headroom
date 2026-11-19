@@ -46,6 +46,11 @@
     'src/core/pet.js',
   ];
 
+  // Living background: the engine plus one scene file per theme, injected into a tab only when the theme is on.
+  AM.BG_THEMES = ['koi', 'butterflies', 'fireflies'];
+  AM.BG_SCENE_FILE = { koi: 'src/core/koi-pond.js', butterflies: 'src/core/scene-butterflies.js', fireflies: 'src/core/scene-night.js' };
+  AM.bgFiles = (theme) => (AM.BG_THEMES.includes(theme) ? ['src/core/living-bg.js', AM.BG_SCENE_FILE[theme]] : []);
+
   AM.siteScripts = (host) => {
     const matches = [`https://${host}/*`];
     return [
@@ -101,6 +106,7 @@
     pet: true,
     irisEnergy: 'calm',
     meterStyle: 'pill', // 'pill' | 'bar-top' | 'bar-bottom'
+    bg: 'off', // living background over the page: 'off' | 'koi' | 'butterflies' | 'fireflies'
     explore: true,
     notify: true,
     thresholds: [75, 90, 100],
@@ -121,6 +127,7 @@
     ...(s || {}),
     quotas: { ...AM.DEFAULT_QUOTAS, ...((s && s.quotas) || {}) },
     meterStyle: ['pill', 'bar-top', 'bar-bottom'].includes(s && s.meterStyle) ? s.meterStyle : 'pill',
+    bg: AM.BG_THEMES.includes(s && s.bg) ? s.bg : 'off',
     thresholds: cleanThresholds(s && s.thresholds),
     customSites: cleanSites(s && s.customSites),
   });
