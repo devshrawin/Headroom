@@ -22,8 +22,10 @@
   function create(o) {
     const canvas = o.canvas, ctx = canvas.getContext('2d');
     const overlay = !!o.overlay;
-    const sprites = { warm: sprite('232,255,110'), amber: sprite('255,214,102'), cyan: sprite('120,240,255'), pink: sprite('255,160,220'), white: sprite('235,240,255') };
+    const dusk = !!o.blend && o.tone === 'light'; // light page: a pale dusk that multiplies into it
+    const sprites = { warm: sprite(o.blend && o.tone === 'light' ? '255,160,20' : '232,255,110'), amber: sprite('255,214,102'), cyan: sprite('120,240,255'), pink: sprite('255,160,220'), white: sprite('235,240,255') };
     let W = 1, H = 1, dpr = 1, clock = 0, destroyed = false;
+    let obstacles = [];
     let stars = [], flies = [], orbs = [], sparks = [], shooting = null, nextShoot = rand(5, 9), hills = [];
 
     const makeFly = () => ({
@@ -51,6 +53,10 @@
         f.vy += (Math.cos(f.t * 0.55 + f.ph * 1.3) * 16 - f.vy) * dt * 0.6;
         f.x += (f.vx + f.push.x) * dt; f.y += (f.vy + f.push.y) * dt;
         f.push.x *= Math.exp(-1.5 * dt); f.push.y *= Math.exp(-1.5 * dt);
+        if (obstacles.length) {
+          const hit = AM.Living.avoid(f.x, f.y, 14, obstacles);
+          if (hit) { f.x += hit.x * 70 * dt; f.y += hit.y * 70 * dt; f.vx += hit.x * 40 * dt; f.vy += hit.y * 40 * dt; }
+        }
         f.flare *= Math.exp(-1.1 * dt);
         if (f.x < -40) f.x = W + 40; if (f.x > W + 40) f.x = -40;
         if (f.y < H * 0.12) f.vy += 30 * dt; if (f.y > H + 30) f.y = H * 0.3;
@@ -65,6 +71,26 @@
     }
 
     function drawBackground() {
+      if (dusk) {
+        const dg = ctx.createLinearGradient(0, 0, 0, H);
+        dg.addColorStop(0, '#ece6ff'); dg.addColorStop(0.55, '#f6e9f4'); dg.addColorStop(1, '#ffe8dc');
+        ctx.fillStyle = dg; ctx.fillRect(0, 0, W, H);
+        [[0.2, 'rgba(120,200,255,', 38, 0.0035, 0.22], [0.28, 'rgba(190,150,255,', 46, 0.0028, 0.2], [0.15, 'rgba(255,170,210,', 32, 0.004, 0.18]].forEach(([yb, col, amp, fr, al], i) => {
+          const top = [], steps = 36;
+          for (let k = 0; k <= steps; k++) { const x = (k / steps) * W; top.push([x, H * yb + Math.sin(x * fr + clock * (0.25 + i * 0.07) + i * 2) * amp + Math.sin(x * fr * 2.3 - clock * 0.18) * amp * 0.4]); }
+          const gr = ctx.createLinearGradient(0, H * yb - amp, 0, H * yb + amp * 3.2);
+          gr.addColorStop(0, col + '0)'); gr.addColorStop(0.3, col + al + ')'); gr.addColorStop(1, col + '0)');
+          ctx.fillStyle = gr; ctx.beginPath();
+          top.forEach(([x, y], k) => (k ? ctx.lineTo(x, y) : ctx.moveTo(x, y)));
+          for (let k = steps; k >= 0; k--) ctx.lineTo(top[k][0], top[k][1] + amp * 3.2);
+          ctx.closePath(); ctx.fill();
+        });
+        const mx = W * 0.16, my = H * 0.17, mr = Math.min(W, H) * 0.05;
+        const mg = ctx.createRadialGradient(mx, my, 0, mx, my, mr * 3);
+        mg.addColorStop(0, 'rgba(255,214,190,0.9)'); mg.addColorStop(0.3, 'rgba(255,214,190,0.5)'); mg.addColorStop(1, 'rgba(255,214,190,0)');
+        ctx.fillStyle = mg; ctx.fillRect(mx - mr * 3, my - mr * 3, mr * 6, mr * 6);
+        return;
+      }
       const g = ctx.createLinearGradient(0, 0, 0, H);
       g.addColorStop(0, '#060a22'); g.addColorStop(0.55, '#12204e'); g.addColorStop(0.85, '#27407a'); g.addColorStop(1, '#2f4f86');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
@@ -109,7 +135,7 @@
 
     function drawHills() {
       hills.forEach((pts, i) => {
-        ctx.fillStyle = i === 0 ? '#101b3d' : '#070d22';
+        ctx.fillStyle = dusk ? (i === 0 ? '#d9d0f0' : '#c8bde8') : (i === 0 ? '#101b3d' : '#070d22');
         ctx.beginPath();
         ctx.moveTo(-100, H);
         ctx.lineTo(pts[0].x, pts[0].y);
@@ -123,7 +149,7 @@
 
     function draw() {
       if (overlay) ctx.clearRect(0, 0, W, H); else drawBackground();
-      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalCompositeOperation = dusk ? 'source-over' : 'lighter';
       for (const b of orbs) {
         const a = (overlay ? 0.1 : 0.2) * (0.65 + 0.35 * Math.sin(clock * 0.4 + b.ph));
         ctx.globalAlpha = a; ctx.drawImage(sprites[b.spr], b.x - b.r, b.y - b.r, b.r * 2, b.r * 2);
@@ -131,7 +157,7 @@
       ctx.globalAlpha = 1;
       ctx.globalCompositeOperation = 'source-over';
       if (!overlay) drawHills();
-      ctx.globalCompositeOperation = 'lighter';
+      ctx.globalCompositeOperation = dusk ? 'source-over' : 'lighter';
       for (const f of flies) {
         const blink = Math.pow(0.5 + 0.5 * Math.sin(clock * f.freq * TAU * 0.5 + f.ph), 2.2);
         const a = clamp(0.12 + 0.88 * blink + f.flare, 0, 1);
@@ -164,6 +190,7 @@
     for (let i = 0; i < 60; i++) advance(1 / 30);
     return {
       resize, advance, poke,
+      setObstacles(r) { obstacles = r || []; },
       destroy() { destroyed = true; },
       params: { refr: 0.006, spec: 0.0, damp: 0.975, shade: 0.1, tint: [0.8, 0.9, 1] },
     };

@@ -41,6 +41,7 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 > Add any site in Settings. Headroom asks for permission for that one site only.
 >
 > **Also included**
+> • Optional living background: a koi pond, butterfly garden or firefly night behind the chat that reacts when you click and keeps clear of your text (off by default, never blocks the page, one click to remove)
 > • Toolbar badge with the current percentage
 > • A popup with every provider in one place
 > • Optional desktop notifications at 75, 90 and 100 percent, and when a limit resets
@@ -73,7 +74,7 @@ Schedules a single alarm for the moment a limit resets, so Headroom can tell you
 Shows the optional desktop notifications when a meter crosses 75, 90 or 100 percent, and when a limit resets. Turn off in Settings. Notifications contain only the provider name, the meter name and the percentage.
 
 ### `scripting`
-Used for two things only: (1) registering the content scripts for sites you add yourself in Settings, on the permission you grant for that one site, and (2) loading the Iris cat's code and images into a page only when Iris is switched on. No remote code is ever fetched or run.
+Used for two things only: (1) registering the content scripts for sites you add yourself in Settings, on the permission you grant for that one site, and (2) loading the Iris cat's code and images, or the optional animated background's code, into a page only when that is switched on. No remote code is ever fetched or run.
 
 ### Host permissions (the provider sites)
 Each host below gets the content script and the page-world hook so Headroom can read that provider's own usage data from your logged-in tab. The extension does not run on any other site unless you add it.

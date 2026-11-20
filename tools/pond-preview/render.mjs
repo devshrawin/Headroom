@@ -1,5 +1,6 @@
-// Renders the koi pond demo to an mp4, frame by frame (30 fps, deterministic), with a click at 6 s.
-//   node tools/pond-preview/render.mjs [seconds] [out.mp4]
+// Renders the living-background demo to an mp4, frame by frame (30 fps): koi pond, butterfly garden and firefly
+// night, 9 s each, with a click 3.5 s into each theme.
+//   node tools/pond-preview/render.mjs [seconds-per-theme] [out.mp4]
 // Needs Chrome and ffmpeg on PATH.
 import { spawn, spawnSync } from 'node:child_process';
 import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
@@ -7,8 +8,9 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
-const SECONDS = Number(process.argv[2] || 14);
-const OUT = process.argv[3] || 'koi-pond-demo.mp4';
+const SECONDS = Number(process.argv[2] || 9);
+const OUT = process.argv[3] || 'living-bg-demo.mp4';
+const THEMES = ['koi', 'butterflies', 'fireflies'];
 const FPS = 30;
 const CHROME = process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const page = pathToFileURL(fileURLToPath(new URL('./index.html', import.meta.url))).href + '?manual';
@@ -17,7 +19,7 @@ const profile = mkdtempSync(join(tmpdir(), 'pond-profile-'));
 const port = 9466;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
-const chrome = spawn(CHROME, ['--headless=new', '--disable-gpu', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--window-size=1280,800', 'about:blank'], { stdio: 'ignore' });
+const chrome = spawn(CHROME, ['--headless=new', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--hide-scrollbars', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, '--window-size=1280,800', 'about:blank'], { stdio: 'ignore' });
 try {
   let tabs;
   for (let i = 0; i < 60; i++) { try { tabs = await (await fetch(`http://127.0.0.1:${port}/json/list`)).json(); if (tabs.length) break; } catch { await sleep(250); } }
@@ -31,10 +33,13 @@ try {
   await call('Emulation.setDeviceMetricsOverride', { width: 1280, height: 800, deviceScaleFactor: 1, mobile: false });
   await call('Page.navigate', { url: page });
   await sleep(1500);
-  const total = SECONDS * FPS;
-  for (let f = 0; f < total; f++) {
-    const poke = f === 6 * FPS ? 'window.__pond.poke(640, 330);' : '';
-    await call('Runtime.evaluate', { expression: `${poke}window.__pond.advance(1/${FPS});` });
+  const per = SECONDS * FPS;
+  for (let f = 0; f < per * THEMES.length; f++) {
+    const t = Math.floor(f / per), local = f % per;
+    let js = '';
+    if (local === 0) js += `window.__bg.setTheme('${THEMES[t]}');`;
+    if (local === Math.round(3.5 * FPS)) js += 'window.__bg.poke(640, 420);';
+    await call('Runtime.evaluate', { expression: `${js}window.__bg.advance(1/${FPS});` });
     const shot = await call('Page.captureScreenshot', { format: 'jpeg', quality: 92 });
     writeFileSync(join(frames, `f${String(f).padStart(5, '0')}.jpg`), Buffer.from(shot.result.data, 'base64'));
   }

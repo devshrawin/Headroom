@@ -107,6 +107,8 @@
     irisEnergy: 'calm',
     meterStyle: 'pill', // 'pill' | 'bar-top' | 'bar-bottom'
     bg: 'off', // living background over the page: 'off' | 'koi' | 'butterflies' | 'fireflies'
+    bgLast: '', // the theme the panel's "Remove" button switched off, so "Bring back" knows what to restore
+    bgStyle: 'scene', // 'scene' (whole scene blended into the page) | 'creatures' (just the creatures)
     explore: true,
     notify: true,
     thresholds: [75, 90, 100],
@@ -128,6 +130,8 @@
     quotas: { ...AM.DEFAULT_QUOTAS, ...((s && s.quotas) || {}) },
     meterStyle: ['pill', 'bar-top', 'bar-bottom'].includes(s && s.meterStyle) ? s.meterStyle : 'pill',
     bg: AM.BG_THEMES.includes(s && s.bg) ? s.bg : 'off',
+    bgStyle: s && s.bgStyle === 'creatures' ? 'creatures' : 'scene',
+    bgLast: AM.BG_THEMES.includes(s && s.bgLast) ? s.bgLast : '',
     thresholds: cleanThresholds(s && s.thresholds),
     customSites: cleanSites(s && s.customSites),
   });

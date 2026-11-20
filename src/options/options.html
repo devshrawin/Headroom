@@ -47,13 +47,19 @@
 
     <section>
       <h2>Background</h2>
-      <p class="hint">Koi, butterflies or fireflies drift over the AI page and react when you click. They never block the page or your clicks, and they stop on their own if your system asks for reduced motion. Fireflies look best on dark pages.</p>
+      <p class="hint">Koi, butterflies or fireflies drift over the AI page and react when you click. They never block the page or your clicks, and they stop on their own if your system asks for reduced motion. The full scene adapts to light and dark pages.</p>
       <label class="check">Theme
         <select id="bg">
           <option value="off">Off</option>
           <option value="koi">Koi pond</option>
           <option value="butterflies">Butterfly garden</option>
           <option value="fireflies">Firefly night</option>
+        </select>
+      </label>
+      <label class="check">Look
+        <select id="bgStyle">
+          <option value="scene">Full scene: water, meadow or sky blended into the page</option>
+          <option value="creatures">Creatures only</option>
         </select>
       </label>
     </section>

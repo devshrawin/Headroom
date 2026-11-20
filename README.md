@@ -40,6 +40,10 @@ Every site also gets two free signals: the site's own limit notices (banner watc
 
 Estimate limits change often and differ by plan — set yours in **Settings → Estimate rules**.
 
+## Living background
+
+Settings → Background: *Koi pond*, *Butterfly garden* or *Firefly night*. The whole scene is blended into the AI page (multiply on light pages, screen on dark ones), reacts when you click (water ripples, scattering fish, a gust of wind, a burst of sparks), keeps its creatures off the text, and never blocks the page (`pointer-events: none`). *Look → Creatures only* draws just the creatures. The panel's *Remove koi* button switches it off on the spot. Off by default; still when the system asks for reduced motion; paused when the tab is hidden. The engine (`src/core/living-bg.js`) and one scene file are injected into a tab only when a theme is on. Everything is drawn locally on a canvas: no network, no assets downloaded. Preview all three themes in `tools/pond-preview/index.html` (serve the repo root, or open it as a file); `render.mjs` there renders the demo video.
+
 ## Iris
 
 Iris, a white Persian with odd eyes, lives on top of the meter. She sits, blinks, grooms and walks

@@ -22,7 +22,7 @@ test('export holds settings only, with a version and a timestamp', () => {
   assert.deepEqual(file.settings.thresholds, [60, 95]);
   assert.equal('usage' in file.settings, false);
   assert.equal('debug.log' in file.settings, false);
-  assert.deepEqual(Object.keys(file.settings).sort(), ['bg', 'chatStats', 'customSites', 'debug', 'explore', 'irisEnergy', 'meterStyle', 'notify', 'pet', 'quotas', 'thresholds', 'widget']);
+  assert.deepEqual(Object.keys(file.settings).sort(), ['bg', 'bgStyle', 'chatStats', 'customSites', 'debug', 'explore', 'irisEnergy', 'meterStyle', 'notify', 'pet', 'quotas', 'thresholds', 'widget']);
 });
 
 test('export then import round-trips the settings', () => {
@@ -109,6 +109,13 @@ test('meterStyle: only the three known values are kept, in settings and in an im
   assert.equal(AM.parseImport(wrap({ meterStyle: 'bar-bottom' })).settings.meterStyle, 'bar-bottom');
   assert.equal('meterStyle' in AM.parseImport(wrap({ meterStyle: 'x' })).settings, false);
   assert.equal(AM.buildExport({ meterStyle: 'bar-top' }, '1.0.0').settings.meterStyle, 'bar-top');
+});
+
+test('bgStyle: scene by default, creatures only when asked, anything else falls back', () => {
+  assert.equal(AM.mergeSettings(null).bgStyle, 'scene');
+  assert.equal(AM.mergeSettings({ bgStyle: 'creatures' }).bgStyle, 'creatures');
+  assert.equal(AM.mergeSettings({ bgStyle: 'huge' }).bgStyle, 'scene');
+  assert.equal(AM.buildExport({ bgStyle: 'creatures' }, '1.1.0').settings.bgStyle, 'creatures');
 });
 
 test('bg: only the known themes are kept, off by default, in settings and in an import', () => {

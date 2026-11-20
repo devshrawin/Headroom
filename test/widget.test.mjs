@@ -326,3 +326,32 @@ test('switching the style remounts the meter in place', () => {
   assert.equal(w.root.byClass('trk').length, 0);
   assert.ok(!w.pill().classList.contains('edge'));
 });
+
+test('the panel has a one-click "Remove" for the animated background, and "Bring back" after it', () => {
+  const w = loadWidget();
+  const calls = [];
+  w.AM.siteId = 'site:example.test'; // no Iris here, so the background button is the only footer button
+  w.AM.setSetting = (patch) => calls.push(patch);
+  w.update('Example', [real(10)], { bg: 'koi' });
+  w.click();
+  assert.match(w.panelText(), /Remove koi/);
+  const btn = w.root.byClass('bg-btn')[0];
+  btn.fire('click');
+  assert.equal(JSON.stringify(calls[0]), JSON.stringify({ bg: 'off', bgLast: 'koi' }));
+
+  const v = loadWidget();
+  v.AM.siteId = 'site:example.test';
+  v.AM.setSetting = (patch) => calls.push(patch);
+  v.update('Example', [real(10)], { bg: 'off', bgLast: 'butterflies' });
+  v.click();
+  assert.match(v.panelText(), /Bring back butterflies/);
+  v.root.byClass('bg-btn')[0].fire('click');
+  assert.equal(JSON.stringify(calls[1]), JSON.stringify({ bg: 'butterflies', bgLast: '' }));
+
+  const n = loadWidget();
+  n.AM.siteId = 'site:example.test';
+  n.AM.setSetting = () => {};
+  n.update('Example', [real(10)], { bg: 'off' });
+  n.click();
+  assert.equal(n.root.byClass('bg-btn').length, 0, 'no button when the background was never on');
+});

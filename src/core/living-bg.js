@@ -50,24 +50,88 @@ void main(){
     return { W, H, dpr: Math.max(1, dpr) };
   }
 
+  // Whether the page itself is dark: read its own background, fall back to the browser preference.
+  function pageIsDark() {
+    const lum = (css) => {
+      const m = /rgba?\((\d+)[ ,]+(\d+)[ ,]+(\d+)(?:[ ,/]+([\d.]+))?/.exec(css || '');
+      if (!m) return null;
+      if (m[4] !== undefined && +m[4] < 0.5) return null;
+      return (0.2126 * +m[1] + 0.7152 * +m[2] + 0.0722 * +m[3]) / 255;
+    };
+    for (const el of [document.body, document.documentElement]) {
+      if (!el) continue;
+      const l = lum(getComputedStyle(el).backgroundColor);
+      if (l !== null) return l < 0.45;
+    }
+    return window.matchMedia('(prefers-color-scheme: dark)').matches;
+  }
+
+  // Where is the reading on this page? Boxes of text, inputs and buttons in view, so creatures can keep clear of them.
+  const TEXT_SEL = 'iframe,p,li,h1,h2,h3,h4,h5,h6,pre,blockquote,td,th,label,summary,textarea,input,button,a,[contenteditable="true"],[role="textbox"]';
+  const FIELD_SEL = 'iframe,textarea,input,[contenteditable="true"],[role="textbox"]';
+  function textBoxes() {
+    const out = [];
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const els = document.querySelectorAll(TEXT_SEL);
+    for (let i = 0; i < els.length && out.length < 260; i++) {
+      const el = els[i];
+      const r = el.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8 || r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) continue;
+      if (el.closest('[data-headroom]')) continue;
+      if (!el.matches(FIELD_SEL) && !(el.textContent || '').trim()) continue;
+      out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom });
+    }
+    return out;
+  }
+  // Is (x, y) inside any box grown by `margin`? If so, the way out: a unit direction and how deep the point is.
+  function avoid(x, y, margin, obs) {
+    for (let i = 0; i < obs.length; i++) {
+      const o = obs[i];
+      if (x > o.l - margin && x < o.r + margin && y > o.t - margin && y < o.b + margin) {
+        const dl = x - (o.l - margin), dr = o.r + margin - x, dt = y - (o.t - margin), db = o.b + margin - y;
+        const m = Math.min(dl, dr, dt, db);
+        if (m === dl) return { x: -1, y: 0, d: m };
+        if (m === dr) return { x: 1, y: 0, d: m };
+        if (m === dt) return { x: 0, y: -1, d: m };
+        return { x: 0, y: 1, d: m };
+      }
+    }
+    return null;
+  }
+
   function mount(opts = {}) {
     const doc = document, win = window;
     const parent = opts.parent || doc.documentElement;
     const themes = AM.Living.themes;
     const reduceMq = win.matchMedia('(prefers-reduced-motion: reduce)');
     // overlay: draw only the creatures on a see-through canvas over the page (no water surface, no refraction)
-    const overlay = !!opts.overlay;
+    // blend: 'auto' draws the whole scene over the page with a blend mode picked from the page's own colours
+    // (multiply on light pages, screen on dark ones), so the scene reads as sitting behind the text.
+    let overlay = !!opts.overlay;
+    const blend = opts.blend === 'auto';
+    let tone = blend && pageIsDark() ? 'dark' : blend ? 'light' : 'dark';
 
     const canvas = doc.createElement('canvas');
     canvas.setAttribute('aria-hidden', 'true');
     canvas.setAttribute('data-headroom', 'living-bg');
-    Object.assign(canvas.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', zIndex: overlay ? '2147483000' : '0', pointerEvents: 'none', background: overlay ? 'transparent' : '#000', opacity: overlay ? '0.92' : '1' });
+    Object.assign(canvas.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', zIndex: overlay || blend ? '2147483000' : '0', pointerEvents: 'none', background: overlay ? 'transparent' : '#000', opacity: overlay ? '0.92' : '1' });
+    const applyBlend = () => {
+      if (!blend || overlay) return;
+      canvas.style.mixBlendMode = tone === 'dark' ? 'screen' : 'multiply';
+      canvas.style.opacity = tone === 'dark' ? '0.82' : '0.9';
+    };
+    applyBlend();
     parent.appendChild(canvas);
 
-    const scene = overlay ? canvas : doc.createElement('canvas'); // the theme draws here
+    let scene = overlay ? canvas : doc.createElement('canvas'); // the theme draws here
     let gl = null, ctx2d = null;
     if (!overlay) try { gl = canvas.getContext('webgl', { antialias: false, alpha: false, preserveDrawingBuffer: true }); } catch {}
-    if (!gl && !overlay) ctx2d = canvas.getContext('2d');
+    if (!gl && !overlay) {
+      if (blend) { // no WebGL: fall back to the creatures alone, on a see-through canvas
+        overlay = true; scene = canvas;
+        canvas.style.background = 'transparent'; canvas.style.mixBlendMode = 'normal'; canvas.style.opacity = '0.92';
+      } else ctx2d = canvas.getContext('2d');
+    }
 
     let prog, texScene, texWave, loc = {};
     if (gl) {
@@ -148,6 +212,7 @@ void main(){
     let W = 1, H = 1, dpr = 1;
     let current = null, name = '', params = { refr: 0.01, spec: 0.8, damp: 0.992, shade: 0.35, tint: [1, 1, 1] };
     let raf = 0, last = 0, destroyed = false, ringQueue = [];
+    let obstacles = [];
 
     function resize() {
       const s = size();
@@ -176,13 +241,14 @@ void main(){
       if (gl) gl.viewport(0, 0, canvas.width, canvas.height);
       current = mkScene({
         canvas: scene, W, H, dpr,
-        overlay,
+        overlay, tone, blend,
         onWake: overlay ? null : (x, y, k) => disturb(x, y, -0.07 * k, 1.8),
         onDrop: overlay ? null : (x, y, k) => disturb(x, y, -0.9 * k, 2.4),
       });
       current.resize(W, H, dpr);
       params = Object.assign({ refr: 0.01, spec: 0.8, damp: 0.992, shade: 0.35, tint: [1, 1, 1] }, current.params || {});
       ringQueue = [];
+      if (current.setObstacles) current.setObstacles(obstacles);
       if (opts.onTheme) opts.onTheme(n, current);
     }
 
@@ -245,6 +311,23 @@ void main(){
     const onVis = () => (doc.hidden ? stop() : start());
     const onMotion = () => { if (reduceMq.matches) { stop(); render(); } else start(); };
     const onResize = () => { resize(); if (!raf) render(); };
+    const toneTimer = blend && !overlay ? win.setInterval(() => {
+      const t = pageIsDark() ? 'dark' : 'light';
+      if (t !== tone) { tone = t; applyBlend(); setTheme(name); }
+    }, 1500) : 0;
+    // Keep creatures off the text: rescan now and then, and while the page scrolls.
+    let scanTimer = 0, scrollWait = 0;
+    const scan = () => {
+      if (doc.hidden || destroyed) return;
+      obstacles = textBoxes();
+      if (current && current.setObstacles) current.setObstacles(obstacles);
+    };
+    const onScroll = () => { if (!scrollWait) scrollWait = win.setTimeout(() => { scrollWait = 0; scan(); }, 120); };
+    if (opts.avoidText) {
+      scanTimer = win.setInterval(scan, 700);
+      win.addEventListener('scroll', onScroll, { passive: true, capture: true });
+      scan();
+    }
     win.addEventListener('pointerdown', onDown, { passive: true, capture: true });
     win.addEventListener('resize', onResize);
     doc.addEventListener('visibilitychange', onVis);
@@ -258,6 +341,8 @@ void main(){
       if (destroyed) return;
       destroyed = true;
       stop();
+      if (toneTimer) win.clearInterval(toneTimer);
+      if (scanTimer) { win.clearInterval(scanTimer); win.removeEventListener('scroll', onScroll, { capture: true }); }
       win.removeEventListener('pointerdown', onDown, { capture: true });
       win.removeEventListener('resize', onResize);
       doc.removeEventListener('visibilitychange', onVis);
@@ -270,5 +355,5 @@ void main(){
   }
 
   // Injected once per theme: keep what an earlier injection registered.
-  if (!AM.Living) AM.Living = { themes: {}, size, mount };
+  if (!AM.Living) AM.Living = { themes: {}, size, mount, pageIsDark, avoid };
 })();

@@ -20,7 +20,7 @@ Headroom is a Chrome extension that shows how much of your usage limit is left o
 | **Usage and limit figures** (percent used, remaining queries, reset times) | The provider's own usage endpoint, called from your tab; or the same response the site itself already receives | The latest numbers per provider, in `chrome.storage.local` | No |
 | **That a message was sent, and which model** | The page's own network request (the request is observed, not changed) | A timestamp and the model name, to count messages. Never the text | No |
 | **Chat length** (for the "This chat" figures) | The number of characters in the open conversation on the page | A character and message count only. Never the text | No |
-| **Your settings** | You | Estimate limits, thresholds, added sites, Iris on or off, in `chrome.storage.local` | No |
+| **Your settings** | You | Estimate limits, thresholds, added sites, Iris on or off, the background theme, in `chrome.storage.local` | No |
 | **A settings backup** (only if you ask for one) | You, with **Export settings** in Settings | A file the browser saves where you choose, holding your settings only: estimate limits, thresholds, Iris options and the addresses of sites you added. No usage numbers, message counts or debug log. Importing reads a file you pick, on your machine | No. Nothing is uploaded; the file stays wherever you put it |
 | **Meter position** | You, when you drag the meter | The pill position, saved under the key `headroom.pos` in the page's own `localStorage` | No |
 | **Debug log** (off by default) | The extension itself, only if you tick Debug | Key names and short model-like values of requests, full bodies only of usage and limit endpoints, and only the *shape* (keys and types) of anything else. Emails, tokens and long ids in it are masked. Stored locally, capped to the latest entries; clear it any time in Settings | No, unless you choose to copy and paste it yourself |
@@ -58,7 +58,7 @@ Usage requests go from **your tab to the provider's own domain**, the same place
 
 ## Permissions
 
-Each permission, and why the extension asks for it, is listed in the Chrome Web Store listing and in the repository (`docs/store/listing.md`). In short: `storage` for settings and the latest numbers, `alarms` for the reset notification, `notifications` for the optional alerts, `scripting` to register scripts for sites you add and to load Iris only when she is on, and host access to the listed provider sites. Access to any other site is optional and asked for one site at a time, when you click **Add site**.
+Each permission, and why the extension asks for it, is listed in the Chrome Web Store listing and in the repository (`docs/store/listing.md`). In short: `storage` for settings and the latest numbers, `alarms` for the reset notification, `notifications` for the optional alerts, `scripting` to register scripts for sites you add and to load Iris and the optional animated background only when they are on, and host access to the listed provider sites. Access to any other site is optional and asked for one site at a time, when you click **Add site**.
 
 ## Your control
 

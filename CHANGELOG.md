@@ -2,6 +2,18 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.1.0 — 2026-11-19
+
+### Added
+- **Living background (Settings → Background).** Koi pond, Butterfly garden or Firefly night. The whole scene (water with real ripples that bend and glint when you click, a golden meadow, a twilight sky) is blended into the AI page, so it reads as sitting behind the text: multiply on light pages, screen on dark ones, switching on its own when the page's colours change. Koi are shaded with scales and soft-edged markings, butterflies are monarch, morpho, swallowtail and lilac and visit flowers, fireflies pulse and scatter on click. "Look" can be set to *Creatures only* instead. Off by default.
+- **Stays off the text.** Creatures keep clear of text, inputs, buttons and embedded frames on the page, and only gather in clear space (the koi come to look at a click only where there is no text).
+- **One-click on/off in the panel.** The Headroom panel has *Remove koi / butterflies / fireflies* (and *Bring back …*), so the background can go without a trip to Settings.
+- It never blocks the page or your clicks (pointer-events: none), pauses when the tab is hidden, stays still if your system asks for reduced motion, falls back to creatures only without WebGL, and its code is loaded into a tab only when a theme is switched on. Nothing is downloaded or sent anywhere.
+- The background setting is part of Export / Import settings.
+
+### Tests
+- Panel button (remove and bring back), Look setting, and settings validation for the new theme, the on-demand loader (refuses a missing tab or unknown theme), and a check that every theme file exists and is not part of the always-loaded bundle.
+
 ## 1.0.0 — 2026-10-31
 
 First store-ready release.

@@ -138,8 +138,13 @@
     try {
       if (!(AM.Living && AM.Living.themes[want])) await AM.loadBg(want);
       if (token !== bgToken || !AM.Living || !AM.Living.themes[want]) return;
-      if (!bgView) bgView = AM.Living.mount({ theme: want, overlay: true });
-      else if (bgView.theme !== want) bgView.setTheme(want);
+      const style = settings.bgStyle === 'creatures' ? 'creatures' : 'scene';
+      if (bgView && bgView.style !== style) { bgView.destroy(); bgView = null; }
+      if (!bgView) {
+        // 'scene': the whole scene, blended into the page (multiply on light pages, screen on dark ones); 'creatures': just them
+        bgView = AM.Living.mount(style === 'creatures' ? { theme: want, overlay: true, avoidText: true } : { theme: want, blend: 'auto', avoidText: true });
+        bgView.style = style;
+      } else if (bgView.theme !== want) bgView.setTheme(want);
     } catch (e) { console.warn('[Headroom] background', e); }
   };
 
@@ -258,8 +263,9 @@
       AM.siteId = adapter.id;
       // Lets the on-page panel change a setting (e.g. "Send Iris home"); onChanged below applies it.
       AM.setSetting = async (key, value) => {
+        const patch = key && typeof key === 'object' ? key : { [key]: value };
         const { settings: stored } = await AM.storage.get('settings');
-        await AM.storage.set({ settings: { ...(stored || {}), [key]: value } });
+        await AM.storage.set({ settings: { ...(stored || {}), ...patch } });
       };
       try { adapter.init(ctx); } catch (e) { failed('start', e); }
       try { AM.banner.watch(ctx); } catch (e) { console.warn('[Headroom] banner', e); }

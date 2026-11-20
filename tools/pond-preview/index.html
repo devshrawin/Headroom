@@ -50,7 +50,14 @@
     document.body.classList.toggle('light', t === 'butterflies');
     document.querySelectorAll('#tabs button').forEach(function (b) { b.classList.toggle('on', b.dataset.t === t); });
   }
-  window.__bg = Headroom.Living.mount({ theme: q.get('t') || 'koi', overlay: q.has('overlay'), manual: q.has('manual'), onTheme: skin });
+  // ?page=light or ?page=dark: pretend to be an AI site and blend the scene into it (what the extension does)
+  var page = q.get('page');
+  if (page) {
+    document.body.style.background = page === 'dark' ? '#212121' : '#ffffff';
+    document.querySelector('.app').style.color = page === 'dark' ? '#ececec' : '#1f1d2b';
+    document.body.classList.toggle('light', page !== 'dark');
+  }
+  window.__bg = Headroom.Living.mount({ theme: q.get('t') || 'koi', overlay: q.has('overlay'), blend: page ? 'auto' : undefined, avoidText: true, manual: q.has('manual'), onTheme: page ? function () {} : skin });
   document.getElementById('tabs').addEventListener('click', function (e) {
     var t = e.target.dataset && e.target.dataset.t;
     if (t) window.__bg.setTheme(t);

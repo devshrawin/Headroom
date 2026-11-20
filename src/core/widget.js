@@ -79,7 +79,7 @@
     .btn { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--hr-edge);
       background: var(--hr-bg); color: var(--hr-text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
     .btn:hover { border-color: var(--hr-accent); }
-    .foot { display: flex; justify-content: flex-end; }
+    .foot { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
     .iris-face { width: 14px; height: auto; transition: filter var(--hr-dur-med), opacity var(--hr-dur-med); }
     .iris-btn.away .iris-face { filter: grayscale(1); opacity: .6; }
     .prob { border: 1px solid var(--hr-ban-line); background: var(--hr-prob-bg); border-radius: 10px; padding: 10px 12px; }
@@ -464,9 +464,21 @@
     if (last.problem) panel.append(problemBox(last.problem));
     else if (!meters.length) panel.append(el('div', 'empty', 'No usage data yet. Send a message or open usage settings.'));
     for (const m of meters) panel.append(limitRow(m, now));
-    if (AM.setSetting && irisAvailable()) {
+    // One-click on/off for the living background, so it never takes more than a click to get rid of the fish.
+    const bgNow = lastSettings.bg && lastSettings.bg !== 'off' ? lastSettings.bg : '';
+    const bgBack = !bgNow && lastSettings.bgLast ? lastSettings.bgLast : '';
+    if (AM.setSetting && (irisAvailable() || bgNow || bgBack)) {
       panel.append(el('div', 'rule'));
       const foot = el('div', 'foot');
+      if (bgNow || bgBack) {
+        const noun = { koi: 'koi', butterflies: 'butterflies', fireflies: 'fireflies' }[bgNow || bgBack];
+        const bb = el('button', 'btn bg-btn', bgNow ? 'Remove ' + noun : 'Bring back ' + noun);
+        bb.type = 'button';
+        bb.title = bgNow ? 'Switch the animated background off (Settings → Background turns it on again)' : 'Switch the animated background back on';
+        bb.addEventListener('click', () => AM.setSetting(bgNow ? { bg: 'off', bgLast: bgNow } : { bg: bgBack, bgLast: '' }));
+        foot.append(bb);
+      }
+      if (irisAvailable()) {
       const btn = el('button', 'btn iris-btn' + (petOn ? '' : ' away'));
       btn.type = 'button';
       btn.title = petOn ? 'Iris goes home and the meter stays' : 'Iris comes back to the meter';
@@ -476,6 +488,7 @@
       btn.append(face, el('span', null, petOn ? 'Send Iris home' : 'Bring Iris back'));
       btn.addEventListener('click', () => AM.setSetting('pet', !petOn));
       foot.append(btn);
+      }
       panel.append(foot);
     }
     panelBox.append(panel);
