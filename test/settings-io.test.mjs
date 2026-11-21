@@ -120,7 +120,7 @@ test('bgStyle: scene by default, creatures only when asked, anything else falls 
 
 test('bg: only the known themes are kept, off by default, in settings and in an import', () => {
   assert.equal(AM.mergeSettings(null).bg, 'off');
-  for (const t of ['koi', 'butterflies', 'fireflies']) assert.equal(AM.mergeSettings({ bg: t }).bg, t);
+  for (const t of ['koi', 'butterflies', 'fireflies', 'snow']) assert.equal(AM.mergeSettings({ bg: t }).bg, t);
   assert.equal(AM.mergeSettings({ bg: 'rain' }).bg, 'off');
   assert.equal(AM.mergeSettings({ bg: 42 }).bg, 'off');
   const file = AM.buildExport({ bg: 'koi' }, '1.1.0');

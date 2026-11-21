@@ -10,7 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const SECONDS = Number(process.argv[2] || 9);
 const OUT = process.argv[3] || 'living-bg-demo.mp4';
-const THEMES = ['koi', 'butterflies', 'fireflies'];
+const THEMES = ['koi', 'butterflies', 'fireflies', 'snow'];
 const FPS = 30;
 const CHROME = process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const page = pathToFileURL(fileURLToPath(new URL('./index.html', import.meta.url))).href + '?manual';

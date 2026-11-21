@@ -66,22 +66,115 @@ void main(){
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
-  // Where is the reading on this page? Boxes of text, inputs and buttons in view, so creatures can keep clear of them.
-  const TEXT_SEL = 'iframe,p,li,h1,h2,h3,h4,h5,h6,pre,blockquote,td,th,label,summary,textarea,input,button,a,[contenteditable="true"],[role="textbox"]';
-  const FIELD_SEL = 'iframe,textarea,input,[contenteditable="true"],[role="textbox"]';
+  // Where is the reading on this page? The real lines of text (from the text nodes themselves, so it works whatever
+  // tags a site uses), plus inputs, buttons and embedded frames, merged into blocks. Each box carries a stable id of
+  // its element, so a ledge keeps its identity while the page scrolls.
+  const ids = new WeakMap();
+  let nextId = 1;
+  const idOf = (el) => { let v = ids.get(el); if (!v) { v = nextId++; ids.set(el, v); } return v; };
+  const UI_SEL = 'iframe,textarea,input,select,button,[contenteditable="true"],[role="textbox"],[role="button"]';
   function textBoxes() {
-    const out = [];
+    const t0 = performance.now();
     const vw = window.innerWidth, vh = window.innerHeight;
-    const els = document.querySelectorAll(TEXT_SEL);
-    for (let i = 0; i < els.length && out.length < 260; i++) {
-      const el = els[i];
-      const r = el.getBoundingClientRect();
+    const out = [];
+    const root = document.body || document.documentElement;
+    const range = document.createRange();
+    const shown = new Map();
+    const walker = document.createTreeWalker(root, 5 /* elements and text */, {
+      acceptNode(node) {
+        if (node.nodeType === 3) return /\S/.test(node.nodeValue) ? 1 : 3;
+        if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|TEXTAREA|OPTION|SVG|CANVAS)$/i.test(node.tagName) || node.hasAttribute('data-headroom')) return 2;
+        const r = node.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) return 3; // display: contents or hidden: look inside anyway
+        if (r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) return 2; // off screen: skip the whole subtree
+        return 3;
+      },
+    });
+    let n, seen = 0;
+    while ((n = walker.nextNode()) && out.length < 700 && seen++ < 7000) {
+      if (seen % 64 === 0 && performance.now() - t0 > 14) break; // never hog the page
+      const el = n.parentElement;
+      if (!el) continue;
+      let vis = shown.get(el);
+      if (vis === undefined) {
+        const cs = getComputedStyle(el);
+        const er = el.getBoundingClientRect();
+        vis = cs.visibility !== 'hidden' && cs.opacity !== '0' && cs.display !== 'none' && !(er.width <= 2 || er.height <= 2); // screen-reader-only and hidden text is not text you can see
+        shown.set(el, vis);
+      }
+      if (!vis) continue;
+      range.selectNodeContents(n);
+      const rects = range.getClientRects();
+      for (let k = 0; k < rects.length; k++) {
+        const r = rects[k];
+        if (r.width < 6 || r.height < 6 || r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) continue;
+        out.push({ l: r.left - 3, t: r.top - 2, r: r.right + 3, b: r.bottom + 2, id: idOf(el) });
+      }
+    }
+    const ui = document.querySelectorAll(UI_SEL);
+    for (let i = 0; i < ui.length && out.length < 800; i++) {
+      const r = ui[i].getBoundingClientRect();
       if (r.width < 8 || r.height < 8 || r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) continue;
-      if (el.closest('[data-headroom]')) continue;
-      if (!el.matches(FIELD_SEL) && !(el.textContent || '').trim()) continue;
-      out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom });
+      if (ui[i].closest('[data-headroom]')) continue;
+      out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom, id: idOf(ui[i]) });
+    }
+    return mergeBoxes(out);
+  }
+  // Real surfaces a ledge can sit on: message bubbles, the input box, cards, panels. Boxes that show something (a
+  // background, a top border or a shadow), not text lines and not page-sized wrappers.
+  const alphaOf = (css) => {
+    if (!css || css === 'transparent') return 0;
+    const m = /rgba?\(([^)]*)\)/.exec(css);
+    if (!m) return 0;
+    const p = m[1].split(/[ ,/]+/).filter(Boolean);
+    return p.length > 3 ? parseFloat(p[3]) : 1;
+  };
+  function surfaceBoxes() {
+    const t0 = performance.now();
+    const vw = window.innerWidth, vh = window.innerHeight;
+    const out = [];
+    const seenKey = new Set();
+    const walker = document.createTreeWalker(document.body || document.documentElement, 1, {
+      acceptNode(node) {
+        if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE|SVG|CANVAS)$/i.test(node.tagName) || node.hasAttribute('data-headroom')) return 2;
+        const r = node.getBoundingClientRect();
+        if (r.width === 0 && r.height === 0) return 3;
+        if (r.bottom < 0 || r.top > vh || r.right < 0 || r.left > vw) return 2;
+        return 1;
+      },
+    });
+    let n, seen = 0;
+    while ((n = walker.nextNode()) && out.length < 140 && seen++ < 2500) {
+      if (seen % 50 === 0 && performance.now() - t0 > 10) break;
+      const r = n.getBoundingClientRect();
+      if (r.width < 70 || r.height < 26 || r.top < 30 || r.top > vh - 8) continue;
+      if (r.width > vw * 0.92 && r.height > vh * 0.5) continue; // a page-sized wrapper, not an object
+      const cs = getComputedStyle(n);
+      if (cs.visibility === 'hidden' || cs.opacity === '0') continue;
+      const shows = alphaOf(cs.backgroundColor) >= 0.25 || (parseFloat(cs.borderTopWidth) >= 1 && alphaOf(cs.borderTopColor) > 0.2) || (cs.boxShadow && cs.boxShadow !== 'none');
+      if (!shows) continue;
+      const key = Math.round(r.top / 3) + ':' + Math.round(r.left / 8) + ':' + Math.round(r.right / 8);
+      if (seenKey.has(key)) continue;
+      seenKey.add(key);
+      out.push({ l: r.left, t: r.top, r: r.right, b: r.bottom, id: idOf(n) });
     }
     return out;
+  }
+  // Lines of one paragraph (and neighbours) become one block, so there are no gaps a creature could slip into.
+  function mergeBoxes(list) {
+    list.sort((a, b) => a.t - b.t || a.l - b.l);
+    const res = [];
+    for (const r of list) {
+      let hit = null;
+      for (let i = res.length - 1; i >= 0 && i >= res.length - 60; i--) {
+        const m = res[i];
+        if (r.l <= m.r + 10 && r.r >= m.l - 10 && r.t <= m.b + 12 && r.b >= m.t - 12) { hit = m; break; }
+      }
+      if (hit) {
+        hit.l = Math.min(hit.l, r.l); hit.r = Math.max(hit.r, r.r); hit.t = Math.min(hit.t, r.t); hit.b = Math.max(hit.b, r.b);
+      } else res.push({ l: r.l, t: r.t, r: r.r, b: r.b, id: r.id });
+    }
+    return res;
   }
   // Is (x, y) inside any box grown by `margin`? If so, the way out: a unit direction and how deep the point is.
   function avoid(x, y, margin, obs) {
@@ -213,6 +306,7 @@ void main(){
     let current = null, name = '', params = { refr: 0.01, spec: 0.8, damp: 0.992, shade: 0.35, tint: [1, 1, 1] };
     let raf = 0, last = 0, destroyed = false, ringQueue = [];
     let obstacles = [];
+    let surfaces = [];
 
     function resize() {
       const s = size();
@@ -249,6 +343,7 @@ void main(){
       params = Object.assign({ refr: 0.01, spec: 0.8, damp: 0.992, shade: 0.35, tint: [1, 1, 1] }, current.params || {});
       ringQueue = [];
       if (current.setObstacles) current.setObstacles(obstacles);
+      if (current.setSurfaces) current.setSurfaces(surfaces);
       if (opts.onTheme) opts.onTheme(n, current);
     }
 
@@ -321,8 +416,21 @@ void main(){
       if (doc.hidden || destroyed) return;
       obstacles = textBoxes();
       if (current && current.setObstacles) current.setObstacles(obstacles);
+      if (current && current.setSurfaces) { surfaces = surfaceBoxes(); current.setSurfaces(surfaces); }
     };
-    const onScroll = () => { if (!scrollWait) scrollWait = win.setTimeout(() => { scrollWait = 0; scan(); }, 120); };
+    const lastScroll = new WeakMap();
+    const onScroll = (e) => {
+      // how far did whatever scrolled move? Themes that care (snow) shake loose on it.
+      try {
+        const t = e && e.target;
+        const el = !t || t.nodeType === 9 || t === win ? doc.scrollingElement || doc.documentElement : t;
+        const pos = el === (doc.scrollingElement || doc.documentElement) ? win.scrollY : el.scrollTop;
+        const prev = lastScroll.get(el);
+        lastScroll.set(el, pos);
+        if (prev !== undefined && current && current.shake) current.shake(Math.abs(pos - prev));
+      } catch {}
+      if (!scrollWait) scrollWait = win.setTimeout(() => { scrollWait = 0; scan(); }, 120);
+    };
     if (opts.avoidText) {
       scanTimer = win.setInterval(scan, 700);
       win.addEventListener('scroll', onScroll, { passive: true, capture: true });
@@ -334,6 +442,7 @@ void main(){
     reduceMq.addEventListener('change', onMotion);
 
     setTheme(opts.theme || 'koi');
+    if (opts.avoidText) scan(); // the first scan ran before there was a theme to tell
     for (let i = 0; i < 60; i++) advance(1 / 30); // settle before the first frame
     start();
 
@@ -351,9 +460,9 @@ void main(){
       canvas.remove();
     }
 
-    return { setTheme, advance, poke, destroy, canvas, get theme() { return name; }, themes: () => Object.keys(themes) };
+    return { setTheme, advance, poke, destroy, canvas, get theme() { return name; }, get scene() { return current; }, get obstacles() { return obstacles; }, scan: () => { obstacles = textBoxes(); surfaces = surfaceBoxes(); if (current && current.setObstacles) current.setObstacles(obstacles); if (current && current.setSurfaces) current.setSurfaces(surfaces); return obstacles.length; }, themes: () => Object.keys(themes) };
   }
 
   // Injected once per theme: keep what an earlier injection registered.
-  if (!AM.Living) AM.Living = { themes: {}, size, mount, pageIsDark, avoid };
+  if (!AM.Living) AM.Living = { themes: {}, size, mount, pageIsDark, avoid, textBoxes, surfaceBoxes };
 })();

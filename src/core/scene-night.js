@@ -54,7 +54,7 @@
         f.x += (f.vx + f.push.x) * dt; f.y += (f.vy + f.push.y) * dt;
         f.push.x *= Math.exp(-1.5 * dt); f.push.y *= Math.exp(-1.5 * dt);
         if (obstacles.length) {
-          const hit = AM.Living.avoid(f.x, f.y, 14, obstacles);
+          const hit = AM.Living.avoid(f.x, f.y, 24, obstacles);
           if (hit) { f.x += hit.x * 70 * dt; f.y += hit.y * 70 * dt; f.vx += hit.x * 40 * dt; f.vy += hit.y * 40 * dt; }
         }
         f.flare *= Math.exp(-1.1 * dt);
@@ -191,6 +191,7 @@
     return {
       resize, advance, poke,
       setObstacles(r) { obstacles = r || []; },
+      points: () => flies.map((f) => ({ x: f.x, y: f.y })),
       destroy() { destroyed = true; },
       params: { refr: 0.006, spec: 0.0, damp: 0.975, shade: 0.1, tint: [0.8, 0.9, 1] },
     };

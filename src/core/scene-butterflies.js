@@ -334,6 +334,7 @@
     return {
       resize, advance, poke,
       setObstacles(r) { obstacles = r || []; },
+      points: () => flies.map((f) => ({ x: f.x, y: f.y })),
       destroy() { destroyed = true; },
       params: { refr: 0.0045, spec: 0.0, damp: 0.975, shade: 0.12, tint: [1, 1, 1] },
     };

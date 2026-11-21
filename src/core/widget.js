@@ -471,7 +471,7 @@
       panel.append(el('div', 'rule'));
       const foot = el('div', 'foot');
       if (bgNow || bgBack) {
-        const noun = { koi: 'koi', butterflies: 'butterflies', fireflies: 'fireflies' }[bgNow || bgBack];
+        const noun = { koi: 'koi', butterflies: 'butterflies', fireflies: 'fireflies', snow: 'snow' }[bgNow || bgBack];
         const bb = el('button', 'btn bg-btn', bgNow ? 'Remove ' + noun : 'Bring back ' + noun);
         bb.type = 'button';
         bb.title = bgNow ? 'Switch the animated background off (Settings → Background turns it on again)' : 'Switch the animated background back on';

@@ -41,7 +41,7 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 > Add any site in Settings. Headroom asks for permission for that one site only.
 >
 > **Also included**
-> • Optional living background: a koi pond, butterfly garden or firefly night behind the chat that reacts when you click and keeps clear of your text (off by default, never blocks the page, one click to remove)
+> • Optional living background: a koi pond, butterfly garden, firefly night or snowfall behind the chat that reacts when you click and keeps clear of your text (off by default, never blocks the page, one click to remove)
 > • Toolbar badge with the current percentage
 > • A popup with every provider in one place
 > • Optional desktop notifications at 75, 90 and 100 percent, and when a limit resets

@@ -47,8 +47,8 @@
   ];
 
   // Living background: the engine plus one scene file per theme, injected into a tab only when the theme is on.
-  AM.BG_THEMES = ['koi', 'butterflies', 'fireflies'];
-  AM.BG_SCENE_FILE = { koi: 'src/core/koi-pond.js', butterflies: 'src/core/scene-butterflies.js', fireflies: 'src/core/scene-night.js' };
+  AM.BG_THEMES = ['koi', 'butterflies', 'fireflies', 'snow'];
+  AM.BG_SCENE_FILE = { koi: 'src/core/koi-pond.js', butterflies: 'src/core/scene-butterflies.js', fireflies: 'src/core/scene-night.js', snow: 'src/core/scene-snow.js' };
   AM.bgFiles = (theme) => (AM.BG_THEMES.includes(theme) ? ['src/core/living-bg.js', AM.BG_SCENE_FILE[theme]] : []);
 
   AM.siteScripts = (host) => {
@@ -106,7 +106,7 @@
     pet: true,
     irisEnergy: 'calm',
     meterStyle: 'pill', // 'pill' | 'bar-top' | 'bar-bottom'
-    bg: 'off', // living background over the page: 'off' | 'koi' | 'butterflies' | 'fireflies'
+    bg: 'off', // living background over the page: 'off' | 'koi' | 'butterflies' | 'fireflies' | 'snow'
     bgLast: '', // the theme the panel's "Remove" button switched off, so "Bring back" knows what to restore
     bgStyle: 'scene', // 'scene' (whole scene blended into the page) | 'creatures' (just the creatures)
     explore: true,

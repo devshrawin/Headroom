@@ -125,7 +125,8 @@
       if (obstacles.length) {
         // turn away from text, and slide out if already over it
         const ahead = { x: head0.x + Math.cos(k.heading) * k.size * 0.5, y: head0.y + Math.sin(k.heading) * k.size * 0.5 };
-        const hit = AM.Living.avoid(ahead.x, ahead.y, k.size * 0.35, obstacles) || AM.Living.avoid(head0.x, head0.y, k.size * 0.35, obstacles);
+        const mid = k.spine[Math.floor(N / 2)];
+        const hit = AM.Living.avoid(ahead.x, ahead.y, k.size * 0.3, obstacles) || AM.Living.avoid(head0.x, head0.y, k.size * 0.3, obstacles) || AM.Living.avoid(mid.x, mid.y, k.size * 0.2, obstacles);
         if (hit) {
           k.heading += angleDiff(Math.atan2(hit.y, hit.x), k.heading) * Math.min(1, 3 + hit.d / 40) * dt * 2.2;
           const out = Math.max(k.speed, k.size * 0.5) * 1.1;
@@ -576,6 +577,7 @@
     return {
       resize,
       setObstacles(r) { obstacles = r || []; },
+      points: () => koi.flatMap((k) => [k.spine[0], k.spine[Math.floor(N / 2)]]),
       advance(dt) { stepAll(dt); drawFrame(); },
       poke: (x, y) => onPointerDown({ clientX: x, clientY: y }),
       destroy() { destroyed = true; },
