@@ -2,6 +2,14 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.2.3 — 2026-11-23
+
+### Fixed
+- On ChatGPT and similar sites the header, sidebar and composer strip kept opaque or gradient backgrounds and showed as white bars over the sky. Full-width and full-height bars (and their fade gradients) are now cleared too, and restored when the weather is turned off.
+
+### Changed
+- Crisper sky: drawn at up to 1440 px wide instead of 960, shown at full strength by default (was 80%), and the dark-page dimming is lighter.
+
 ## 1.2.2 — 2026-11-23
 
 ### Changed

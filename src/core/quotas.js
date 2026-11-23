@@ -101,7 +101,7 @@
     weather: true, // the weather sky behind the page (needs a place, see weatherPlace)
     weatherPlace: null, // { name, lat, lon }: where the weather is for, coordinates rounded to two decimals
     weatherUnits: 'c', // 'c' | 'f'
-    weatherStrength: 0.8, // 0.2 .. 1: how strongly the sky shows through the page
+    weatherStrength: 1, // 0.2 .. 1: how strongly the sky shows through the page
     weatherForce: null, // Settings → "Try a look": { weather?, season?, tod? } instead of the real thing
     quotas: AM.DEFAULT_QUOTAS,
     customSites: [],
@@ -139,7 +139,7 @@
     weather: !(s && s.weather === false),
     weatherPlace: cleanPlace(s && s.weatherPlace),
     weatherUnits: s && s.weatherUnits === 'f' ? 'f' : 'c',
-    weatherStrength: typeof (s && s.weatherStrength) === 'number' && isFinite(s.weatherStrength) ? Math.min(1, Math.max(0.2, s.weatherStrength)) : 0.8,
+    weatherStrength: typeof (s && s.weatherStrength) === 'number' && isFinite(s.weatherStrength) ? Math.min(1, Math.max(0.2, s.weatherStrength)) : 1,
     weatherForce: cleanForce(s && s.weatherForce),
     thresholds: cleanThresholds(s && s.thresholds),
     customSites: cleanSites(s && s.customSites),

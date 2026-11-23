@@ -258,21 +258,32 @@ void main(){
     function clearBackdrops() {
       if (destroyed) return;
       const vw = win.innerWidth, vh = win.innerHeight, seen = new Set();
-      for (const [fx, fy] of [[.5, .5], [.15, .2], [.85, .2], [.15, .8], [.85, .8], [.5, .1], [.5, .9], [.05, .5], [.95, .5]]) {
+      const pts = [[.5, .5], [.15, .2], [.85, .2], [.15, .8], [.85, .8], [.5, .1], [.5, .9], [.05, .5], [.95, .5], [.5, .03], [.5, .97], [.5, .93], [.3, .97], [.8, .97], [.02, .1], [.02, .5], [.02, .9], [.98, .5]];
+      for (const [fx, fy] of pts) {
         for (const el of doc.elementsFromPoint(fx * vw, fy * vh)) {
           if (seen.has(el) || el === rootEl || el === canvas) continue;
           seen.add(el);
           if (cleared.has(el)) continue;
-          if (alphaOf(win.getComputedStyle(el).backgroundColor) < .9) continue;
+          const cs = win.getComputedStyle(el);
+          const hasColor = alphaOf(cs.backgroundColor) >= .9, hasGrad = (cs.backgroundImage || '').indexOf('gradient') >= 0;
+          if (!hasColor && !hasGrad) continue;
+          // a page backdrop: most of the screen, or a bar that runs edge to edge (header, sidebar, composer strip)
           const r = el.getBoundingClientRect();
-          if (r.width * r.height < vw * vh * .5) continue;
-          cleared.set(el, [el.style.getPropertyValue('background-color'), el.style.getPropertyPriority('background-color')]);
-          el.style.setProperty('background-color', 'transparent', 'important');
+          const big = r.width * r.height >= vw * vh * .5;
+          const wideBar = r.width >= vw * .85 && (r.top <= 2 || r.bottom >= vh - 2);
+          const tallBar = r.height >= vh * .85 && (r.left <= 2 || r.right >= vw - 2);
+          if (!big && !wideBar && !tallBar) continue;
+          cleared.set(el, [el.style.getPropertyValue('background-color'), el.style.getPropertyPriority('background-color'), el.style.getPropertyValue('background-image'), el.style.getPropertyPriority('background-image')]);
+          if (hasColor) el.style.setProperty('background-color', 'transparent', 'important');
+          if (hasGrad) el.style.setProperty('background-image', 'none', 'important');
         }
       }
     }
     const restoreBackdrops = () => {
-      for (const [el, [v, p]] of cleared) { if (v) el.style.setProperty('background-color', v, p); else el.style.removeProperty('background-color'); }
+      for (const [el, [v, p, i, ip]] of cleared) {
+        if (v) el.style.setProperty('background-color', v, p); else el.style.removeProperty('background-color');
+        if (i) el.style.setProperty('background-image', i, ip); else el.style.removeProperty('background-image');
+      }
       cleared.clear();
       if (rootPrev[0]) rootEl.style.setProperty('background-color', rootPrev[0], rootPrev[1]); else rootEl.style.removeProperty('background-color');
     };
@@ -281,7 +292,7 @@ void main(){
 
     const reduceMq = win.matchMedia('(prefers-reduced-motion: reduce)');
     let W = 0, H = 0, raf = 0, last = 0, destroyed = false, lost = false;
-    let strength = clamp(opts.strength == null ? .8 : opts.strength, .2, 1);
+    let strength = clamp(opts.strength == null ? 1 : opts.strength, .2, 1);
     let dark = pageIsDark();
     let tone = null;
 
@@ -292,8 +303,8 @@ void main(){
     let boltNext = 3, first = true, shX = 0, shY = 0;
 
     const resize = () => {
-      // the sky is soft, so it is drawn small and stretched: cheap on the GPU and still smooth
-      const k = Math.min(.6, 960 / Math.max(1, win.innerWidth));
+      // drawn at up to 1440 px wide, so edges (sun, moon, rain) stay crisp; wider screens are stretched a little
+      const k = Math.min(1, 1440 / Math.max(1, win.innerWidth));
       const w = Math.max(2, Math.round(win.innerWidth * k)), h = Math.max(2, Math.round(win.innerHeight * k));
       if (w === W && h === H) return;
       W = w; H = h; canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H);
@@ -301,7 +312,7 @@ void main(){
 
     let lastOp = -1;
     function setOpacity(night) {
-      const o = strength * (dark ? .8 : .9 - .5 * night);
+      const o = strength * (dark ? .92 : 1 - .45 * night);
       if (Math.abs(o - lastOp) > .01) { lastOp = o; canvas.style.opacity = String(o); }
     }
     function applyTone() {
@@ -310,7 +321,7 @@ void main(){
       tone = t;
       // the sky sits behind the page; the page keeps its own text, images and panels on top of it. In the dark it is dimmed, and at night on a light page it is eased down so dark text stays readable.
       canvas.style.mixBlendMode = 'normal';
-      canvas.style.filter = dark ? 'brightness(.62) saturate(.9)' : 'none';
+      canvas.style.filter = dark ? 'brightness(.78)' : 'none';
       lastOp = -1;
       setOpacity(1);
     }

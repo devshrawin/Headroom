@@ -113,7 +113,7 @@ test('weather settings: on by default but no place; the place is validated and r
   assert.equal(d.weather, true);
   assert.equal(d.weatherPlace, null);
   assert.equal(d.weatherUnits, 'c');
-  assert.equal(d.weatherStrength, 0.8);
+  assert.equal(d.weatherStrength, 1);
   assert.equal(d.weatherForce, null);
   const p = AM.mergeSettings({ weatherPlace: { name: 'Ahmedabad, India', lat: 23.025791, lon: 72.587265 } }).weatherPlace;
   assert.equal(p.lat, 23.03);
