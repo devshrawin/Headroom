@@ -60,7 +60,7 @@ The full policy is in [`docs/privacy.md`](docs/privacy.md). The short version:
 
 
 - Everything stays in `chrome.storage.local` on your machine. No servers, no analytics.
-- Sign-in, password, OAuth, MFA, checkout and payment requests are never read by the page hook, and secret-looking fields are masked in any body it does forward; the debug log masks emails, tokens and ids. Security review: [`docs/security-review-2026-10-31.md`](docs/security-review-2026-10-31.md). Accessibility review: [`docs/a11y-review-2026-10-31.md`](docs/a11y-review-2026-10-31.md).
+- Sign-in, password, OAuth, MFA, checkout and payment requests are never read by the page hook, and secret-looking fields are masked in any body it does forward; the debug log masks emails, tokens and ids. Security review: [`docs/security-review-2026-10-31.md`](docs/security-review-2026-10-31.md).
 - A page-world script mirrors network calls to the extension so it can spot sends and usage responses. Adapters only extract the **model name**; prompt text is never stored.
 - The page-world script talks to the extension over a private `MessageChannel` (not `window.postMessage`, which every script on the page can read and forge), and every message is schema-validated. The bodies of sign-in, session, token, account and profile requests and responses are never forwarded. Tokens needed for a usage call (ChatGPT, Kimi) stay in memory and are sent only back to that provider's own domain.
 - The debug log stores request bodies as key names only, full response bodies only for usage/limit endpoints, and just the JSON *shape* (keys and types) of anything else.
@@ -108,7 +108,6 @@ src/
   adapters/            one file per provider; generic.js = counting sites + user-added sites
   popup/  options/  welcome/   toolbar popup, settings page, first-run guide
   (no images: the weather sky is drawn by one shader)
-scripts/make-icons.py         cuts the logo out of assets/headroom-logo-source.png and writes icons/
 scripts/build-store-zip.mjs   builds the Web Store zip into release/<date>/ (npm run store-zip)
 tools/                        preview pages for the popup and the weather, and the site smoke test
 test/                         node:test suites (settings, background worker and weather fetch, weather data, widget, content, hooks, parsers)
@@ -144,7 +143,7 @@ Then add it to `content_scripts` + `host_permissions` in `manifest.json` and to 
 
 ## Smoke-testing every site
 
-`tools/site-smoke/` injects the extension's real scripts into a live page with an in-memory `chrome.*` stub, for checking that it mounts, picks the right adapter, hooks the network and finds the chat box, header and perch selectors, without installing the extension. Run `node tools/site-smoke/build.mjs 8801`, serve the repo root with `python -m http.server 8801`, and open `http://localhost:8801/tools/site-smoke/loader.html?to=https://grok.com` in a browser (the bundle rides along in `window.name`; sites that isolate tabs, like ChatGPT, clear it and only the selector checks can run). Signed-out only: usage endpoints need a login. Last run 2026-10-27: see `docs/site-smoke-2026-10-27.md`.
+`tools/site-smoke/` injects the extension's real scripts into a live page with an in-memory `chrome.*` stub, for checking that it mounts, picks the right adapter, hooks the network and finds the chat box and header selectors, without installing the extension. Run `node tools/site-smoke/build.mjs 8801`, serve the repo root with any static file server on port 8801 (for example `npx http-server -p 8801`), and open `http://localhost:8801/tools/site-smoke/loader.html?to=https://grok.com` in a browser (the bundle rides along in `window.name`; sites that isolate tabs, like ChatGPT, clear it and only the selector checks can run). Signed-out only: usage endpoints need a login. Last run 2026-10-27: see `docs/site-smoke-2026-10-27.md`.
 
 ## Development
 

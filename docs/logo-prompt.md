@@ -14,4 +14,4 @@ Headroom is now a thin usage bar plus a live weather sky behind AI chats. No cat
 
 ## After you pick one
 
-Save it as `assets/headroom-logo-source.png`; icons are cut from it (`scripts/make-icons.py`; Python is blocked on this machine, so ask for a Node version).
+The current icon is concept 8 from this prompt, with its wordmark removed: `assets/headroom-logo-source.png` is the full-size source and `icons/` holds the 16, 32, 48 and 128 px versions.

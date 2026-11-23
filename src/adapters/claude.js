@@ -101,7 +101,7 @@
           pct: v.utilization,
           resetAt: AM.toTime(v.resets_at),
           source: 'real',
-          // Model-specific and codenamed buckets are shown in the panel but never drive the pill.
+          // Model-specific and codenamed buckets are shown in the panel but never drive the bar.
           secondary: k !== 'five_hour' && k !== 'seven_day',
         });
       }

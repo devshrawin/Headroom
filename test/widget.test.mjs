@@ -148,8 +148,6 @@ test('a dead extension context (reloaded) stops updating', () => {
   assert.match(w.pillText(), /10%/);
 });
 
-// ---- Iris's mood follows usage ----
-
 // ---------- accessibility ----------
 
 test('a11y: the pill is a named, focusable button whose label speaks the numbers and the state', () => {

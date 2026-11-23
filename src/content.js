@@ -61,7 +61,7 @@
       if (group === 'real' && meters && meters.length) problem = null; // real numbers prove the usage path works
       publish();
     },
-    // An adapter could not get usage ('error') or the user is signed out ('signin'). Shown in the pill and panel.
+    // An adapter could not get usage ('error') or the user is signed out ('signin'). Shown in the bar and panel.
     problem(kind, text) {
       const t = String(text || '').slice(0, 160);
       if (!problem || problem.kind !== kind || problem.text !== t) problem = { kind, text: t, since: Date.now() };
@@ -215,7 +215,7 @@
     }, 3000);
   }
 
-  // A broken adapter (it throws, or its parser chokes on a changed response) must not take the pill, the other
+  // A broken adapter (it throws, or its parser chokes on a changed response) must not take the bar, the other
   // handlers or the page down: failures become a visible "can't read usage" problem instead.
   const failed = (what, e) => {
     console.warn('[Headroom]', adapter && adapter.id, what, e);

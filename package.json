@@ -5,7 +5,6 @@
   "description": "Chrome extension: AI usage-limit bar plus live weather behind the chat.",
   "scripts": {
     "test": "node --test",
-    "icons": "python scripts/make-icons.py",
     "store-zip": "node scripts/build-store-zip.mjs"
   },
   "license": "MIT"

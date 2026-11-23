@@ -100,7 +100,7 @@
             used: j.totalQueries - j.remainingQueries,
             resetAt,
             source: 'real',
-            // the model she's actually using drives the pill; the others sit underneath
+            // the model she's actually using drives the bar; the others sit underneath
             secondary: !!this.lastModel && !this.lastModel.includes(modelName),
           });
         } catch (e) {

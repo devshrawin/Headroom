@@ -78,7 +78,7 @@ test('a subdomain of a provider host uses that provider', async () => {
   assert.equal(c.usage()[0].provider, 'claude');
 });
 
-test('an unrelated site gets no adapter: nothing is sent and no pill is mounted', async () => {
+test('an unrelated site gets no adapter: nothing is sent and no bar is mounted', async () => {
   const c = await loadContent('example.org');
   assert.equal(c.sent.length, 0);
   assert.equal(c.document.body.children.length, 0);
@@ -138,13 +138,13 @@ test('a settings change re-applies without reloading the page', async () => {
   assert.ok(c.usage().length > before, 'publishes again after a settings change');
 });
 
-// ---------- hardening: one broken adapter must not break the pill ----------
+// ---------- hardening: one broken adapter must not break the bar ----------
 
 const brokenAdapter = (over) => (AM) => {
   AM.adapterFor = () => ({ id: 'broken', name: 'Broken', hosts: [], init() {}, ...over });
 };
 
-test("an adapter whose init throws still gets a pill and a visible can't-read-usage problem", async () => {
+test("an adapter whose init throws still gets a bar and a visible can't-read-usage problem", async () => {
   const c = await loadContent('broken.example', { beforeContent: brokenAdapter({ init() { throw new Error('boom'); } }) });
   assert.ok(c.usage().length > 0, 'the report still goes out');
   const last = c.usage().at(-1);

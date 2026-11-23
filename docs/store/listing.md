@@ -101,6 +101,9 @@ The `www.` and bare-domain entries are listed separately because Chrome match pa
 ### Optional host permission `https://*/*`
 Requested only when you click **Add site** in Settings for a specific site you want measured, and Chrome then asks for that one origin (for example `https://example-ai.com/*`). It is never granted up front and the extension does nothing on a site you have not added.
 
+### Optional permission `geolocation`
+Requested only when you press **Use my location** in Settings → Weather, so Headroom can pick the place for the weather without typing a city. Chrome shows its own location prompt. The position is read once, rounded to two decimals (about 1 km) straight away, and only the rounded value is kept. Typing a city never needs this permission, and the weather works without it.
+
 ### Remote code
 **No.** All code ships in the package, including the weather sky (one shader, no images). Nothing is downloaded and executed.
 
@@ -121,21 +124,21 @@ Suggested answers. Review them against the dashboard wording on the day you subm
 
 Tick all three **certifications** (limited use, no sale, no unrelated purpose).
 
-## Screenshots
+## Images (ready to upload)
 
-Chrome Web Store wants 1 to 5 screenshots at **1280 x 800** (or 640 x 400), plus an optional small promo tile (**440 x 280**) and marquee (**1400 x 560**).
+All made with the real extension (`node tools/store-shots/shots.mjs` rebuilds them) on a neutral mock chat page with sample numbers, so no account name, chat title or brand logo is on screen. They are in `docs/store/assets/`.
 
-Suggested set, all showing a neutral mock chat page with sample numbers so no account name, chat title or brand logo appears:
-
-| # | What it shows | Caption |
+| File | Size | Caption to type in the dashboard |
 |---|---|---|
-| 1 | Clear day: sun, soft clouds, the usage bar along the bottom | Your AI limit, with the real weather behind it |
-| 2 | Rain on a grey sky, the bar at 80% in amber | Rain outside, 80% used inside |
-| 3 | Sunset and a night with stars (two halves) | The real hour, the real sun and moon |
-| 4 | Settings → Weather: place, "Right now", sky strength, "Try a look" | Use your location or type a city |
-| 5 | The details panel open, with "Turn off weather" | One click and the sky is gone |
+| `1-clear-day.png` | 1280 x 800 | Your AI limit, with the real weather behind it |
+| `2-rain-80-percent.png` | 1280 x 800 | Rain outside, 80% of your limit used inside |
+| `3-sunset-details.png` | 1280 x 800 | Click the bar for the details, or turn the weather off in one click |
+| `4-night-stars.png` | 1280 x 800 | The real hour: moon and stars after dark |
+| `5-settings-weather.png` | 1280 x 800 | Use your location or type a city |
+| `promo-tile-440x280.png` | 440 x 280 | Small promo tile (optional) |
+| `marquee-1400x560.png` | 1400 x 560 | Marquee promo (optional) |
 
-The weather preview (`node tools/weather-preview/serve.mjs`, then http://localhost:8802) renders the sky for any weather, season and hour; capture the first three from it, the settings one from the real Settings page. Promo tile and marquee: the logo (`icons/icon128.png`), the name and "Limits, in sight." on the sky.
+Upload 1 to 5 screenshots (the dashboard takes up to five) in that order, the small tile in "Small promo tile", the marquee in "Marquee promo tile". Re-run the script after any visual change so the images match the extension.
 
 ## Trademark disclaimer (use verbatim in the listing, README and privacy policy)
 
@@ -143,10 +146,10 @@ The weather preview (`node tools/weather-preview/serve.mjs`, then http://localho
 
 ## Before you submit
 
-- [ ] `manifest.json` and `package.json` both say 1.0.0
+- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.2.5)
 - [ ] Zip built with `npm run store-zip` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
 - [ ] Privacy policy URL is live and loads without sign-in
 - [ ] Single-purpose statement and every permission justification pasted
-- [ ] Screenshots made as described under Screenshots (no personal data in any of them, no brand logos)
+- [ ] Images uploaded from `docs/store/assets/` (5 screenshots, small tile, optional marquee)
 - [ ] Full steps and the list of things only you can do: `docs/store/submit-checklist.md`
 - [ ] Reviewed the "Data usage" answers against the current dashboard wording
