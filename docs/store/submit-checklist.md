@@ -14,7 +14,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 ## 1. One-time setup
 
 - [ ] A Chrome Web Store developer account: <https://chrome.google.com/webstore/devconsole> (one-time registration fee, paid by you, and two-step verification on the Google account).
-- [ ] **Publish the privacy policy.** Repo on GitHub → Settings → Pages → Deploy from a branch → `main` / `/docs`. Then open `https://devshrawin.github.io/Headroom/privacy` in a private window: it must load without signing in. (The Stage 3 to 5 branches must be merged to `main` first, or the page shows the old policy.)
+- [ ] **Privacy policy URL, no GitHub Pages needed.** The repo is public, so GitHub already serves the policy as a readable page: `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md`. Merge the release branch into `main` first (until then that address shows the old policy), then open it in a private window: it must load without signing in. Keep the repo public, or the store link breaks. If you ever make the repo private, publish `docs/privacy.md` somewhere public instead (GitHub Pages, a gist, or your own site).
 - [ ] Merge the release branches into `main` (open the PRs, review, merge). The store upload should come from a commit that is on `main`.
 
 ## 2. Upload
@@ -33,7 +33,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 - [ ] Paste the **single-purpose statement**.
 - [ ] Paste each **permission justification** (`storage`, `alarms`, `notifications`, `scripting`, the host permissions, the optional host permission, the optional `geolocation` permission, remote code = No).
 - [ ] Answer the **data usage** questions using the table in the listing, **checking them against the dashboard's current wording** (the questions change). Tick all three certifications.
-- [ ] Privacy policy URL: `https://devshrawin.github.io/Headroom/privacy`.
+- [ ] Privacy policy URL: `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md`.
 
 ## 5. Distribution and submit
 
@@ -43,7 +43,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 
 ## 6. After publishing
 
-- [ ] Tag the release in git (`v1.2.5`, or whichever version you uploaded) and add the store link to the README. I will not tag or publish anything without you saying so.
+- [ ] Tag the release in git (`v1.2.6`, or whichever version you uploaded) and add the store link to the README. I will not tag or publish anything without you saying so.
 - [ ] Keep the "Verified live" column in the README honest as you check the remaining providers.
 
 ## Known small things (not blockers)

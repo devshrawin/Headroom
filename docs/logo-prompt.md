@@ -14,4 +14,4 @@ Headroom is now a thin usage bar plus a live weather sky behind AI chats. No cat
 
 ## After you pick one
 
-The current icon is concept 8 from this prompt, with its wordmark removed: `assets/headroom-logo-source.png` is the full-size source and `icons/` holds the 16, 32, 48 and 128 px versions.
+The current icon is option 4 (moon and bar) from `docs/logo-options/`, drawn as an SVG; `node tools/logo-options/make-icons.mjs 4-moon-bar` renders `icons/` and `assets/`. This prompt is only for trying AI-generated alternatives.

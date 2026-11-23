@@ -2,6 +2,11 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.2.6 — 2026-11-23
+
+### Changed
+- **New logo**: a crescent moon over a usage bar on deep plum, no blue. Drawn as a vector and rendered at each toolbar size, so the 16 px icon is crisp. Options and the generator are in `docs/logo-options/` and `tools/logo-options/`.
+
 ## 1.2.5 — 2026-11-23
 
 ### Fixed

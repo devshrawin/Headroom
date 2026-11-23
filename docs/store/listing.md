@@ -9,8 +9,8 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 | Name | Headroom: AI usage limit and weather |
 | Category | Productivity |
 | Language | English |
-| Package version | 1.2.5 |
-| Privacy policy URL | `https://devshrawin.github.io/Headroom/privacy` (publish `docs/privacy.md` with GitHub Pages: Settings → Pages → Deploy from branch → `main` / `/docs`) |
+| Package version | 1.2.6 |
+| Privacy policy URL | `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md` (no GitHub Pages needed: the repo is public, so GitHub shows `docs/privacy.md` as a page. It must be merged to `main` first, or it shows the old policy. Open it in a private window to check it loads without signing in) |
 | Support URL | `https://github.com/devshrawin/Headroom/issues` |
 | Homepage URL | `https://github.com/devshrawin/Headroom` |
 
@@ -146,7 +146,7 @@ Upload 1 to 5 screenshots (the dashboard takes up to five) in that order, the sm
 
 ## Before you submit
 
-- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.2.5)
+- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.2.6)
 - [ ] Zip built with `npm run store-zip` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
 - [ ] Privacy policy URL is live and loads without sign-in
 - [ ] Single-purpose statement and every permission justification pasted
