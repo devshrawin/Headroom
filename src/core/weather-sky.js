@@ -254,37 +254,39 @@ void main(){
     for (const el of [doc.body, rootEl]) { if (!el) continue; const c = win.getComputedStyle(el).backgroundColor; if (c && alphaOf(c) >= .5) { pageBg = c; break; } }
     const rootPrev = [rootEl.style.getPropertyValue('background-color'), rootEl.style.getPropertyPriority('background-color')];
     rootEl.style.setProperty('background-color', pageBg || (win.matchMedia('(prefers-color-scheme: dark)').matches ? '#14141c' : '#ffffff'), 'important');
-    const cleared = new Map();
+    // Marked elements lose their background (and any fade drawn by ::before / ::after) through one
+    // stylesheet, so nothing is edited inline and everything comes back when the sheet is removed.
+    const MARK = 'data-hr-sky';
+    const sheet = doc.createElement('style');
+    sheet.setAttribute('data-headroom', 'weather');
+    sheet.textContent = ':root [' + MARK + '][' + MARK + ']{background-color:transparent !important;background-image:none !important}'
+      + ':root [' + MARK + '][' + MARK + ']::before,:root [' + MARK + '][' + MARK + ']::after{background:none !important}';
+    (doc.head || rootEl).appendChild(sheet);
+    const marked = new Set();
+    const isBacking = (cs) => alphaOf(cs.backgroundColor) >= .9 || (cs.backgroundImage || '').indexOf('gradient') >= 0;
     function clearBackdrops() {
-      if (destroyed) return;
-      const vw = win.innerWidth, vh = win.innerHeight, seen = new Set();
-      const pts = [[.5, .5], [.15, .2], [.85, .2], [.15, .8], [.85, .8], [.5, .1], [.5, .9], [.05, .5], [.95, .5], [.5, .03], [.5, .97], [.5, .93], [.3, .97], [.8, .97], [.02, .1], [.02, .5], [.02, .9], [.98, .5]];
-      for (const [fx, fy] of pts) {
-        for (const el of doc.elementsFromPoint(fx * vw, fy * vh)) {
-          if (seen.has(el) || el === rootEl || el === canvas) continue;
-          seen.add(el);
-          if (cleared.has(el)) continue;
-          const cs = win.getComputedStyle(el);
-          const hasColor = alphaOf(cs.backgroundColor) >= .9, hasGrad = (cs.backgroundImage || '').indexOf('gradient') >= 0;
-          if (!hasColor && !hasGrad) continue;
-          // a page backdrop: most of the screen, or a bar that runs edge to edge (header, sidebar, composer strip)
-          const r = el.getBoundingClientRect();
-          const big = r.width * r.height >= vw * vh * .5;
-          const wideBar = r.width >= vw * .85 && (r.top <= 2 || r.bottom >= vh - 2);
-          const tallBar = r.height >= vh * .85 && (r.left <= 2 || r.right >= vw - 2);
-          if (!big && !wideBar && !tallBar) continue;
-          cleared.set(el, [el.style.getPropertyValue('background-color'), el.style.getPropertyPriority('background-color'), el.style.getPropertyValue('background-image'), el.style.getPropertyPriority('background-image')]);
-          if (hasColor) el.style.setProperty('background-color', 'transparent', 'important');
-          if (hasGrad) el.style.setProperty('background-image', 'none', 'important');
+      if (destroyed || !doc.body) return;
+      const vw = win.innerWidth, vh = win.innerHeight;
+      const all = doc.body.querySelectorAll('*');
+      const n = Math.min(all.length, 6000);
+      for (let i = 0; i < n; i++) {
+        const el = all[i];
+        if (marked.has(el) || el === canvas || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 8 || r.height < 8) continue;
+        // a page backdrop: most of the screen, or a bar across it (header, sidebar, the strip round the composer)
+        if (!(r.width * r.height >= vw * vh * .5 || r.width >= vw * .85 || r.height >= vh * .85)) continue;
+        const cs = win.getComputedStyle(el);
+        if (cs.display === 'none') continue;
+        if (isBacking(cs) || isBacking(win.getComputedStyle(el, '::before')) || isBacking(win.getComputedStyle(el, '::after'))) {
+          marked.add(el); el.setAttribute(MARK, '');
         }
       }
     }
     const restoreBackdrops = () => {
-      for (const [el, [v, p, i, ip]] of cleared) {
-        if (v) el.style.setProperty('background-color', v, p); else el.style.removeProperty('background-color');
-        if (i) el.style.setProperty('background-image', i, ip); else el.style.removeProperty('background-image');
-      }
-      cleared.clear();
+      for (const el of marked) el.removeAttribute(MARK);
+      marked.clear();
+      sheet.remove();
       if (rootPrev[0]) rootEl.style.setProperty('background-color', rootPrev[0], rootPrev[1]); else rootEl.style.removeProperty('background-color');
     };
     const maskTimer = win.setInterval(clearBackdrops, 1500);

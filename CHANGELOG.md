@@ -2,6 +2,11 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.2.4 — 2026-11-23
+
+### Fixed
+- ChatGPT still showed white bars: the header, sidebar and bottom strip are layers that clicks pass through, which the 1.2.3 lookup could not see. The whole page is now scanned for full-width, full-height and screen-sized backgrounds, fades drawn by ::before and ::after included, and one stylesheet (removed when the weather is off) clears them. Nothing is edited inline any more.
+
 ## 1.2.3 — 2026-11-23
 
 ### Fixed
