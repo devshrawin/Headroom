@@ -43,7 +43,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 
 ## 6. After publishing
 
-- [ ] Tag the release in git (`v1.2.6`, or whichever version you uploaded) and add the store link to the README. I will not tag or publish anything without you saying so.
+- [ ] Tag the release in git (`v1.2.7`, or whichever version you uploaded) and add the store link to the README. I will not tag or publish anything without you saying so.
 - [ ] Keep the "Verified live" column in the README honest as you check the remaining providers.
 
 ## Known small things (not blockers)

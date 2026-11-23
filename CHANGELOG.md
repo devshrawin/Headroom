@@ -2,6 +2,11 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.2.7 — 2026-11-23
+
+### Changed
+- Store listing: the Chrome Web Store rejected 1.2.6 for keyword stuffing (lists of product and company names). The summary and description no longer list brand names; the description is plain prose, and the trademark line is short. Extension code is unchanged.
+
 ## 1.2.6 — 2026-11-23
 
 ### Changed

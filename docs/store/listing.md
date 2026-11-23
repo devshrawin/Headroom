@@ -9,54 +9,45 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 | Name | Headroom: AI usage limit and weather |
 | Category | Productivity |
 | Language | English |
-| Package version | 1.2.6 |
+| Package version | 1.2.7 |
 | Privacy policy URL | `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md` (no GitHub Pages needed: the repo is public, so GitHub shows `docs/privacy.md` as a page. It must be merged to `main` first, or it shows the old policy. Open it in a private window to check it loads without signing in) |
 | Support URL | `https://github.com/devshrawin/Headroom/issues` |
 | Homepage URL | `https://github.com/devshrawin/Headroom` |
 
 ## Short description (max 132 characters)
 
-> See your AI usage limit as a thin bar, with the live weather as a sky behind the chat. Claude, ChatGPT, Gemini, Grok and more.
+> See your AI usage limit as a thin bar on the chat sites you use, with the live weather as a sky behind the chat.
 
-(about 125 characters. This is also the `description` in `manifest.json`.)
+(about 110 characters. This is also the `description` in `manifest.json`. No product names on purpose: the Web Store rejects lists of brand names as keyword stuffing.)
 
 ## Long description
 
+No lists of product or company names (the store rejected version 1.2.6 for that). Plain text, paste as is.
+
 > Headroom does two things on the AI chat sites you use: it shows how much of your usage limit is left, and it puts the real weather behind your chat.
 >
-> **Your limit, as a thin bar.** A slim bar runs along the bottom (or top) of the page and fills as you use your limit. Point at it for the percentage and when it resets, click it for the details. Shapes as well as colours show the level, so it reads without colour.
+> Your limit, as a thin bar. A slim bar runs along the bottom (or top) of the page and fills as you use your limit. Point at it for the percentage and when it resets, click it for the details. Shapes as well as colours show the level, so it reads without colour.
 >
-> **The real weather, behind your chat.** Choose where you are (use your location, or type a city) and the page gets a living sky that follows the real weather and the real hour: the sun, moon and stars, clouds that move with the real wind, rain, snow, fog, lightning, and falling leaves in autumn. It never blocks the page or your clicks, you can turn it off with one click, and you can lower its strength if text is hard to read.
+> The real weather, behind your chat. Choose where you are (use your location, or type a city) and the page gets a living sky that follows the real weather and the real hour: sun, moon and stars, moving clouds, rain, snow, fog, lightning and falling leaves in autumn. It never blocks the page or your clicks, you can turn it off with one click, and you can lower its strength if text is hard to read.
 >
-> **Real numbers where the provider gives them**
-> • Claude: session (5 hour) and weekly usage, with reset times
-> • Gemini: 5 hour and weekly usage
-> • Grok: your remaining chat queries per model
-> • Perplexity: remaining Pro searches, research and labs
-> • Kimi: your membership balance
-> • ChatGPT: Codex usage windows, plus a message count for chat
+> Real numbers where the site provides them. Where a site shows your usage, Headroom reads those figures from your own logged-in tab. Where it does not, Headroom counts your messages against limits you set yourself.
 >
-> **Counted for the rest**
-> DeepSeek, Qwen, Le Chat, Copilot, Meta AI and Poe do not show usage, so Headroom counts your sends against limits you set yourself.
+> It works on the most popular AI chat sites, and you can add any other site in Settings. Headroom asks permission for that one site only.
 >
-> **Any other AI site**
-> Add any site in Settings. Headroom asks for permission for that one site only.
->
-> **Also included**
-> • Live weather sky behind the chat (sun, moon, clouds, rain, snow, fog, lightning, falling leaves), one click to turn off
+> Also included
 > • Toolbar badge with the current percentage
-> • A popup with every provider in one place
+> • A popup with every site in one place
 > • Optional desktop notifications at 75, 90 and 100 percent, and when a limit resets
-> • Chat length and a rough cost for your next message on Claude, ChatGPT and Gemini
-> • A visible message when a provider's usage cannot be read, with a one-click copy of the debug details
-> • A short first-run guide that explains the real / estimate / banner tags
-> • Export and import your settings, so custom limits are never lost
-> • Works from the keyboard: Tab to the meter, Enter to open it
+> • Chat length and a rough cost for your next message, where the site allows it
+> • A clear message when usage cannot be read, with a one-click copy of the debug details
+> • A short first-run guide
+> • Export and import of your settings, so custom limits are never lost
+> • Keyboard support: Tab to the bar, Enter to open it
 >
-> **Private by design**
-> Everything stays on your machine. There is no server of ours, no account and no analytics. Usage requests go from your own logged-in tab to the provider's own site, exactly as its settings page would send them. Message text is never stored. The one other request is for the weather, only if you turn it on: the rounded coordinates of the place you choose (about 1 km) go to the free Open-Meteo weather service to ask for the forecast. See the privacy policy for the details.
+> Private by design
+> Everything stays on your machine. There is no server of ours, no account and no analytics. Usage requests go from your own logged-in tab to the site's own servers, exactly as its settings page would send them. Message text is never stored. The one other request is for the weather, only if you turn it on: the rounded coordinates of the place you choose (about 1 km) go to the free Open-Meteo weather service to ask for the forecast. See the privacy policy for the details.
 >
-> Headroom is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, OpenAI, Google, xAI, Perplexity, Moonshot AI, DeepSeek, Alibaba, Mistral AI, Microsoft, Meta or Quora. Product and company names are trademarks of their respective owners and are used only to say which services Headroom works with.
+> Headroom is an independent project and is not affiliated with, endorsed by or sponsored by any of the AI services it works with. All product names belong to their owners.
 
 ## Single-purpose statement
 
@@ -140,13 +131,13 @@ All made with the real extension (`node tools/store-shots/shots.mjs` rebuilds th
 
 Upload 1 to 5 screenshots (the dashboard takes up to five) in that order, the small tile in "Small promo tile", the marquee in "Marquee promo tile". Re-run the script after any visual change so the images match the extension.
 
-## Trademark disclaimer (use verbatim in the listing, README and privacy policy)
+## Trademark note
 
-> Headroom is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, OpenAI, Google, xAI, Perplexity, Moonshot AI, DeepSeek, Alibaba, Mistral AI, Microsoft, Meta or Quora. Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek, Qwen, Le Chat, Copilot, Meta AI and Poe, and all related names and logos, are trademarks of their respective owners. They are used here only to identify the services Headroom works with.
+The store description keeps only the short line at its end. The full list of company names stays out of it (it counted as keyword stuffing); the README and the privacy policy may keep their longer disclaimers.
 
 ## Before you submit
 
-- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.2.6)
+- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.2.7)
 - [ ] Zip built with `npm run store-zip` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
 - [ ] Privacy policy URL is live and loads without sign-in
 - [ ] Single-purpose statement and every permission justification pasted
