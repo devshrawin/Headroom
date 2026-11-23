@@ -29,33 +29,6 @@ test('Copilot is matched on its current address (copilot.microsoft.com now redir
   assert.equal(AM.providerForHost('copilot.microsoft.com').id, 'copilot');
 });
 
-test('web_accessible_resources are limited to the provider hosts (no https://*/*)', () => {
-  const war = manifest.web_accessible_resources.flatMap((r) => r.matches);
-  assert.ok(war.length > 0);
-  assert.ok(!war.includes('https://*/*'), 'Iris sprites must not be readable by every site');
-  for (const m of war) assert.ok(manifest.host_permissions.includes(m), `${m} is not a provider host`);
-  for (const p of AM.PROVIDERS) for (const h of p.hosts) assert.ok(covers(war, h), `${p.id}: ${h} cannot load Iris sprites`);
-});
-
-test("Iris's engine is not in the always-loaded content scripts, and is injected on demand", () => {
-  const loaded = manifest.content_scripts.flatMap((c) => c.js);
-  assert.ok(AM.PET_BUNDLE.length >= 3);
-  for (const f of AM.PET_BUNDLE) {
-    assert.ok(!loaded.includes(f), `${f} must not load on every provider tab`);
-    assert.ok(!AM.CONTENT_BUNDLE.includes(f), `${f} must not be in the custom-site bundle`);
-    assert.ok(existsSync(new URL('../' + f, import.meta.url)), `${f} exists`);
-  }
-  assert.ok(manifest.permissions.includes('scripting'), 'chrome.scripting.executeScript needs the scripting permission');
-});
-
-test('the widget loads and works without the pet engine present', () => {
-  const sb = { console, document: { createElement() { return {}; } }, localStorage: {}, setInterval: () => 0, chrome: {} };
-  const c = vm.createContext(sb);
-  for (const f of ['src/core/quotas.js', 'src/core/common.js', 'src/core/widget.js']) vm.runInContext(readFileSync(new URL('../' + f, import.meta.url), 'utf8'), c, { filename: f });
-  assert.equal(typeof c.Headroom.widget.update, 'function');
-  assert.equal(c.Headroom.createPet, undefined, 'no pet until it is requested');
-});
-
 test('every file the manifest points at exists (icons, popup, options, background, content scripts)', () => {
   const files = new Set([
     manifest.background.service_worker, manifest.action.default_popup, manifest.options_page,
@@ -63,18 +36,8 @@ test('every file the manifest points at exists (icons, popup, options, backgroun
     ...manifest.content_scripts.flatMap((c) => c.js),
   ]);
   for (const f of files) assert.ok(existsSync(new URL('../' + f, import.meta.url)), `${f} is missing`);
-  // the sprite glob must match real files
-  assert.ok(manifest.web_accessible_resources.some((r) => r.resources.some((g) => g.startsWith('src/assets/iris/'))));
-  assert.ok(existsSync(new URL('../src/assets/iris/sit.webp', import.meta.url)));
+  assert.equal(manifest.web_accessible_resources, undefined, 'nothing is exposed to web pages');
+  for (const f of AM.WEATHER_FILES) assert.ok(existsSync(new URL('../' + f, import.meta.url)), `${f} is missing`);
+  for (const f of AM.WEATHER_FILES) assert.ok(!AM.CONTENT_BUNDLE.includes(f), `${f} is injected on demand, not always loaded`);
 });
 
-test('every living-background file exists and each theme loads the engine plus its own scene', () => {
-  for (const t of AM.BG_THEMES) {
-    const files = AM.bgFiles(t);
-    assert.equal(files.length, 2);
-    assert.equal(files[0], 'src/core/living-bg.js');
-    for (const f of files) assert.ok(existsSync(new URL('../' + f, import.meta.url)), f + ' is missing');
-  }
-  assert.equal(AM.bgFiles('nope').length, 0);
-  for (const f of AM.bgFiles('koi')) assert.ok(!AM.CONTENT_BUNDLE.includes(f), f + ' must be injected on demand, not always loaded');
-});

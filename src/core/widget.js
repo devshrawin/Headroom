@@ -1,9 +1,8 @@
-// Small draggable on-page meter, isolated in a shadow root so site CSS can't touch it.
-// The pill stays mounted between updates so Iris (pet.js) isn't reset on every refresh.
+// The on-page meter: a thin bar along the top or bottom edge of the page, isolated in a shadow root so site CSS can't
+// touch it. Hover or focus shows the label; click opens the details panel.
 // Look and tokens: the Headroom meter redesign (levels = glyph + colour + bar pattern, source tags = three shapes).
 (() => {
   const AM = globalThis.Headroom;
-  const POS_KEY = 'headroom.pos';
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
   const CSS = `
@@ -18,7 +17,6 @@
       --hr-bar-h: 6px; --hr-bar-h-hover: 10px;
       --hr-dur-fast: 120ms; --hr-dur-med: 200ms; --hr-dur-fill: 600ms; --hr-ease: cubic-bezier(.2,.8,.2,1);
       display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 6px; color: var(--hr-text); font-family: var(--hr-font); }
-    .wrap.with-pet { gap: 74px; padding-top: 70px; }
     @media (prefers-color-scheme: dark) {
       .wrap { --hr-bg: #14121c; --hr-surf: #1e1b29; --hr-text: #eeebf7; --hr-muted: #aaa5c0; --hr-accent: #bba8ff;
         --hr-line: #34304a; --hr-edge: #6a6585; --hr-track: #2c283d;
@@ -32,11 +30,10 @@
     .g { width: 12px; height: 12px; flex: none; display: block; }
     .glyph { display: inline-flex; flex: none; }
 
-    /* The pill */
+    /* The label chip and the bar */
     .pill { position: relative; display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 12px 0 10px; border-radius: 999px;
       background: var(--hr-surf); border: 1px solid var(--hr-line); box-shadow: var(--hr-shadow); color: var(--hr-text);
-      font-size: 12.5px; font-weight: 600; line-height: 1; cursor: grab; user-select: none; white-space: nowrap; touch-action: none; }
-    .pill:active { cursor: grabbing; }
+      font-size: 12.5px; font-weight: 600; line-height: 1; cursor: pointer; user-select: none; white-space: nowrap; }
     .pill:focus-visible, .btn:focus-visible { outline: 2px solid var(--hr-accent); outline-offset: 2px; }
     .info { display: inline-flex; align-items: center; gap: 7px; }
     .pct { font-variant-numeric: tabular-nums; font-weight: 700; }
@@ -80,8 +77,6 @@
       background: var(--hr-bg); color: var(--hr-text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
     .btn:hover { border-color: var(--hr-accent); }
     .foot { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
-    .iris-face { width: 14px; height: auto; transition: filter var(--hr-dur-med), opacity var(--hr-dur-med); }
-    .iris-btn.away .iris-face { filter: grayscale(1); opacity: .6; }
     .prob { border: 1px solid var(--hr-ban-line); background: var(--hr-prob-bg); border-radius: 10px; padding: 10px 12px; }
     .pt { display: flex; align-items: center; gap: 6px; font-weight: 700; margin: 0 0 2px; }
     .prob p { margin: 0 0 8px; color: var(--hr-muted); font-size: 11.5px; word-break: break-word; }
@@ -115,11 +110,7 @@
   let panelBox = null;
   let pill = null;
   let info = null;
-  let pet = null;
-  let petOn = false;
-  let petPending = false;
-  let petCssAdded = false;
-  let barMode = null; // 'top' | 'bottom' | null (pill)
+  let barMode = 'bottom'; // 'top' | 'bottom'
   let barFill = null;
   let barTrack = null;
   let styleEl = null;
@@ -182,151 +173,44 @@
     return null;
   };
 
-  const loadPos = () => {
-    try {
-      const p = JSON.parse(localStorage.getItem(POS_KEY) || localStorage.getItem('aimeter.pos')); // old key from before the rename
-      const ok = (n) => Number.isFinite(n) && n >= -20 && n <= 20000;
-      return p && ok(p.right) && ok(p.bottom) ? { right: p.right, bottom: p.bottom } : null;
-    } catch { return null; }
-  };
-  const savePos = (p) => {
-    try { localStorage.setItem(POS_KEY, JSON.stringify(p)); } catch {}
-  };
-
-  const moodFor = (pct) => (pct == null || pct < 75 ? 'happy' : pct < 90 ? 'worried' : pct < 100 ? 'stressed' : 'sleep');
-
-  // Iris's engine and sprites are loaded into the tab only when she is switched on, and only on the built-in sites
-  // (the sprites are web-accessible to those hosts alone; a site added in Settings gets the meter without her).
-  const irisAvailable = () => !barMode && (!AM.siteId || !String(AM.siteId).startsWith('site:'));
-  let petLoad = null;
-  function ensurePet() {
-    if (AM.createPet) return Promise.resolve(true);
-    if (!petLoad) {
-      petLoad = (AM.loadPet ? AM.loadPet() : Promise.reject(new Error('no loader')))
-        .then(() => !!AM.createPet, () => false)
-        .then((ok) => { if (!ok) petLoad = null; return ok; });
-    }
-    return petLoad;
-  }
-  function applyPetSettings() {
-    if (!pet) return;
-    pet.setExplore(lastSettings.explore !== false);
-    if (pet.setEnergy) pet.setEnergy(lastSettings.irisEnergy);
-  }
-
-  function setPet(on) {
-    if (on && !irisAvailable()) on = false;
-    if (on === petOn && (!on || pet || petPending)) return;
-    petOn = on;
-    const old = pet;
-    pet = null;
-    if (old) {
-      // Sent home: let her say bye and walk off first (bounded, in case the tab is hidden and frames stall).
-      const gone = !on && old.leave ? Promise.race([old.leave(), new Promise((r) => setTimeout(r, 4000))]) : Promise.resolve();
-      gone.finally(() => { old.destroy(); if (!petOn && wrap) wrap.classList.remove('with-pet'); });
-    } else if (!on) {
-      wrap.classList.remove('with-pet');
-    }
-    if (on) {
-      wrap.classList.add('with-pet');
-      petPending = true;
-      ensurePet().then((ok) => {
-        petPending = false;
-        if (!petOn || pet || !host || !wrap) return;
-        if (!ok) { petOn = false; wrap.classList.remove('with-pet'); return; }
-        if (!petCssAdded && AM.PET_CSS && styleEl) { styleEl.textContent += AM.PET_CSS; petCssAdded = true; }
-        pet = AM.createPet(pill, host);
-        applyPetSettings();
-        render();
-      });
-    }
-  }
-
   function mount() {
     if (host || !document.body) return;
     host = document.createElement('div');
     host.setAttribute('data-headroom', '');
-    const ms = lastSettings.meterStyle;
-    barMode = ms === 'bar-top' ? 'top' : ms === 'bar-bottom' ? 'bottom' : null;
-    const pos = loadPos() || { right: 16, bottom: 16 };
-    host.style.cssText = barMode
-      ? `position:fixed;left:0;right:0;${barMode}:0;z-index:2147483646;`
-      : `position:fixed;right:${pos.right}px;bottom:${pos.bottom}px;z-index:2147483646;`;
+    barMode = lastSettings.meterStyle === 'bar-top' ? 'top' : 'bottom';
+    host.style.cssText = `position:fixed;left:0;right:0;${barMode}:0;z-index:2147483646;`;
     root = host.attachShadow({ mode: 'open' });
     const style = el('style');
     style.textContent = CSS;
     styleEl = style;
-    wrap = el('div', barMode ? 'wrap edge ' + barMode : 'wrap');
+    wrap = el('div', 'wrap edge ' + barMode);
     panelBox = el('div', 'pbox');
-    pill = el('div', barMode ? 'pill edge' : 'pill');
-    pill.title = barMode ? 'Headroom — click for details' : 'Headroom — click for details, drag to move';
+    pill = el('div', 'pill edge');
+    pill.title = 'Headroom — click for details';
     pill.setAttribute('role', 'button');
     pill.tabIndex = 0;
     pill.setAttribute('aria-expanded', 'false');
     info = el('span', 'info');
     barFill = null;
     barTrack = null;
-    if (barMode) { barTrack = el('span', 'trk'); barFill = el('span', 'fill'); barTrack.append(barFill); pill.append(barTrack); }
+    barTrack = el('span', 'trk'); barFill = el('span', 'fill'); barTrack.append(barFill); pill.append(barTrack);
     pill.append(info);
-    attachDrag(pill);
+    attachClick(pill);
     attachKeys(pill);
     wrap.append(pill, panelBox);
     root.append(style, wrap);
     document.body.appendChild(host);
-    petOn = false;
     ticker = setInterval(render, 30000);
   }
 
   function unmount() {
-    if (pet) pet.destroy();
     if (host) host.remove();
-    host = root = wrap = panelBox = pill = info = pet = barFill = barTrack = null;
-    barMode = null;
-    petOn = false;
+    host = root = wrap = panelBox = pill = info = barFill = barTrack = null;
     clearInterval(ticker);
   }
 
-  function attachDrag(target) {
-    let start = null;
-    target.addEventListener('pointerdown', (e) => {
-      const r = host.getBoundingClientRect();
-      const onPet = !!(e.target && e.target.closest && e.target.closest('.pet'));
-      start = { x: e.clientX, y: e.clientY, right: innerWidth - r.right, bottom: innerHeight - r.bottom, moved: false, onPet };
-      try { target.setPointerCapture(e.pointerId); } catch {}
-    });
-    target.addEventListener('pointermove', (e) => {
-      if (!start || barMode) return;
-      const dx = e.clientX - start.x;
-      const dy = e.clientY - start.y;
-      // Dragging Iris herself picks her up and carries her (the pill stays put).
-      if (start.onPet) {
-        if (!start.carrying && Math.hypot(dx, dy) >= 6 && pet && pet.grab) start.carrying = pet.grab(e.clientX, e.clientY);
-        if (start.carrying) { start.moved = true; pet.carry(e.clientX, e.clientY); }
-        return;
-      }
-      if (!start.moved && Math.hypot(dx, dy) < 4) return;
-      if (!start.moved && pet) pet.setDragging(true);
-      start.moved = true;
-      host.style.right = Math.max(0, Math.min(innerWidth - 60, start.right - dx)) + 'px';
-      host.style.bottom = Math.max(0, Math.min(innerHeight - 30, start.bottom - dy)) + 'px';
-    });
-    const end = (e) => {
-      if (!start) return;
-      if (start.carrying) {
-        if (pet) pet.drop(e && e.clientX, e && e.clientY);
-      } else if (start.moved) {
-        savePos({ right: parseInt(host.style.right, 10), bottom: parseInt(host.style.bottom, 10) });
-        if (pet) pet.setDragging(false);
-      } else if (start.onPet && pet) pet.react();
-      else { expanded = !expanded; render(); }
-      start = null;
-    };
-    target.addEventListener('pointerup', end);
-    target.addEventListener('pointercancel', () => {
-      if (start && start.carrying && pet) pet.drop();
-      else if (start && start.moved && pet) pet.setDragging(false);
-      start = null;
-    });
+  function attachClick(target) {
+    target.addEventListener('click', () => { expanded = !expanded; render(); });
   }
 
   function attachKeys(target) {
@@ -340,17 +224,6 @@
         e.preventDefault();
         expanded = false;
         render();
-      } else if (!barMode && e.shiftKey && /^Arrow(Left|Right|Up|Down)$/.test(e.key)) {
-        e.preventDefault();
-        const step = 16;
-        const cur = { right: parseFloat(host.style.right) || 0, bottom: parseFloat(host.style.bottom) || 0 };
-        const dx = e.key === 'ArrowLeft' ? step : e.key === 'ArrowRight' ? -step : 0;
-        const dy = e.key === 'ArrowUp' ? step : e.key === 'ArrowDown' ? -step : 0;
-        const right = Math.max(0, Math.min(innerWidth - 60, cur.right + dx));
-        const bottom = Math.max(0, Math.min(innerHeight - 30, cur.bottom + dy));
-        host.style.right = right + 'px';
-        host.style.bottom = bottom + 'px';
-        savePos({ right, bottom });
       }
     });
   }
@@ -464,31 +337,16 @@
     if (last.problem) panel.append(problemBox(last.problem));
     else if (!meters.length) panel.append(el('div', 'empty', 'No usage data yet. Send a message or open usage settings.'));
     for (const m of meters) panel.append(limitRow(m, now));
-    // One-click on/off for the living background, so it never takes more than a click to get rid of the fish.
-    const bgNow = lastSettings.bg && lastSettings.bg !== 'off' ? lastSettings.bg : '';
-    const bgBack = !bgNow && lastSettings.bgLast ? lastSettings.bgLast : '';
-    if (AM.setSetting && (irisAvailable() || bgNow || bgBack)) {
+    // One click to turn the weather background off (or back on), without a trip to Settings.
+    if (AM.setSetting && lastSettings.weatherPlace) {
+      const on = lastSettings.weather !== false;
       panel.append(el('div', 'rule'));
       const foot = el('div', 'foot');
-      if (bgNow || bgBack) {
-        const noun = { koi: 'koi', butterflies: 'butterflies', fireflies: 'fireflies', snow: 'snow' }[bgNow || bgBack];
-        const bb = el('button', 'btn bg-btn', bgNow ? 'Remove ' + noun : 'Bring back ' + noun);
-        bb.type = 'button';
-        bb.title = bgNow ? 'Switch the animated background off (Settings → Background turns it on again)' : 'Switch the animated background back on';
-        bb.addEventListener('click', () => AM.setSetting(bgNow ? { bg: 'off', bgLast: bgNow } : { bg: bgBack, bgLast: '' }));
-        foot.append(bb);
-      }
-      if (irisAvailable()) {
-      const btn = el('button', 'btn iris-btn' + (petOn ? '' : ' away'));
-      btn.type = 'button';
-      btn.title = petOn ? 'Iris goes home and the meter stays' : 'Iris comes back to the meter';
-      const face = el('img', 'iris-face');
-      face.alt = '';
-      try { face.src = chrome.runtime.getURL('src/assets/iris/sit.webp'); } catch {}
-      btn.append(face, el('span', null, petOn ? 'Send Iris home' : 'Bring Iris back'));
-      btn.addEventListener('click', () => AM.setSetting('pet', !petOn));
-      foot.append(btn);
-      }
+      const wb = el('button', 'btn weather-btn', on ? 'Turn off weather' : 'Turn on weather');
+      wb.type = 'button';
+      wb.title = on ? 'Hide the weather background on the page' : 'Show the weather background on the page';
+      wb.addEventListener('click', () => AM.setSetting('weather', !on));
+      foot.append(wb);
       panel.append(foot);
     }
     panelBox.append(panel);
@@ -518,7 +376,7 @@
         if (desc) say += '. ' + desc.title;
       }
       const act = expanded ? 'Close details.' : 'Open details.';
-      pill.setAttribute('aria-label', barMode ? `Headroom: ${last.name} ${say}. ${act}` : `${last.name}: ${say}. ${act}`);
+      pill.setAttribute('aria-label', `Headroom: ${last.name} ${say}. ${act}`);
     }
 
     // the bar itself
@@ -543,42 +401,26 @@
     }
     if (top && topPct != null) {
       const rt = top.resetAt ? AM.formatDuration(top.resetAt - now) : '';
-      if (barMode) { if (rt) info.append(el('span', 'sub', '· resets in ' + rt)); }
-      else if (rt && level !== 'ok') info.append(el('span', 'sub', '· ' + rt)); // the reset time only matters from "close" up
+      if (rt) info.append(el('span', 'sub', '· resets in ' + rt));
     }
     if (desc && top) {
       const flagBox = glyphBox('problem', 'unk');
       flagBox.title = desc.title;
       info.append(flagBox);
     }
-    if (barMode) {
-      if (!top && desc) info.lastChild.textContent = lowerFirst(desc.title);
-      const tag = top && topPct != null ? tagEl(top.source) : null;
-      if (tag) info.append(tag);
-    } else if (last.chat) {
-      const sep = el('span', 'sep');
-      sep.setAttribute('aria-hidden', 'true');
-      info.append(sep, el('span', 'sub', AM.fmtTokens(last.chat.tokens) + ' tok'));
-      if (hasCache(last.chat)) {
-        const c = cacheState(last.chat, now);
-        if (c.cls !== 'off') info.append(cacheChip(c.dur));
-      }
-    }
-    if (pet) {
-      pet.setMood(moodFor(topPct));
-      pet.nudge();
-    }
+    if (!top && desc) info.lastChild.textContent = lowerFirst(desc.title);
+    const tag = top && topPct != null ? tagEl(top.source) : null;
+    if (tag) info.append(tag);
   }
 
   AM.widget = {
     destroy: unmount,
-    get pet() { return pet; }, // for debugging from the console: Headroom.widget.pet.play('yarn')
     update(name, meters, settings, chat, problem) {
       if (AM.dead) return;
       last = { name, meters, chat: chat || null, problem: problem || null };
       if (!settings.widget) return unmount();
-      const wanted = settings.meterStyle === 'bar-top' || settings.meterStyle === 'bar-bottom' ? settings.meterStyle : 'pill';
-      if (host && lastSettings.meterStyle !== undefined && wanted !== (lastSettings.meterStyle || 'pill')) unmount();
+      const wanted = settings.meterStyle === 'bar-top' ? 'bar-top' : 'bar-bottom';
+      if (host && lastSettings.meterStyle !== undefined && wanted !== (lastSettings.meterStyle === 'bar-top' ? 'bar-top' : 'bar-bottom')) unmount();
       lastSettings = settings;
       if (!host) {
         if (!document.body) {
@@ -589,8 +431,6 @@
       } else if (!host.isConnected && document.body) {
         document.body.appendChild(host);
       }
-      setPet(settings.pet !== false);
-      applyPetSettings();
       render();
     },
   };

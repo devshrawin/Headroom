@@ -106,46 +106,35 @@
     send({ type: 'headroom:usage', provider: adapter.id, name: adapter.name, meters, problem: shown });
   }
 
-  // Iris's code is not in the always-loaded bundle: the background script injects it into this tab on request.
-  AM.loadPet = () => new Promise((resolve, reject) => {
+  // Weather (Settings → Weather): the real weather as a living sky behind the page. Its renderer is injected on demand;
+  // the data is fetched by the background script and kept in storage ('weather.data'), so tabs never fetch anything.
+  AM.loadWeather = () => new Promise((resolve, reject) => {
     try {
-      chrome.runtime.sendMessage({ type: 'headroom:loadPet' }, (r) => {
-        if (chrome.runtime.lastError || !r || !r.ok) reject(new Error((r && r.error) || 'could not load Iris'));
+      chrome.runtime.sendMessage({ type: 'headroom:loadWeather' }, (r) => {
+        if (chrome.runtime.lastError || !r || !r.ok) reject(new Error((r && r.error) || 'could not load the weather'));
         else resolve();
       });
     } catch (e) { reject(e); }
   });
-
-  // Living background (Settings → Background): fish, butterflies or fireflies that drift over the page and react to
-  // clicks. Never blocks the page (pointer-events: none). Its code is injected on demand, like Iris.
-  AM.loadBg = (theme) => new Promise((resolve, reject) => {
-    try {
-      chrome.runtime.sendMessage({ type: 'headroom:loadBg', theme }, (r) => {
-        if (chrome.runtime.lastError || !r || !r.ok) reject(new Error((r && r.error) || 'could not load the background'));
-        else resolve();
-      });
-    } catch (e) { reject(e); }
-  });
-  let bgView = null;
-  let bgToken = 0;
-  const applyBackground = async () => {
-    const want = settings.bg;
-    const token = ++bgToken;
-    if (want === 'off' || !adapter) {
-      if (bgView) { bgView.destroy(); bgView = null; }
+  let sky = null;
+  let skyToken = 0;
+  let weatherData = null;
+  const applyWeather = async () => {
+    const token = ++skyToken;
+    const show = adapter && settings.weather && settings.weatherPlace && (weatherData || settings.weatherForce);
+    if (!show) {
+      if (sky) { sky.destroy(); sky = null; }
       return;
     }
     try {
-      if (!(AM.Living && AM.Living.themes[want])) await AM.loadBg(want);
-      if (token !== bgToken || !AM.Living || !AM.Living.themes[want]) return;
-      const style = settings.bgStyle === 'creatures' ? 'creatures' : 'scene';
-      if (bgView && bgView.style !== style) { bgView.destroy(); bgView = null; }
-      if (!bgView) {
-        // 'scene': the whole scene, blended into the page (multiply on light pages, screen on dark ones); 'creatures': just them
-        bgView = AM.Living.mount(style === 'creatures' ? { theme: want, overlay: true, avoidText: true } : { theme: want, blend: 'auto', avoidText: true });
-        bgView.style = style;
-      } else if (bgView.theme !== want) bgView.setTheme(want);
-    } catch (e) { console.warn('[Headroom] background', e); }
+      if (!AM.WeatherSky) await AM.loadWeather();
+      if (token !== skyToken || !AM.WeatherSky) return;
+      if (!sky) {
+        sky = AM.WeatherSky.mount({ strength: settings.weatherStrength, onLost: () => { sky = null; } });
+        if (!sky) return;
+      } else sky.setStrength(settings.weatherStrength);
+      sky.setState(AM.WEATHER.skyState(weatherData, Date.now(), settings.weatherForce));
+    } catch (e) { console.warn('[Headroom] weather', e); }
   };
 
   // "Copy debug log": diagnostics for the current provider, from this tab's state plus the stored debug log.
@@ -245,11 +234,13 @@
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local' || !changes.settings || !adapter) return;
+    if (area !== 'local' || !adapter) return;
+    if (changes['weather.data']) { weatherData = changes['weather.data'].newValue || null; applyWeather(); }
+    if (!changes.settings) return;
     const wasDebug = settings.debug;
     settings = AM.mergeSettings(changes.settings.newValue);
     if (settings.debug !== wasDebug) checkHook();
-    applyBackground();
+    applyWeather();
     refreshAdapter();
     publish();
   });
@@ -261,7 +252,7 @@
       adapter = AM.adapterFor(host, settings);
       if (!adapter) return;
       AM.siteId = adapter.id;
-      // Lets the on-page panel change a setting (e.g. "Send Iris home"); onChanged below applies it.
+      // Lets the on-page panel change a setting (e.g. "Turn off weather"); onChanged below applies it.
       AM.setSetting = async (key, value) => {
         const patch = key && typeof key === 'object' ? key : { [key]: value };
         const { settings: stored } = await AM.storage.get('settings');
@@ -272,6 +263,6 @@
       pending.splice(0).forEach(handle);
       publish();
       checkHook();
-      applyBackground();
+      AM.storage.get('weather.data').then((r) => { weatherData = (r && r['weather.data']) || null; applyWeather(); }, () => applyWeather());
     });
 })();

@@ -316,7 +316,7 @@
   AM.buildExport = (settings, version, now = new Date()) => {
     const s = AM.mergeSettings(settings);
     const keep = {};
-    for (const k of ['widget', 'chatStats', 'pet', 'irisEnergy', 'meterStyle', 'bg', 'bgStyle', 'explore', 'notify', 'thresholds', 'debug', 'quotas', 'customSites']) keep[k] = s[k];
+    for (const k of ['widget', 'chatStats', 'meterStyle', 'notify', 'thresholds', 'debug', 'weather', 'weatherUnits', 'weatherStrength', 'quotas', 'customSites']) keep[k] = s[k]; // never the place: that is where you are
     return { app: 'headroom', format: 1, version: version || '', exportedAt: now.toISOString(), settings: keep };
   };
 
@@ -334,11 +334,10 @@
     const s = j.settings;
     const num = (v) => typeof v === 'number' && isFinite(v);
     const out = {};
-    for (const k of ['widget', 'chatStats', 'pet', 'explore', 'notify', 'debug']) if (typeof s[k] === 'boolean') out[k] = s[k];
-    if (s.irisEnergy === 'calm' || s.irisEnergy === 'lively') out.irisEnergy = s.irisEnergy;
-    if (['pill', 'bar-top', 'bar-bottom'].includes(s.meterStyle)) out.meterStyle = s.meterStyle;
-    if (typeof s.bg === 'string' && (s.bg === 'off' || AM.BG_THEMES.includes(s.bg))) out.bg = s.bg;
-    if (s.bgStyle === 'scene' || s.bgStyle === 'creatures') out.bgStyle = s.bgStyle;
+    for (const k of ['widget', 'chatStats', 'notify', 'debug', 'weather']) if (typeof s[k] === 'boolean') out[k] = s[k];
+    if (['bar-top', 'bar-bottom'].includes(s.meterStyle)) out.meterStyle = s.meterStyle;
+    if (s.weatherUnits === 'c' || s.weatherUnits === 'f') out.weatherUnits = s.weatherUnits;
+    if (typeof s.weatherStrength === 'number' && isFinite(s.weatherStrength)) out.weatherStrength = Math.min(1, Math.max(0.2, s.weatherStrength));
     if (Array.isArray(s.thresholds)) {
       const t = s.thresholds.filter((n) => num(n) && n > 0 && n <= 100).slice(0, 10);
       if (t.length) out.thresholds = t;

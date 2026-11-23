@@ -27,6 +27,7 @@ export class FakeEl {
   }
   get textContent() { return this._text + this.children.map((c) => (typeof c === 'string' ? c : c.textContent)).join(''); }
   set textContent(v) { this.children.forEach((c) => { if (c && c.parent) c.parent = null; }); this.children = []; this._text = String(v); }
+  get lastChild() { return this.children[this.children.length - 1]; }
   get isConnected() { let n = this; while (n.parent) n = n.parent; return n === this.ownerDocument.body || n === this.ownerDocument.body.root; }
   append(...kids) { for (const k of kids) { if (typeof k !== 'string') { if (k.parent) k.remove(); k.parent = this; } this.children.push(k); } }
   appendChild(k) { this.append(k); return k; }
@@ -65,7 +66,7 @@ export function makeDocument() {
 }
 
 // Loads quotas, common and widget into one sandbox with the fake DOM. Timers are recorded, not run.
-export function loadWidget({ settings = {}, pet = false } = {}) {
+export function loadWidget({ settings = {} } = {}) {
   const document = makeDocument();
   const timers = [];
   const store = {};
@@ -81,26 +82,17 @@ export function loadWidget({ settings = {}, pet = false } = {}) {
   const ctx = vm.createContext(sandbox);
   for (const f of ['src/core/quotas.js', 'src/core/common.js', 'src/core/parsers.js', 'src/core/widget.js']) vm.runInContext(read(f), ctx, { filename: f });
   const AM = ctx.Headroom;
-  const pets = [];
-  if (pet) {
-    AM.loadPet = () => Promise.resolve();
-    AM.createPet = () => {
-      const p = { el: document.createElement('div'), moods: [], nudges: 0, setMood(m) { this.moods.push(m); }, nudge() { this.nudges++; }, setExplore() {}, setEnergy() {}, destroy() { this.destroyed = true; } };
-      pets.push(p);
-      return p;
-    };
-  }
-  const base = { widget: true, pet: false, ...settings };
+  const base = { widget: true, ...settings };
   const tick = () => new Promise((r) => setTimeout(r, 0));
   return {
-    AM, document, store, timers, pets, sandbox, tick,
+    AM, document, store, timers, sandbox, tick,
     update(name, meters, over = {}, chat = null, problem = null) { AM.widget.update(name, meters, { ...base, ...over }, chat, problem); },
     get host() { return document.body.children.find((c) => c.attrs && 'data-headroom' in c.attrs) || null; },
     get root() { return this.host && this.host.shadow; },
     pill() { return this.root.byClass('pill')[0]; },
     pillText() { return this.pill().byClass('info')[0].textContent; },
     dotClass() { return this.pill().byClass('glyph')[0].className; },
-    click() { const p = this.pill(); p.fire('pointerdown'); p.fire('pointerup'); },
+    click() { this.pill().fire('click'); },
     panelText() { const p = this.root.byClass('panel')[0]; return p ? p.textContent : null; },
   };
 }

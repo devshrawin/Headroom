@@ -7,7 +7,8 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 - [ ] **Check that "Headroom" is free for you.** It was chosen as the name; availability has not been checked. Search the Chrome Web Store for an existing "Headroom" extension, your trademark office's database, and the domain and GitHub names you want. If the Web Store title is taken, the store title can stay "Headroom: AI usage limit tracker" only if it is not a copy of another listing.
 
 - [ ] **Confirm the real-number claims you can't see in code.** The listing says Headroom reads real numbers for Perplexity and Kimi (and ChatGPT's Codex usage). Those three have only been checked signed out, not signed in (`README.md`, "Verified live" says no). Either (a) load the unpacked extension in your Chrome, sign in, and check the pill against each site's own usage page, or (b) delete those lines from the long description in `docs/store/listing.md` so the store text only claims what is verified. Claude, Gemini and Grok are verified.
-- [ ] **Try the exact build.** `chrome://extensions` → Developer mode → Load unpacked → pick the `Headroom` project folder (or unzip `release/<date>/headroom-<version>.zip` and load that folder: it is what the store will get). Open a supported site: pill appears, click opens the panel, Iris moves. Open the toolbar popup and Settings. Remove the extension and load it again: the welcome page should open once.
+- [ ] **Try the exact build.** `chrome://extensions` → Developer mode → Load unpacked → pick the `Headroom` project folder (or unzip `release/<date>/headroom-<version>.zip` and load that folder: it is what the store will get). Open a supported site: the bar appears along the bottom, point at it, click it. Open Settings → Weather, use your location or type a city, and check the sky appears on the site and **Turn off weather** in the details panel removes it. Remove the extension and load it again: the welcome page should open once.
+- [ ] **Weather checks you must do yourself.** (a) Press **Use my location** and confirm Chrome shows its location prompt and the place is saved. (b) Read Open-Meteo's terms (open-meteo.com/en/terms): the free API is for non-commercial use; if you ever charge for Headroom, get a plan. (c) **Single purpose:** the listing's single-purpose statement now covers both the meter and the weather. The Chrome Web Store can reject an extension whose features look unrelated; if the reviewer pushes back, the safe route is to publish the weather sky as its own extension.
 - [ ] **Try Export / Import** in Settings: export, change a limit, import the file, check the limit came back.
 
 ## 1. One-time setup
@@ -24,7 +25,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 ## 3. Store listing tab
 
 - [ ] Fill the fields from `docs/store/listing.md`: name, short description, long description, category (Productivity), language, support URL, homepage URL.
-- [ ] Upload screenshots from `dist/store/shots/` (1, 2, 3, 4 and 6 recommended, max five), the promo tile (`promo-tile-440x280.png`) and optionally the marquee (`marquee-1400x560.png`). If you want live captures instead, follow the table in the listing and keep personal data out of frame.
+- [ ] Upload the screenshots (see `docs/store/listing.md` → Screenshots), the promo tile and optionally the marquee. Keep personal data and brand logos out of frame.
 - [ ] Icon: the 128 px icon in the package is used automatically.
 
 ## 4. Privacy practices tab
@@ -47,6 +48,5 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 
 ## Known small things (not blockers)
 
-- Iris, when asleep at the far right of the page, is clipped by a few pixels at the window edge (her sleeping sprite is wider than the standing one).
 - The store screenshots are composed images of the real UI with sample numbers, not captures of a live signed-in page.
 - Desktop notifications could not be screenshotted outside the browser, so there is no notification image.

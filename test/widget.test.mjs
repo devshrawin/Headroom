@@ -5,17 +5,17 @@ import { loadWidget } from './dom-stub.mjs';
 const hour = 3600e3;
 const real = (pct, extra = {}) => ({ id: 'five_hour', label: 'Session (5h)', pct, source: 'real', ...extra });
 
-test('ok: pill shows name and percentage and no reset time; the level glyph is "ok"', () => {
+test('ok: the label shows the name, the percentage and when it resets; the level glyph is "ok"', () => {
   const w = loadWidget();
   w.update('Claude', [real(32, { resetAt: Date.now() + 13 * hour + 5 * 60e3 })]);
-  assert.equal(w.pillText(), 'Claude32%');
+  assert.match(w.pillText(), /^Claude32%· resets in 13h 5m/);
   assert.equal(w.dotClass(), 'glyph lv-ok');
 });
 
-test('the reset time joins the pill from "close" upwards', () => {
+test('the reset time is on the label at every level', () => {
   const w = loadWidget();
   w.update('Claude', [real(80, { resetAt: Date.now() + 13 * hour + 5 * 60e3 })]);
-  assert.equal(w.pillText(), 'Claude80%· 13h 5m');
+  assert.match(w.pillText(), /^Claude80%· resets in 13h 5m/);
 });
 
 test('level glyph follows usage: close from 75, critical from 90, empty at 100 or a banner, unknown without a percentage', () => {
@@ -90,14 +90,13 @@ test('no data yet: pill says so and the panel says there is no data', () => {
   assert.match(w.panelText(), /No usage data yet/);
 });
 
-test('chat stats: length and cache countdown on the pill; expired cache is labelled', () => {
+test('chat stats: length and cache countdown live in the panel; an expired cache is labelled', () => {
   const w = loadWidget();
   w.update('Claude', [real(10)], {}, { tokens: 12000, messages: 8, cachedUntil: Date.now() + 4 * 60e3, nextCost: 900 });
-  assert.match(w.pillText(), /12k tok4m/);
-  assert.equal(w.pill().byClass('cache').length, 1);
-  w.update('Claude', [real(10)], {}, { tokens: 12000, messages: 8, cachedUntil: Date.now() - 1, nextCost: 900 });
-  assert.equal(w.pill().byClass('cache').length, 0, 'no cache chip once it has expired');
   w.click();
+  assert.match(w.panelText(), /12,000 tokens/);
+  assert.match(w.panelText(), /Cached for 4m/);
+  w.update('Claude', [real(10)], {}, { tokens: 12000, messages: 8, cachedUntil: Date.now() - 1, nextCost: 900 });
   assert.match(w.panelText(), /Expired/);
 });
 
@@ -111,7 +110,7 @@ test('settings.widget = false removes the pill; turning it back on remounts it',
   assert.ok(w.host);
 });
 
-test('the pill stays mounted across updates (so Iris is not reset)', () => {
+test('the meter stays mounted across updates', () => {
   const w = loadWidget();
   w.update('Claude', [real(10)]);
   const first = w.host;
@@ -141,19 +140,6 @@ test('clicking the pill toggles the panel; the panel refreshes in place', () => 
   assert.equal(w.panelText(), null);
 });
 
-test('dragging the pill moves it and remembers the position; a drag is not a click', () => {
-  const w = loadWidget();
-  w.update('Claude', [real(10)]);
-  const p = w.pill();
-  p.fire('pointerdown', { clientX: 500, clientY: 500 });
-  p.fire('pointermove', { clientX: 450, clientY: 480 });
-  p.fire('pointerup', { clientX: 450, clientY: 480 });
-  assert.equal(w.panelText(), null, 'a drag does not open the panel');
-  const saved = JSON.parse(w.store['headroom.pos']);
-  assert.equal(saved.right, 1280 - 1000 + 50);
-  assert.equal(saved.bottom, 800 - 700 + 20);
-});
-
 test('a dead extension context (reloaded) stops updating', () => {
   const w = loadWidget();
   w.update('Claude', [real(10)]);
@@ -164,61 +150,6 @@ test('a dead extension context (reloaded) stops updating', () => {
 
 // ---- Iris's mood follows usage ----
 
-test('Iris mood by usage: happy under 75, worried 75-89, stressed 90-99, asleep at 100', async () => {
-  const w = loadWidget({ pet: true });
-  w.update('Claude', [real(10)], { pet: true });
-  await w.tick();
-  assert.equal(w.pets.length, 1);
-  const seen = [];
-  for (const pct of [10, 74, 75, 89, 90, 99, 100]) {
-    w.update('Claude', [real(pct)], { pet: true });
-    seen.push(w.pets[0].moods.at(-1));
-  }
-  assert.deepEqual(seen, ['happy', 'happy', 'worried', 'worried', 'stressed', 'stressed', 'sleep']);
-});
-
-test('Iris with no percentage (counters only) is happy', async () => {
-  const w = loadWidget({ pet: true });
-  w.update('ChatGPT', [{ id: 'dr', label: 'DR', remaining: 0, source: 'real' }], { pet: true });
-  await w.tick();
-  w.update('ChatGPT', [{ id: 'dr', label: 'DR', remaining: 0, source: 'real' }], { pet: true });
-  assert.equal(w.pets[0].moods.at(-1), 'happy');
-});
-
-test('Iris is not loaded on user-added sites, and the panel offers no Iris button there', async () => {
-  const w = loadWidget({ pet: true });
-  w.AM.siteId = 'site:example.test';
-  w.AM.setSetting = () => {};
-  w.update('Example', [real(10)], { pet: true });
-  await w.tick();
-  assert.equal(w.pets.length, 0);
-  w.click();
-  assert.doesNotMatch(w.panelText(), /Iris/);
-});
-
-test('Iris turned off in settings is destroyed; the pill stays', async () => {
-  const w = loadWidget({ pet: true });
-  w.update('Claude', [real(10)], { pet: true });
-  await w.tick();
-  const p = w.pets[0];
-  w.update('Claude', [real(10)], { pet: false });
-  await w.tick();
-  assert.ok(w.host);
-  // she is destroyed once she has left (leave() is optional on the stub, so destroy runs straight away)
-  assert.equal(p.destroyed, true);
-});
-
-test('if Iris cannot load, the pill works without her', async () => {
-  const w = loadWidget({ pet: true });
-  w.AM.loadPet = () => Promise.reject(new Error('blocked'));
-  w.AM.createPet = undefined;
-  w.update('Claude', [real(10)], { pet: true });
-  await w.tick();
-  assert.equal(w.pets.length, 0);
-  assert.match(w.pillText(), /10%/);
-  assert.equal(w.root.byClass('wrap')[0].classList.contains('with-pet'), false);
-});
-
 // ---------- accessibility ----------
 
 test('a11y: the pill is a named, focusable button whose label speaks the numbers and the state', () => {
@@ -228,7 +159,7 @@ test('a11y: the pill is a named, focusable button whose label speaks the numbers
   assert.equal(pill.attrs.role, 'button');
   assert.equal(pill.tabIndex, 0);
   assert.equal(pill.attrs['aria-expanded'], 'false');
-  assert.match(pill.attrs['aria-label'], /^Claude: 32% used, plenty left, resets in 3h 1\dm\. Open details\.$/);
+  assert.match(pill.attrs['aria-label'], /^Headroom: Claude 32% used, plenty left, resets in 3h 1\dm\. Open details\.$/);
   w.click();
   assert.equal(pill.attrs['aria-expanded'], 'true');
   assert.match(pill.attrs['aria-label'], /Close details\.$/);
@@ -301,57 +232,49 @@ test('bar style: along the top it docks to the top edge', () => {
   assert.ok(w.root.byClass('wrap')[0].classList.contains('top'));
 });
 
-test('bar style: a click opens the panel, there is no dragging, no Iris button, and Shift+arrows do nothing', () => {
+test('bar style: a click opens the panel, the bar never moves, and Shift+arrows do nothing', () => {
   const w = loadWidget();
   w.update('Claude', [real(32)], { meterStyle: 'bar-top' });
   const before = w.host.style.cssText;
-  const pill = w.pill();
-  pill.fire('pointerdown');
-  pill.fire('pointermove', { clientX: 300, clientY: 300 });
-  pill.fire('pointerup');
-  assert.ok(w.panelText(), 'a click (even with a wobble) opens the panel');
+  w.click();
+  assert.ok(w.panelText(), 'a click opens the panel');
   assert.equal(w.host.style.cssText, before, 'the bar never moves');
-  assert.equal(w.root.byClass('iris-btn').length, 0, 'Iris is not offered in bar style');
-  pill.fire('keydown', { key: 'ArrowLeft', shiftKey: true, preventDefault() {} });
+  w.pill().fire('keydown', { key: 'ArrowLeft', shiftKey: true, preventDefault() {} });
   assert.equal(w.host.style.cssText, before);
 });
 
-test('switching the style remounts the meter in place', () => {
+test('switching the position remounts the meter on the other edge; anything else means the bottom', () => {
   const w = loadWidget();
-  w.update('Claude', [real(32)], { meterStyle: 'pill' });
-  assert.equal(w.root.byClass('trk').length, 0);
   w.update('Claude', [real(32)], { meterStyle: 'bar-bottom' });
-  assert.equal(w.root.byClass('trk').length, 1);
-  w.update('Claude', [real(32)], { meterStyle: 'pill' });
-  assert.equal(w.root.byClass('trk').length, 0);
-  assert.ok(!w.pill().classList.contains('edge'));
+  assert.match(w.host.style.cssText, /bottom:0/);
+  w.update('Claude', [real(32)], { meterStyle: 'bar-top' });
+  assert.match(w.host.style.cssText, /top:0/);
+  w.update('Claude', [real(32)], { meterStyle: 'pill' }); // the pill is gone: an old setting falls back to the bar
+  assert.match(w.host.style.cssText, /bottom:0/);
 });
 
-test('the panel has a one-click "Remove" for the animated background, and "Bring back" after it', () => {
+
+test('the panel has a one-click "Turn off weather", and "Turn on weather" after it', () => {
   const w = loadWidget();
   const calls = [];
-  w.AM.siteId = 'site:example.test'; // no Iris here, so the background button is the only footer button
-  w.AM.setSetting = (patch) => calls.push(patch);
-  w.update('Example', [real(10)], { bg: 'koi' });
+  w.AM.setSetting = (k, v) => calls.push([k, v]);
+  w.update('Claude', [real(10)], { weather: true, weatherPlace: { name: 'Home', lat: 1, lon: 2 } });
   w.click();
-  assert.match(w.panelText(), /Remove koi/);
-  const btn = w.root.byClass('bg-btn')[0];
-  btn.fire('click');
-  assert.equal(JSON.stringify(calls[0]), JSON.stringify({ bg: 'off', bgLast: 'koi' }));
+  assert.match(w.panelText(), /Turn off weather/);
+  w.root.byClass('weather-btn')[0].fire('click');
+  assert.equal(JSON.stringify(calls[0]), JSON.stringify(['weather', false]));
 
   const v = loadWidget();
-  v.AM.siteId = 'site:example.test';
-  v.AM.setSetting = (patch) => calls.push(patch);
-  v.update('Example', [real(10)], { bg: 'off', bgLast: 'butterflies' });
+  v.AM.setSetting = (k, val) => calls.push([k, val]);
+  v.update('Claude', [real(10)], { weather: false, weatherPlace: { name: 'Home', lat: 1, lon: 2 } });
   v.click();
-  assert.match(v.panelText(), /Bring back butterflies/);
-  v.root.byClass('bg-btn')[0].fire('click');
-  assert.equal(JSON.stringify(calls[1]), JSON.stringify({ bg: 'butterflies', bgLast: '' }));
+  assert.match(v.panelText(), /Turn on weather/);
+  v.root.byClass('weather-btn')[0].fire('click');
+  assert.equal(JSON.stringify(calls[1]), JSON.stringify(['weather', true]));
 
   const n = loadWidget();
-  n.AM.siteId = 'site:example.test';
   n.AM.setSetting = () => {};
-  n.update('Example', [real(10)], { bg: 'off' });
+  n.update('Claude', [real(10)], { weather: true, weatherPlace: null });
   n.click();
-  assert.equal(n.root.byClass('bg-btn').length, 0, 'no button when the background was never on');
+  assert.equal(n.root.byClass('weather-btn').length, 0, 'no button until a place is set');
 });

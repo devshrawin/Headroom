@@ -22,15 +22,15 @@ test('export holds settings only, with a version and a timestamp', () => {
   assert.deepEqual(file.settings.thresholds, [60, 95]);
   assert.equal('usage' in file.settings, false);
   assert.equal('debug.log' in file.settings, false);
-  assert.deepEqual(Object.keys(file.settings).sort(), ['bg', 'bgStyle', 'chatStats', 'customSites', 'debug', 'explore', 'irisEnergy', 'meterStyle', 'notify', 'pet', 'quotas', 'thresholds', 'widget']);
+  assert.deepEqual(Object.keys(file.settings).sort(), ['chatStats', 'customSites', 'debug', 'meterStyle', 'notify', 'quotas', 'thresholds', 'weather', 'weatherStrength', 'weatherUnits', 'widget']);
 });
 
 test('export then import round-trips the settings', () => {
-  const settings = AM.mergeSettings({ notify: false, irisEnergy: 'lively', thresholds: [50, 80], quotas: { gemini: [{ id: 'm', label: 'Prompts', pattern: '.*', limit: 77, windowHours: 5 }] }, customSites: [{ host: 'chat.example.com', limit: 9, windowHours: 3 }] });
+  const settings = AM.mergeSettings({ notify: false, meterStyle: 'bar-top', thresholds: [50, 80], quotas: { gemini: [{ id: 'm', label: 'Prompts', pattern: '.*', limit: 77, windowHours: 5 }] }, customSites: [{ host: 'chat.example.com', limit: 9, windowHours: 3 }] });
   const r = AM.parseImport(JSON.stringify(AM.buildExport(settings, '1.0.0')));
   assert.equal(r.ok, true);
   assert.equal(r.settings.notify, false);
-  assert.equal(r.settings.irisEnergy, 'lively');
+  assert.equal(r.settings.meterStyle, 'bar-top');
   assert.deepEqual(plain(r.settings.thresholds), [50, 80]);
   assert.equal(r.settings.quotas.gemini[0].limit, 77);
   assert.deepEqual(plain(r.sites), [{ host: 'chat.example.com', limit: 9, windowHours: 3 }]);
@@ -101,31 +101,45 @@ test('first install opens the welcome page; an update or browser update does not
   assert.match(bg.tabsCreated[0].url, /src\/welcome\/welcome\.html$/);
 });
 
-test('meterStyle: only the three known values are kept, in settings and in an import', () => {
-  assert.equal(AM.mergeSettings(null).meterStyle, 'pill');
+
+test('meterStyle: the bar at the bottom by default, the top when asked, anything else (including the old pill) falls back to the bottom', () => {
+  assert.equal(AM.mergeSettings(null).meterStyle, 'bar-bottom');
   assert.equal(AM.mergeSettings({ meterStyle: 'bar-top' }).meterStyle, 'bar-top');
-  assert.equal(AM.mergeSettings({ meterStyle: 'bar-bottom' }).meterStyle, 'bar-bottom');
-  assert.equal(AM.mergeSettings({ meterStyle: 'sideways' }).meterStyle, 'pill');
-  assert.equal(AM.parseImport(wrap({ meterStyle: 'bar-bottom' })).settings.meterStyle, 'bar-bottom');
-  assert.equal('meterStyle' in AM.parseImport(wrap({ meterStyle: 'x' })).settings, false);
-  assert.equal(AM.buildExport({ meterStyle: 'bar-top' }, '1.0.0').settings.meterStyle, 'bar-top');
+  assert.equal(AM.mergeSettings({ meterStyle: 'pill' }).meterStyle, 'bar-bottom');
 });
 
-test('bgStyle: scene by default, creatures only when asked, anything else falls back', () => {
-  assert.equal(AM.mergeSettings(null).bgStyle, 'scene');
-  assert.equal(AM.mergeSettings({ bgStyle: 'creatures' }).bgStyle, 'creatures');
-  assert.equal(AM.mergeSettings({ bgStyle: 'huge' }).bgStyle, 'scene');
-  assert.equal(AM.buildExport({ bgStyle: 'creatures' }, '1.1.0').settings.bgStyle, 'creatures');
+test('weather settings: on by default but no place; the place is validated and rounded; strength and units are clamped', () => {
+  const d = AM.mergeSettings(null);
+  assert.equal(d.weather, true);
+  assert.equal(d.weatherPlace, null);
+  assert.equal(d.weatherUnits, 'c');
+  assert.equal(d.weatherStrength, 0.8);
+  assert.equal(d.weatherForce, null);
+  const p = AM.mergeSettings({ weatherPlace: { name: 'Ahmedabad, India', lat: 23.025791, lon: 72.587265 } }).weatherPlace;
+  assert.equal(p.lat, 23.03);
+  assert.equal(p.lon, 72.59);
+  assert.equal(AM.mergeSettings({ weatherPlace: { name: 'x', lat: 95, lon: 0 } }).weatherPlace, null);
+  assert.equal(AM.mergeSettings({ weatherPlace: 'Paris' }).weatherPlace, null);
+  assert.equal(AM.mergeSettings({ weatherStrength: 5 }).weatherStrength, 1);
+  assert.equal(AM.mergeSettings({ weatherStrength: 0 }).weatherStrength, 0.2);
+  assert.equal(AM.mergeSettings({ weatherUnits: 'k' }).weatherUnits, 'c');
+  assert.equal(AM.mergeSettings({ weather: false }).weather, false);
+  const f = AM.mergeSettings({ weatherForce: { weather: 'storm', season: 'nope', tod: 30, extra: 1 } }).weatherForce;
+  assert.equal(JSON.stringify(f), JSON.stringify({ weather: 'storm' }));
+  assert.equal(AM.mergeSettings({ weatherForce: { weather: 'nope' } }).weatherForce, null);
 });
 
-test('bg: only the known themes are kept, off by default, in settings and in an import', () => {
-  assert.equal(AM.mergeSettings(null).bg, 'off');
-  for (const t of ['koi', 'butterflies', 'fireflies', 'snow']) assert.equal(AM.mergeSettings({ bg: t }).bg, t);
-  assert.equal(AM.mergeSettings({ bg: 'rain' }).bg, 'off');
-  assert.equal(AM.mergeSettings({ bg: 42 }).bg, 'off');
-  const file = AM.buildExport({ bg: 'koi' }, '1.1.0');
-  assert.equal(file.settings.bg, 'koi');
-  const back = AM.parseImport(JSON.stringify({ app: 'headroom', format: 1, settings: { bg: 'nope' } }));
-  assert.equal(back.ok, true);
-  assert.ok(back.settings.bg === undefined || back.settings.bg === 'off'); // an unknown value is dropped, so the default (off) stays
+test('a settings backup never carries the place; an import keeps weather options but ignores the place', () => {
+  const settings = AM.mergeSettings({ weatherPlace: { name: 'Home', lat: 10.5, lon: 76.2 }, weatherUnits: 'f', weatherStrength: 0.5 });
+  const file = plain(AM.buildExport(settings, '1.2.0'));
+  assert.equal('weatherPlace' in file.settings, false, 'where you are stays on this computer');
+  assert.equal(file.settings.weatherUnits, 'f');
+  const r = AM.parseImport(JSON.stringify(file));
+  assert.equal(r.ok, true);
+  assert.equal(r.settings.weatherUnits, 'f');
+  assert.equal(r.settings.weatherStrength, 0.5);
+  const bad = AM.parseImport(wrap({ weatherUnits: 'k', weatherStrength: 'lots' }));
+  assert.equal(bad.ok, true);
+  assert.equal(bad.settings.weatherUnits, undefined);
+  assert.equal(bad.settings.weatherStrength, undefined);
 });

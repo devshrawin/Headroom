@@ -2,6 +2,29 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.2.0 — 2026-11-23
+
+Headroom becomes a usage bar plus a live weather sky. Iris, the pill and the animated themes are gone.
+
+### Added
+- **Live weather behind the chat.** Settings → Weather: choose your place with **Use my location** (Chrome asks once) or by typing a city. Every AI site then gets a luminous sky that follows the real weather and the real hour: a gradient that follows the real sun and moon (from the real sunrise and sunset), stars at night, soft volumetric clouds lit from the sun's side and moved by the real wind, fine rain, snow, fog banks, lightning that flashes inside the clouds, falling leaves in autumn and petals in spring. India has a monsoon, not four temperate seasons. One WebGL shader, no images, no downloads; blended into the page with soft-light so the page keeps its own contrast; never blocks the page or your clicks (pointer-events: none); about 30 frames a second at low resolution; pauses in a hidden tab; still for reduced motion; injected only when the weather is on.
+- The background script asks Open-Meteo (free, no key, no account) for the forecast every 20 minutes and keeps it in storage, so tabs never fetch anything. Only the place's coordinates, rounded to two decimals (about 1 km), are sent. The place stays on your computer and is never part of a settings backup.
+- **Sky strength** slider, **Units** (°C or °F), and **Try a look**: show any weather, season or hour on your pages for testing, then **Back to live**.
+- **Turn off weather** (and **Turn on weather**) button in the details panel on the page.
+- New optional `geolocation` permission, asked only when you press **Use my location**.
+
+### Changed
+- **Settings redesigned**: one page at a time with a left nav and search (Weather, Meter, Limits, Notifications, Other AI sites, Backup and data, Help and debug), cards of rows with the label on the left and the control on the right, and everything saves as you change it. No more long scroll and no Save button.
+- **The meter is the bar only**, at the bottom of the page by default (or the top). Point at it for the percentage and the reset time, click it or press Enter for the details. The chat length, cache timer and next-message cost are in the details panel. An old "pill" setting falls back to the bar at the bottom.
+- The extension no longer exposes any web-accessible resources.
+
+### Removed
+- **Iris** (the cat), her sprites and engine, the page "trips", and the draggable pill.
+- The earlier animated themes (koi pond, butterfly garden, firefly night, snowfall) and the living-background engine.
+
+### Tests
+- Weather data (codes, seasons, forecast parsing and clamping, sky state, targets), the background fetch (success, failure, off, alarm), the on-demand sky loader, the weather settings, the panel's weather button, and settings backups that never carry the place.
+
 ## 1.1.0 — 2026-11-19
 
 ### Added

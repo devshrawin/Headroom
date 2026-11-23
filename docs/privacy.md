@@ -5,7 +5,7 @@ permalink: /privacy
 
 # Headroom privacy policy
 
-Effective 31 October 2026 · Applies to Headroom (called AI Meter before version 1.0.0) 0.9.0 and later
+Effective 23 November 2026 · Applies to Headroom 1.2.0 and later (earlier versions: see the version history)
 
 **In one paragraph:** Headroom runs entirely in your browser. It has no server, no account and no analytics, and it sends nothing to its developer or to any third party. It reads your usage from the AI sites you already use, from your own logged-in tab, and keeps the numbers on your machine. It never stores the text of your messages.
 
@@ -20,9 +20,10 @@ Headroom is a Chrome extension that shows how much of your usage limit is left o
 | **Usage and limit figures** (percent used, remaining queries, reset times) | The provider's own usage endpoint, called from your tab; or the same response the site itself already receives | The latest numbers per provider, in `chrome.storage.local` | No |
 | **That a message was sent, and which model** | The page's own network request (the request is observed, not changed) | A timestamp and the model name, to count messages. Never the text | No |
 | **Chat length** (for the "This chat" figures) | The number of characters in the open conversation on the page | A character and message count only. Never the text | No |
-| **Your settings** | You | Estimate limits, thresholds, added sites, Iris on or off, the background theme, in `chrome.storage.local` | No |
-| **A settings backup** (only if you ask for one) | You, with **Export settings** in Settings | A file the browser saves where you choose, holding your settings only: estimate limits, thresholds, Iris options and the addresses of sites you added. No usage numbers, message counts or debug log. Importing reads a file you pick, on your machine | No. Nothing is uploaded; the file stays wherever you put it |
-| **Meter position** | You, when you drag the meter | The pill position, saved under the key `headroom.pos` in the page's own `localStorage` | No |
+| **Your settings** | You | Estimate limits, thresholds, added sites, the meter position, the weather options (on or off, units, strength), in `chrome.storage.local` | No |
+| **A settings backup** (only if you ask for one) | You, with **Export settings** in Settings | A file the browser saves where you choose, holding your settings only: estimate limits, thresholds, meter and weather options and the addresses of sites you added. **Never the place you chose for the weather**, usage numbers, message counts or the debug log. Importing reads a file you pick, on your machine | No. Nothing is uploaded; the file stays wherever you put it |
+| **The place for the weather** (only if you turn the weather on) | You, with **Use my location** (Chrome asks you once) or by typing a city in Settings → Weather | A place name and its coordinates **rounded to two decimals** (about 1 km), in `chrome.storage.local`. If you use your location, the exact position is read once and rounded straight away; it is not kept | **Yes, only the rounded coordinates, to the free Open-Meteo weather service (`api.open-meteo.com`), to ask for the forecast.** A city search sends the text you typed to `geocoding-api.open-meteo.com` |
+| **The weather forecast** | Open-Meteo, asked by the background script every 20 minutes | The latest forecast (temperature, weather code, cloud cover, wind, sunrise and sunset) in `chrome.storage.local`; every tab reads it from there | The request leaves; the answer stays |
 | **Debug log** (off by default) | The extension itself, only if you tick Debug | Key names and short model-like values of requests, full bodies only of usage and limit endpoints, and only the *shape* (keys and types) of anything else. Emails, tokens and long ids in it are masked. Stored locally, capped to the latest entries; clear it any time in Settings | No, unless you choose to copy and paste it yourself |
 
 ## How the page-world script works
@@ -54,18 +55,18 @@ When you first install Headroom it opens a short "how it works" page. That page 
 
 ## Where requests go
 
-Usage requests go from **your tab to the provider's own domain**, the same place the site's settings page would send them. Headroom makes no request to any server run by its developer or by anyone else, and contains no analytics, advertising or tracking code.
+Usage requests go from **your tab to the provider's own domain**, the same place the site's settings page would send them. The only other request Headroom makes is the weather one, and only if you turn the weather on: the background script sends the rounded coordinates of the place you chose to Open-Meteo, a free weather service run by a third party, and reads the forecast back. Open-Meteo receives those coordinates and, as with any web request, your IP address; see its own privacy policy at open-meteo.com. Headroom sends nothing to any server run by its developer, and contains no analytics, advertising or tracking code. Turn the weather off in Settings and the request stops.
 
 ## Permissions
 
-Each permission, and why the extension asks for it, is listed in the Chrome Web Store listing and in the repository (`docs/store/listing.md`). In short: `storage` for settings and the latest numbers, `alarms` for the reset notification, `notifications` for the optional alerts, `scripting` to register scripts for sites you add and to load Iris and the optional animated background only when they are on, and host access to the listed provider sites. Access to any other site is optional and asked for one site at a time, when you click **Add site**.
+Each permission, and why the extension asks for it, is listed in the Chrome Web Store listing and in the repository (`docs/store/listing.md`). In short: `storage` for settings and the latest numbers, `alarms` for the reset notification, `notifications` for the optional alerts, `scripting` to register scripts for sites you add and to load the weather sky only when the weather is on, the optional `geolocation` permission only if you press **Use my location**, and host access to the listed provider sites. Access to any other site is optional and asked for one site at a time, when you click **Add site**.
 
 ## Your control
 
-- Turn off notifications, Iris, the chat figures or the whole on-page meter in Settings.
+- Turn off notifications, the weather, the chat figures or the whole on-page meter in Settings (the weather also has a **Turn off weather** button on the page), and choose or change the place any time.
 - Remove a site you added in Settings, which also revokes its permission.
 - Tick or untick **Debug**, and **Clear log**, in Settings.
-- Uninstalling the extension deletes everything it stored. Clearing the site's data removes the saved pill position.
+- Uninstalling the extension deletes everything it stored. Revoking the location permission in Chrome stops "Use my location"; typing a city never needs it.
 
 ## Sharing, sale and children
 

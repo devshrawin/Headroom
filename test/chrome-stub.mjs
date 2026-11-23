@@ -18,22 +18,24 @@ export function makeStorage(initial = {}) {
       return out;
     },
     async set(obj) { for (const [k, v] of Object.entries(obj)) data[k] = clone(v); },
+    async remove(keys) { for (const k of Array.isArray(keys) ? keys : [keys]) delete data[k]; },
   };
 }
 
-export function loadBackground({ storage = makeStorage(), contains = async () => true, registered = [] } = {}) {
+export function loadBackground({ storage = makeStorage(), contains = async () => true, registered = [], fetch = async () => ({ ok: false, status: 503, json: async () => ({}) }) } = {}) {
   const notifications = [];
   const alarms = [];
   const badges = [];
   const registeredScripts = [];
   const tabsCreated = [];
-  const listeners = { message: [], alarm: [], installed: [], startup: [], activated: [] };
+  const listeners = { message: [], alarm: [], installed: [], startup: [], activated: [], storageChanged: [] };
+  const executed = [];
   const event = (name) => ({ addListener: (fn) => listeners[name].push(fn) });
   const chrome = {
     runtime: { getURL: (p) => 'chrome-extension://x/' + p, onMessage: event('message'), onInstalled: event('installed'), onStartup: event('startup') },
-    storage: { local: storage },
+    storage: { local: storage, onChanged: event('storageChanged') },
     notifications: { create: (id, opts) => { notifications.push({ id, ...opts }); } },
-    alarms: { create: (name, info) => { alarms.push({ name, ...info }); }, onAlarm: event('alarm') },
+    alarms: { create: (name, info) => { alarms.push({ name, ...info }); }, get: async () => undefined, clear: async () => true, onAlarm: event('alarm') },
     action: {
       setBadgeText: async (o) => { badges.push({ text: o.text }); },
       setBadgeBackgroundColor: async (o) => { badges.push({ color: o.color }); },
@@ -42,18 +44,18 @@ export function loadBackground({ storage = makeStorage(), contains = async () =>
     scripting: {
       getRegisteredContentScripts: async () => registered,
       registerContentScripts: async (s) => { registeredScripts.push(...s); },
-      executeScript: async () => {},
+      executeScript: async (o) => { executed.push(o); },
     },
     permissions: { contains },
   };
-  const sandbox = { console: { ...console, warn() {} }, chrome, setTimeout, clearTimeout, URL, Date };
+  const sandbox = { console: { ...console, warn() {} }, chrome, setTimeout, clearTimeout, URL, Date, fetch };
   const ctx = vm.createContext(sandbox);
   sandbox.importScripts = (...files) => files.forEach((f) => vm.runInContext(read('src/' + f), ctx, { filename: f }));
   vm.runInContext(read('src/background.js'), ctx, { filename: 'background.js' });
 
   const settle = () => new Promise((r) => setTimeout(r, 10));
   return {
-    AM: ctx.Headroom, notifications, alarms, badges, registeredScripts, tabsCreated, listeners, storage, settle,
+    AM: ctx.Headroom, notifications, alarms, badges, registeredScripts, tabsCreated, listeners, storage, settle, executed,
     // what content.js sends after each refresh
     async usage(provider, name, meters, problem = null, sender = { tab: { id: 1 } }) {
       listeners.message.forEach((fn) => fn({ type: 'headroom:usage', provider, name, meters, problem }, sender, () => {}));
