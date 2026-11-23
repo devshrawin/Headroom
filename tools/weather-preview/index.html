@@ -67,7 +67,7 @@
   <div class="row"><button id="bPlay">Play the day</button><button id="bNow">Now</button></div>
   <h4>Wind</h4>
   <input type="range" id="wind" min="0" max="1" step="0.01" value="0.25">
-  <div class="note">Click anywhere: a gust. H hides this panel.</div>
+  <div class="note">H hides this panel.</div>
 </div>
 
 <script>
@@ -83,7 +83,6 @@ uniform vec2 uSun, uMoon;                 // positions on screen (0..1)
 uniform float uDay,uTwi,uNight;           // how much day, twilight and night there is
 uniform float uCover,uGloom,uRain,uSnow,uFog,uLight,uLightX,uLeaves,uLeafKind;
 uniform vec2 uWind, uShift;   // wind now, and how far the wind has carried things in all
-uniform vec3 uPoke;           // last click: x, y, seconds ago
 uniform vec3 uSeasonTint;
 
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
@@ -93,17 +92,6 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);
   return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*vn(p);p=p*2.02+vec2(17.3,9.1);a*=.5;}return v;}
 float fbm4(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vn(p);p=p*2.02+vec2(17.3,9.1);a*=.5;}return v;}
-float gRing;
-// a click sends a soft ring outward: it pushes the clouds, rain, snow and leaves aside as it passes
-vec2 poke(vec2 uv,float asp){
-  gRing=0.;
-  if(uPoke.z>3.) return uv;
-  vec2 d=(uv-uPoke.xy)*vec2(asp,1.);
-  float r=length(d)+1e-4;
-  float x=(r-uPoke.z*.55)*7.;
-  gRing=exp(-x*x)*exp(-uPoke.z*1.1);
-  return uv+d/r/vec2(asp,1.)*gRing*.09;
-}
 float luma(vec3 c){return dot(c,vec3(.299,.587,.114));}
 
 // sky gradient: bottom (horizon glow) -> middle -> top, for the hour and the weather
@@ -197,7 +185,7 @@ vec4 leaves(vec2 uv,float scale,float speed,float seed,float asp){
 void main(){
   vec2 uv=gl_FragCoord.xy/uRes;
   float asp=uRes.x/uRes.y;
-  vec2 pv=poke(uv,asp); float ring=gRing;
+  vec2 pv=uv;
   vec3 col=skyGradient(uv);
 
   // stars
@@ -260,7 +248,6 @@ void main(){
     float g=exp(-distance((uv-vec2(uLightX,.72))*vec2(asp,1.),vec2(0.))*3.2);
     col+=vec3(.62,.7,1.)*uLight*(.16+.7*g)*(.3+.7*smoothstep(.1,.9,uv.y));
   }
-  col+=vec3(.9,.95,1.)*ring*.14;
   // a touch of dither so the gradients never band
   col+=(h21(gl_FragCoord.xy+uTime*60.)-.5)*(1./128.);
   col*=1.-.16*pow(length(uv-.5)*1.2,2.);
@@ -315,8 +302,7 @@ function sky(tod) {
 }
 
 const bolt = { next: 3 };
-let gust = 0, gustX = 0, shX = 0, shY = 0, pokeX = .5, pokeY = .5, pokeT = 99;
-addEventListener('pointerdown', (e) => { if (e.target.closest('.panel')) return; gust = 1; gustX = e.clientX / innerWidth; pokeX = gustX; pokeY = 1 - e.clientY / innerHeight; pokeT = 0; }, { passive: true });
+let shX = 0, shY = 0;
 function step(dt) {
   const w = WEATHER[T.weather], s = SEASONS[T.season], k = 1 - Math.exp(-dt / 5);
   const wet = s === SEASONS.monsoon && T.weather === 'clear' ? WEATHER.rain : w;
@@ -331,9 +317,7 @@ function step(dt) {
 }
 function draw(time, dt) {
   step(dt);
-  gust *= Math.exp(-dt * 1.2);
-  pokeT += dt;
-  const wx = S.wind * 2.2 + gust * (gustX < .5 ? 1.2 : -1.2);
+  const wx = S.wind * 2.2;
   shX += wx * dt; shY += S.wind * .3 * dt;
   const sk = sky(S.tod);
   const f1 = (n, v) => U[n] != null && gl.uniform1f(U[n], v);
@@ -342,7 +326,7 @@ function draw(time, dt) {
   f1('uDay', sk.day); f1('uTwi', sk.twi); f1('uNight', sk.night);
   f1('uCover', S.cover); f1('uGloom', S.gloom); f1('uRain', S.rain); f1('uSnow', S.snow); f1('uFog', S.fog);
   f1('uLight', S.light); f1('uLightX', S.lightX); f1('uLeaves', S.leaves); f1('uLeafKind', S.kind);
-  gl.uniform2f(U.uWind, wx, S.wind * .3); gl.uniform2f(U.uShift, shX, shY); gl.uniform3f(U.uPoke, pokeX, pokeY, pokeT);
+  gl.uniform2f(U.uWind, wx, S.wind * .3); gl.uniform2f(U.uShift, shX, shY);
   gl.uniform3f(U.uSeasonTint, S.tint[0], S.tint[1], S.tint[2]);
   gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
 }

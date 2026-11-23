@@ -182,5 +182,5 @@ test('every uniform the sky script sets exists in its shader', async () => {
   const frag = src.slice(src.indexOf('const FRAG = `'), src.indexOf('`;', src.indexOf('const FRAG = `')));
   const used = new Set([...src.matchAll(/U\.(u[A-Z]\w+)/g)].map((m) => m[1]).concat([...src.matchAll(/f1\('(u\w+)'/g)].map((m) => m[1])));
   for (const u of used) assert.ok(new RegExp('uniform[^;]*[ ,]' + u + '[;, ]').test(frag), 'missing uniform ' + u);
-  assert.ok(used.has('uShift') && used.has('uPoke'));
+  assert.ok(used.has('uShift'));
 });

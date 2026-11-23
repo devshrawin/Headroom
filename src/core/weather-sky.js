@@ -17,7 +17,6 @@ uniform vec2 uSun, uMoon;                 // positions on screen (0..1)
 uniform float uDay,uTwi,uNight;           // how much day, twilight and night there is
 uniform float uCover,uGloom,uRain,uSnow,uFog,uLight,uLightX,uLeaves,uLeafKind;
 uniform vec2 uWind, uShift;   // wind now, and how far the wind has carried things in all
-uniform vec3 uPoke;           // last click: x, y, seconds ago
 uniform vec3 uSeasonTint;
 
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
@@ -27,17 +26,6 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);
   return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*vn(p);p=p*2.02+vec2(17.3,9.1);a*=.5;}return v;}
 float fbm4(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vn(p);p=p*2.02+vec2(17.3,9.1);a*=.5;}return v;}
-float gRing;
-// a click sends a soft ring outward: it pushes the clouds, rain, snow and leaves aside as it passes
-vec2 poke(vec2 uv,float asp){
-  gRing=0.;
-  if(uPoke.z>3.) return uv;
-  vec2 d=(uv-uPoke.xy)*vec2(asp,1.);
-  float r=length(d)+1e-4;
-  float x=(r-uPoke.z*.55)*7.;
-  gRing=exp(-x*x)*exp(-uPoke.z*1.1);
-  return uv+d/r/vec2(asp,1.)*gRing*.09;
-}
 float luma(vec3 c){return dot(c,vec3(.299,.587,.114));}
 
 // sky gradient: bottom (horizon glow) -> middle -> top, for the hour and the weather
@@ -131,7 +119,7 @@ vec4 leaves(vec2 uv,float scale,float speed,float seed,float asp){
 void main(){
   vec2 uv=gl_FragCoord.xy/uRes;
   float asp=uRes.x/uRes.y;
-  vec2 pv=poke(uv,asp); float ring=gRing;
+  vec2 pv=uv;
   vec3 col=skyGradient(uv);
 
   // stars
@@ -194,7 +182,6 @@ void main(){
     float g=exp(-distance((uv-vec2(uLightX,.72))*vec2(asp,1.),vec2(0.))*3.2);
     col+=vec3(.62,.7,1.)*uLight*(.16+.7*g)*(.3+.7*smoothstep(.1,.9,uv.y));
   }
-  col+=vec3(.9,.95,1.)*ring*.14;
   // a touch of dither so the gradients never band
   col+=(h21(gl_FragCoord.xy+uTime*60.)-.5)*(1./128.);
   col*=1.-.16*pow(length(uv-.5)*1.2,2.);
@@ -239,7 +226,7 @@ void main(){
     const canvas = doc.createElement('canvas');
     canvas.setAttribute('aria-hidden', 'true');
     canvas.setAttribute('data-headroom', 'weather');
-    Object.assign(canvas.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', zIndex: '2147483000', pointerEvents: 'none', opacity: '0', transition: 'opacity 1.2s ease', background: 'transparent' });
+    Object.assign(canvas.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', zIndex: '-1', pointerEvents: 'none', opacity: '0', transition: 'opacity 1.2s ease', background: 'transparent' });
     let gl = null;
     try { gl = canvas.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power', preserveDrawingBuffer: false }); } catch {}
     if (!gl) return null;
@@ -258,6 +245,38 @@ void main(){
     const pl = gl.getAttribLocation(prog, 'p');
     gl.enableVertexAttribArray(pl);
     gl.vertexAttribPointer(pl, 2, gl.FLOAT, false, 0, 0);
+    // The sky sits BEHIND the page (z-index -1). For it to show, the page's own big opaque backgrounds
+    // (the body and the full-screen wrappers) are made transparent while the weather is on, and put back
+    // when it is turned off. Text, images and panels stay exactly as they are, on top of the sky.
+    const rootEl = doc.documentElement;
+    const alphaOf = (css) => { const n = (css || '').slice(css.indexOf('(') + 1, css.lastIndexOf(')')).split(/[ ,/]+/).filter(Boolean); return n.length > 3 ? +n[3] : 1; };
+    let pageBg = null;
+    for (const el of [doc.body, rootEl]) { if (!el) continue; const c = win.getComputedStyle(el).backgroundColor; if (c && alphaOf(c) >= .5) { pageBg = c; break; } }
+    const rootPrev = [rootEl.style.getPropertyValue('background-color'), rootEl.style.getPropertyPriority('background-color')];
+    rootEl.style.setProperty('background-color', pageBg || (win.matchMedia('(prefers-color-scheme: dark)').matches ? '#14141c' : '#ffffff'), 'important');
+    const cleared = new Map();
+    function clearBackdrops() {
+      if (destroyed) return;
+      const vw = win.innerWidth, vh = win.innerHeight, seen = new Set();
+      for (const [fx, fy] of [[.5, .5], [.15, .2], [.85, .2], [.15, .8], [.85, .8], [.5, .1], [.5, .9], [.05, .5], [.95, .5]]) {
+        for (const el of doc.elementsFromPoint(fx * vw, fy * vh)) {
+          if (seen.has(el) || el === rootEl || el === canvas) continue;
+          seen.add(el);
+          if (cleared.has(el)) continue;
+          if (alphaOf(win.getComputedStyle(el).backgroundColor) < .9) continue;
+          const r = el.getBoundingClientRect();
+          if (r.width * r.height < vw * vh * .5) continue;
+          cleared.set(el, [el.style.getPropertyValue('background-color'), el.style.getPropertyPriority('background-color')]);
+          el.style.setProperty('background-color', 'transparent', 'important');
+        }
+      }
+    }
+    const restoreBackdrops = () => {
+      for (const [el, [v, p]] of cleared) { if (v) el.style.setProperty('background-color', v, p); else el.style.removeProperty('background-color'); }
+      cleared.clear();
+      if (rootPrev[0]) rootEl.style.setProperty('background-color', rootPrev[0], rootPrev[1]); else rootEl.style.removeProperty('background-color');
+    };
+    const maskTimer = win.setInterval(clearBackdrops, 1500);
     (doc.documentElement).appendChild(canvas);
 
     const reduceMq = win.matchMedia('(prefers-reduced-motion: reduce)');
@@ -270,7 +289,7 @@ void main(){
     const S = { cover: .1, gloom: 0, rain: 0, snow: 0, fog: 0, leaves: 0, kind: 0, wind: .25, windX: .5, windY: 0, light: 0, lightX: .5, tint: [1, 1, 1] };
     let tg = AM.WEATHER.targetsFor('clear', 'summer');
     let cur = { tod: 12, rise: 6.3, set: 18.4, fixedTod: false, t0: performance.now(), weather: 'clear', season: 'summer', wind: .25, windX: .5, windY: 0 };
-    let gust = 0, gustX = 0, boltNext = 3, first = true, shX = 0, shY = 0, pokeX = .5, pokeY = .5, pokeT = 99;
+    let boltNext = 3, first = true, shX = 0, shY = 0;
 
     const resize = () => {
       // the sky is soft, so it is drawn small and stretched: cheap on the GPU and still smooth
@@ -282,16 +301,16 @@ void main(){
 
     let lastOp = -1;
     function setOpacity(night) {
-      const o = dark ? strength : strength * (.9 - .55 * night);
+      const o = strength * (dark ? .8 : .9 - .5 * night);
       if (Math.abs(o - lastOp) > .01) { lastOp = o; canvas.style.opacity = String(o); }
     }
     function applyTone() {
       const t = dark ? 'dark' : 'light';
       if (t === tone) return;
       tone = t;
-      // dark page: soft-light washes the sky's colour and light through it. Light page: soft-light does nothing
-      // on white, so multiply tints it instead (dark text stays dark); frame() eases the strength down at night.
-      canvas.style.mixBlendMode = dark ? 'soft-light' : 'multiply';
+      // the sky sits behind the page; the page keeps its own text, images and panels on top of it. In the dark it is dimmed, and at night on a light page it is eased down so dark text stays readable.
+      canvas.style.mixBlendMode = 'normal';
+      canvas.style.filter = dark ? 'brightness(.62) saturate(.9)' : 'none';
       lastOp = -1;
       setOpacity(1);
     }
@@ -320,9 +339,7 @@ void main(){
         boltNext -= dt;
         if (boltNext <= 0) { S.light = 1; S.lightX = .12 + Math.random() * .76; boltNext = 3 + Math.random() * 6; win.setTimeout(() => { S.light = Math.max(S.light, .75); }, 130); }
       }
-      gust *= Math.exp(-dt * 1.2);
-      pokeT += dt;
-      const wx = S.windX * 2.2 + gust * (gustX < .5 ? 1.2 : -1.2);
+      const wx = S.windX * 2.2;
       shX += wx * dt; shY += S.windY * dt;
       const tod = cur.fixedTod ? cur.tod : (cur.tod + (now - cur.t0) / 3.6e6) % 24; // the hour moves on in real time
       const sk = skyAt(tod, cur.rise, cur.set);
@@ -333,7 +350,7 @@ void main(){
       f1('uDay', sk.day); f1('uTwi', sk.twi); f1('uNight', sk.night);
       f1('uCover', S.cover); f1('uGloom', S.gloom); f1('uRain', S.rain); f1('uSnow', S.snow); f1('uFog', S.fog);
       f1('uLight', S.light); f1('uLightX', S.lightX); f1('uLeaves', S.leaves); f1('uLeafKind', S.kind);
-      gl.uniform2f(U.uWind, wx, S.windY); gl.uniform2f(U.uShift, shX, shY); gl.uniform3f(U.uPoke, pokeX, pokeY, pokeT);
+      gl.uniform2f(U.uWind, wx, S.windY); gl.uniform2f(U.uShift, shX, shY);
       gl.uniform3f(U.uSeasonTint, S.tint[0], S.tint[1], S.tint[2]);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
@@ -351,11 +368,10 @@ void main(){
     const start = () => { if (!raf && !destroyed && !lost && !doc.hidden && !reduceMq.matches) raf = win.requestAnimationFrame(tick); };
     const stop = () => { if (raf) { win.cancelAnimationFrame(raf); raf = 0; } };
 
-    const onDown = (e) => { gust = 1; gustX = e.clientX / win.innerWidth; pokeX = gustX; pokeY = 1 - e.clientY / win.innerHeight; pokeT = 0; };
     const onVis = () => (doc.hidden ? stop() : start());
     const onMotion = () => { if (reduceMq.matches) { stop(); frame(performance.now(), .05); } else start(); };
     const onLost = (e) => { e.preventDefault(); lost = true; stop(); if (opts.onLost) opts.onLost(); };
-    win.addEventListener('pointerdown', onDown, { passive: true, capture: true });
+    win.addEventListener('resize', clearBackdrops);
     win.addEventListener('resize', resize);
     doc.addEventListener('visibilitychange', onVis);
     reduceMq.addEventListener('change', onMotion);
@@ -364,6 +380,7 @@ void main(){
 
     resize();
     applyTone();
+    clearBackdrops();
     canvas.style.opacity = '0';
     win.requestAnimationFrame(() => { lastOp = -1; setOpacity(0); });
     start();
@@ -375,7 +392,7 @@ void main(){
         destroyed = true;
         stop();
         win.clearInterval(toneTimer);
-        win.removeEventListener('pointerdown', onDown, { capture: true });
+        win.clearInterval(maskTimer); win.removeEventListener('resize', clearBackdrops); restoreBackdrops();
         win.removeEventListener('resize', resize);
         doc.removeEventListener('visibilitychange', onVis);
         reduceMq.removeEventListener('change', onMotion);

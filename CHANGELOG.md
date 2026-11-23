@@ -2,6 +2,13 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.2.2 — 2026-11-23
+
+### Changed
+- **New logo**: a sky with a cloud and sun and the usage bar (concept 8 of the redesign sheet, wordmark removed so it reads at 16 px).
+- **The sky now sits behind the page**, not on top of it. While the weather is on, the page's own full-screen backgrounds are made transparent (and put back when it is off), so photos, text and panels are never tinted or covered. In the dark it is dimmed for readability.
+- Clicking the page no longer does anything to the sky (the 1.2.1 click ripple and gust are gone).
+
 ## 1.2.1 — 2026-11-23
 
 ### Fixed
