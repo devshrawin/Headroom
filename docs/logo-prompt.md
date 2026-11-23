@@ -1,21 +1,17 @@
-# Prompt: Headroom logo
+# Headroom logo prompt
 
-Paste into an image or logo generator (Gemini, Midjourney, Ideogram, Recraft) or give to a designer.
+Headroom is now a thin usage bar plus a live weather sky behind AI chats. No cat.
 
-```
-Design an app icon / logo mark for "Headroom", a Chrome extension that shows how much of your AI chat usage limit is left (Claude, ChatGPT, Gemini and others) as a small meter on the page. A cat mascot called Iris (white, fluffy, calm face) sits on top of the meter.
+## Prompt
 
-Concept: "headroom" is the space left above you before you hit the ceiling. Combine a usage gauge with a cat's head. Idea to explore: a thick gauge ring or arc that is partly filled, with two cat ears on top. The unfilled part of the ring is the headroom. Also try one alternative with Iris's face peeking over a gauge arc.
+> App icon for "Headroom", a browser extension that shows how much of your AI usage limit is left and puts the real weather sky behind your chat. A rounded-square icon (iOS style, 1024x1024). Background: a soft sky gradient from deep blue at the top to warm peach at the horizon, with one small soft sun glow and a single smooth cloud. Across the lower third, one thick horizontal pill-shaped progress bar, rounded ends, filled about 70% in bright white with the remaining 30% as a translucent track. Flat, modern, minimal, soft light, no text, no letters, no cat, no mascot, no photo. Strong simple silhouette that stays readable at 16x16 pixels. Centered, generous padding, subtle inner shadow, no border.
 
-Style: flat, modern, friendly, confident. Simple geometric shapes, rounded ends, no outlines, no tiny detail, no text inside the mark. One strong silhouette that still reads at 16 x 16 pixels.
+## Variants to try
 
-Colour: deep violet to indigo gradient tile (#7b5ce6 to #4527a8), white and soft lavender (#d9ceff) for the mark. Optional small accent in status green #16794a. Nothing else.
+- Night: deep navy to violet gradient, crescent moon and two stars, bar in pale gold.
+- Mono: single-colour white bar and cloud on a solid blue square, for the 16 px toolbar icon.
+- Negative prompt: text, watermark, cat, face, photorealistic, busy detail, thin lines.
 
-Deliver: a square 1024 x 1024 icon on a rounded-square tile (corner radius about 24%), plus the mark alone on transparent background, plus a one-colour (white on violet) version. Clean vector look, centred, generous padding, plain white background around the tile.
+## After you pick one
 
-Avoid: realistic cat photos, whiskers or eyes that become noise at small size, speedometer clichés with a red needle, gradients with many colours, any brand logos of AI companies, any text.
-```
-
-Also ask for: a horizontal lockup (mark + the word "Headroom" in a rounded geometric sans, semi-bold) for the store marquee.
-
-How to use the result: give me the PNG and I will drop it into `assets/headroom-logo-source.png` and run `python scripts/make-icons.py`, which writes the master and the 16, 32, 48 and 128 px icons.
+Save it as `assets/headroom-logo-source.png`; icons are cut from it (`scripts/make-icons.py`; Python is blocked on this machine, so ask for a Node version).

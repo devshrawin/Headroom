@@ -2,6 +2,15 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.2.1 — 2026-11-23
+
+### Fixed
+- The weather sky was invisible on light pages (soft-light does nothing on white). Light pages now use a multiply tint that eases down at night; dark pages keep soft-light.
+- Clicking the page now does something you can see: a soft ring pushes the clouds, rain, snow and leaves aside, and the wind carries them smoothly instead of making them jump.
+
+### Changed
+- Settings: full-height left sidebar (brand, search, pages, guide link, save status) and each setting has its control on the right.
+
 ## 1.2.0 — 2026-11-23
 
 Headroom becomes a usage bar plus a live weather sky. Iris, the pill and the animated themes are gone.

@@ -9,7 +9,7 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 | Name | Headroom: AI usage limit and weather |
 | Category | Productivity |
 | Language | English |
-| Package version | 1.2.0 |
+| Package version | 1.2.1 |
 | Privacy policy URL | `https://devshrawin.github.io/Headroom/privacy` (publish `docs/privacy.md` with GitHub Pages: Settings → Pages → Deploy from branch → `main` / `/docs`) |
 | Support URL | `https://github.com/devshrawin/Headroom/issues` |
 | Homepage URL | `https://github.com/devshrawin/Headroom` |

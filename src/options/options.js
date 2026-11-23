@@ -398,3 +398,5 @@ chrome.storage.onChanged.addListener((c, area) => {
   page = PAGES.some((p) => p.id === location.hash.slice(1)) ? location.hash.slice(1) : 'weather';
   render();
 })();
+
+try { $('#ver').textContent = 'v' + chrome.runtime.getManifest().version; } catch (_) { /* preview */ }

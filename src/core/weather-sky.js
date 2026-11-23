@@ -16,7 +16,8 @@ uniform vec2 uRes; uniform float uTime;
 uniform vec2 uSun, uMoon;                 // positions on screen (0..1)
 uniform float uDay,uTwi,uNight;           // how much day, twilight and night there is
 uniform float uCover,uGloom,uRain,uSnow,uFog,uLight,uLightX,uLeaves,uLeafKind;
-uniform vec2 uWind;
+uniform vec2 uWind, uShift;   // wind now, and how far the wind has carried things in all
+uniform vec3 uPoke;           // last click: x, y, seconds ago
 uniform vec3 uSeasonTint;
 
 float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
@@ -26,6 +27,17 @@ float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);
   return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}
 float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*vn(p);p=p*2.02+vec2(17.3,9.1);a*=.5;}return v;}
 float fbm4(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vn(p);p=p*2.02+vec2(17.3,9.1);a*=.5;}return v;}
+float gRing;
+// a click sends a soft ring outward: it pushes the clouds, rain, snow and leaves aside as it passes
+vec2 poke(vec2 uv,float asp){
+  gRing=0.;
+  if(uPoke.z>3.) return uv;
+  vec2 d=(uv-uPoke.xy)*vec2(asp,1.);
+  float r=length(d)+1e-4;
+  float x=(r-uPoke.z*.55)*7.;
+  gRing=exp(-x*x)*exp(-uPoke.z*1.1);
+  return uv+d/r/vec2(asp,1.)*gRing*.09;
+}
 float luma(vec3 c){return dot(c,vec3(.299,.587,.114));}
 
 // sky gradient: bottom (horizon glow) -> middle -> top, for the hour and the weather
@@ -50,7 +62,7 @@ vec3 skyGradient(vec2 uv){
 
 // soft volumetric clouds: wide smooth edges, lit from the sun's side, driven by the wind
 vec4 clouds(vec2 uv,float asp,float scale,float speed,float seed,float cover,vec2 sunDir){
-  vec2 p=vec2(uv.x*asp,uv.y)*scale+uWind*uTime*speed+seed;
+  vec2 p=vec2(uv.x*asp,uv.y)*scale+uShift*speed+seed;
   float warp=fbm4(p*.4+3.1);
   float n=fbm4(p+.55*warp);
   float lo=.86-cover*.54, hi=lo+.42;
@@ -89,7 +101,7 @@ float rainLayer(vec2 uv,float scale,float speed,float seed,float slant,float asp
 float snowLayer(vec2 uv,float scale,float speed,float seed,float size,float soft,float asp){
   vec2 p=vec2(uv.x*asp,uv.y)*scale;
   p.y+=uTime*speed;
-  p.x+=sin(uTime*.5+p.y*1.7+seed)*.3+uTime*uWind.x*.16;
+  p.x+=sin(uTime*.5+p.y*1.7+seed)*.3+uShift.x*.16;
   vec2 id=floor(p),f=fract(p)-.5;
   float h=h21(id+seed);
   vec2 off=(vec2(h,h21(id+seed+3.))-.5)*.6;
@@ -99,7 +111,7 @@ float snowLayer(vec2 uv,float scale,float speed,float seed,float size,float soft
 }
 vec4 leaves(vec2 uv,float scale,float speed,float seed,float asp){
   vec2 p=vec2(uv.x*asp,uv.y)*scale;
-  p.y+=uTime*speed*.5; p.x+=uTime*uWind.x*.25+sin(uTime*.5+p.y*1.3+seed)*.4;
+  p.y+=uTime*speed*.5; p.x+=uShift.x*.25+sin(uTime*.5+p.y*1.3+seed)*.4;
   vec2 id=floor(p),f=fract(p)-.5;
   float h=h21(id+seed);
   float on=step(1.-uLeaves*.5,h21(id+seed+4.));
@@ -119,6 +131,7 @@ vec4 leaves(vec2 uv,float scale,float speed,float seed,float asp){
 void main(){
   vec2 uv=gl_FragCoord.xy/uRes;
   float asp=uRes.x/uRes.y;
+  vec2 pv=poke(uv,asp); float ring=gRing;
   vec3 col=skyGradient(uv);
 
   // stars
@@ -147,32 +160,32 @@ void main(){
 
   // clouds: two layers at different distances, so they drift at different speeds
   vec2 sdir=normalize(uSun-vec2(.5,.45)+1e-3);
-  vec4 c2=clouds(uv,asp,1.0,.012,5.,uCover*.9,sdir);
+  vec4 c2=clouds(pv,asp,1.0,.012,5.,uCover*.9,sdir);
   col=mix(col,c2.rgb,c2.a*.8);
-  vec4 c1=clouds(uv,asp,1.7,.02,0.,uCover,sdir);
+  vec4 c1=clouds(pv,asp,1.7,.02,0.,uCover,sdir);
   col=mix(col,c1.rgb,c1.a);
   // fog banks
   if(uFog>.01){
-    float fn=fbm4(vec2(uv.x*asp*1.6+uTime*.012*(.4+length(uWind)),uv.y*2.2));
+    float fn=fbm4(vec2(uv.x*asp*1.6+uShift.x*.012,uv.y*2.2));
     vec3 fogC=mix(vec3(.66,.69,.74),vec3(.16,.18,.24),uNight)*(.5+.5*uDay);
     col=mix(col,fogC,clamp(uFog*(.35+.65*fn)*(.55+.45*(1.-uv.y)),0.,.93));
   }
   // rain: fine streaks at three depths
   if(uRain>.01){
     float slant=-uWind.x*.4-.06;
-    float r=rainLayer(uv,30.,4.6,1.,slant,asp,.05)*.55+rainLayer(uv,52.,3.8,3.,slant,asp,.032)*.6+rainLayer(uv,92.,3.0,7.,slant,asp,.022)*.5+rainLayer(uv,150.,2.4,11.,slant,asp,.016)*.35;
+    float r=rainLayer(pv,30.,4.6,1.,slant,asp,.05)*.55+rainLayer(pv,52.,3.8,3.,slant,asp,.032)*.6+rainLayer(pv,92.,3.0,7.,slant,asp,.022)*.5+rainLayer(pv,150.,2.4,11.,slant,asp,.016)*.35;
     // a soft mist that rises from the ground and thickens with the rain
     float mist=smoothstep(.55,0.,uv.y)*uRain*.1;
     col+=vec3(.82,.9,1.)*(r*(.22+.4*uDay)*(.5+.5*uRain)+mist*(.4+.6*uDay));
   }
   // snow: soft flakes, the big near ones out of focus
   if(uSnow>.01){
-    float s=snowLayer(uv,22.,.5,1.,.22,.05,asp)*.5+snowLayer(uv,40.,.38,5.,.16,.15,asp)*.75+snowLayer(uv,80.,.28,9.,.12,.3,asp)*.8;
+    float s=snowLayer(pv,22.,.5,1.,.22,.05,asp)*.5+snowLayer(pv,40.,.38,5.,.16,.15,asp)*.75+snowLayer(pv,80.,.28,9.,.12,.3,asp)*.8;
     col+=vec3(1.)*s*(.55+.45*uDay);
   }
   // leaves or petals
   if(uLeaves>.01){
-    vec4 l1=leaves(uv,7.,.55,1.,asp),l2=leaves(uv,13.,.45,6.,asp);
+    vec4 l1=leaves(pv,7.,.55,1.,asp),l2=leaves(pv,13.,.45,6.,asp);
     col=mix(col,l2.rgb*(.45+.55*uDay),l2.a*.6);
     col=mix(col,l1.rgb*(.5+.5*uDay),l1.a*.9);
   }
@@ -181,6 +194,7 @@ void main(){
     float g=exp(-distance((uv-vec2(uLightX,.72))*vec2(asp,1.),vec2(0.))*3.2);
     col+=vec3(.62,.7,1.)*uLight*(.16+.7*g)*(.3+.7*smoothstep(.1,.9,uv.y));
   }
+  col+=vec3(.9,.95,1.)*ring*.14;
   // a touch of dither so the gradients never band
   col+=(h21(gl_FragCoord.xy+uTime*60.)-.5)*(1./128.);
   col*=1.-.16*pow(length(uv-.5)*1.2,2.);
@@ -256,7 +270,7 @@ void main(){
     const S = { cover: .1, gloom: 0, rain: 0, snow: 0, fog: 0, leaves: 0, kind: 0, wind: .25, windX: .5, windY: 0, light: 0, lightX: .5, tint: [1, 1, 1] };
     let tg = AM.WEATHER.targetsFor('clear', 'summer');
     let cur = { tod: 12, rise: 6.3, set: 18.4, fixedTod: false, t0: performance.now(), weather: 'clear', season: 'summer', wind: .25, windX: .5, windY: 0 };
-    let gust = 0, gustX = 0, boltNext = 3, first = true;
+    let gust = 0, gustX = 0, boltNext = 3, first = true, shX = 0, shY = 0, pokeX = .5, pokeY = .5, pokeT = 99;
 
     const resize = () => {
       // the sky is soft, so it is drawn small and stretched: cheap on the GPU and still smooth
@@ -266,13 +280,20 @@ void main(){
       W = w; H = h; canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H);
     };
 
+    let lastOp = -1;
+    function setOpacity(night) {
+      const o = dark ? strength : strength * (.9 - .55 * night);
+      if (Math.abs(o - lastOp) > .01) { lastOp = o; canvas.style.opacity = String(o); }
+    }
     function applyTone() {
       const t = dark ? 'dark' : 'light';
       if (t === tone) return;
       tone = t;
-      // soft-light keeps the page's own contrast and washes the sky's colour and light through it
-      canvas.style.mixBlendMode = 'soft-light';
-      canvas.style.opacity = String(strength * (dark ? 1 : .95));
+      // dark page: soft-light washes the sky's colour and light through it. Light page: soft-light does nothing
+      // on white, so multiply tints it instead (dark text stays dark); frame() eases the strength down at night.
+      canvas.style.mixBlendMode = dark ? 'soft-light' : 'multiply';
+      lastOp = -1;
+      setOpacity(1);
     }
 
     function setState(st) {
@@ -300,15 +321,19 @@ void main(){
         if (boltNext <= 0) { S.light = 1; S.lightX = .12 + Math.random() * .76; boltNext = 3 + Math.random() * 6; win.setTimeout(() => { S.light = Math.max(S.light, .75); }, 130); }
       }
       gust *= Math.exp(-dt * 1.2);
+      pokeT += dt;
+      const wx = S.windX * 2.2 + gust * (gustX < .5 ? 1.2 : -1.2);
+      shX += wx * dt; shY += S.windY * dt;
       const tod = cur.fixedTod ? cur.tod : (cur.tod + (now - cur.t0) / 3.6e6) % 24; // the hour moves on in real time
       const sk = skyAt(tod, cur.rise, cur.set);
       const f1 = (n, v) => U[n] != null && gl.uniform1f(U[n], v);
       gl.uniform2f(U.uRes, W, H); f1('uTime', now / 1000);
       gl.uniform2f(U.uSun, sk.sun[0], sk.sun[1]); gl.uniform2f(U.uMoon, sk.moon[0], sk.moon[1]);
+      setOpacity(sk.night);
       f1('uDay', sk.day); f1('uTwi', sk.twi); f1('uNight', sk.night);
       f1('uCover', S.cover); f1('uGloom', S.gloom); f1('uRain', S.rain); f1('uSnow', S.snow); f1('uFog', S.fog);
       f1('uLight', S.light); f1('uLightX', S.lightX); f1('uLeaves', S.leaves); f1('uLeafKind', S.kind);
-      gl.uniform2f(U.uWind, S.windX * 2.2 + gust * (gustX < .5 ? 1.2 : -1.2), S.windY);
+      gl.uniform2f(U.uWind, wx, S.windY); gl.uniform2f(U.uShift, shX, shY); gl.uniform3f(U.uPoke, pokeX, pokeY, pokeT);
       gl.uniform3f(U.uSeasonTint, S.tint[0], S.tint[1], S.tint[2]);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
@@ -326,7 +351,7 @@ void main(){
     const start = () => { if (!raf && !destroyed && !lost && !doc.hidden && !reduceMq.matches) raf = win.requestAnimationFrame(tick); };
     const stop = () => { if (raf) { win.cancelAnimationFrame(raf); raf = 0; } };
 
-    const onDown = (e) => { gust = 1; gustX = e.clientX / win.innerWidth; };
+    const onDown = (e) => { gust = 1; gustX = e.clientX / win.innerWidth; pokeX = gustX; pokeY = 1 - e.clientY / win.innerHeight; pokeT = 0; };
     const onVis = () => (doc.hidden ? stop() : start());
     const onMotion = () => { if (reduceMq.matches) { stop(); frame(performance.now(), .05); } else start(); };
     const onLost = (e) => { e.preventDefault(); lost = true; stop(); if (opts.onLost) opts.onLost(); };
@@ -340,7 +365,7 @@ void main(){
     resize();
     applyTone();
     canvas.style.opacity = '0';
-    win.requestAnimationFrame(() => { canvas.style.opacity = String(strength * (dark ? 1 : .95)); });
+    win.requestAnimationFrame(() => { lastOp = -1; setOpacity(0); });
     start();
 
     return {

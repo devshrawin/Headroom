@@ -7,19 +7,12 @@
   <link rel="stylesheet" href="options.css">
 </head>
 <body>
-  <header class="top">
-    <div class="wrap top-in">
-      <img class="mark" src="../../icons/icon48.png" alt="" width="26" height="26">
-      <span class="brand">Headroom</span>
-      <span class="slash" aria-hidden="true">/</span>
-      <span class="brand light">Settings</span>
-      <span class="grow"></span>
-      <span class="hint" id="saved" role="status" aria-live="polite">All changes saved</span>
-      <a class="btn ghost sm" href="../welcome/welcome.html">First-run guide</a>
-    </div>
-  </header>
-  <div class="wrap layout">
-    <nav class="nav" id="nav" aria-label="Settings sections"></nav>
+  <div class="shell">
+    <aside class="side">
+      <div class="side-brand"><img class="mark" src="../../icons/icon48.png" alt="" width="28" height="28"><div><div class="brand">Headroom</div><div class="hint" id="ver"></div></div></div>
+      <nav class="nav" id="nav" aria-label="Settings sections"></nav>
+      <div class="side-foot"><a class="btn ghost sm" href="../welcome/welcome.html">First-run guide</a><span class="hint" id="saved" role="status" aria-live="polite">All changes saved</span></div>
+    </aside>
     <main id="main"></main>
   </div>
   <input type="file" id="importFile" accept="application/json,.json" hidden>
