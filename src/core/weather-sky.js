@@ -269,8 +269,8 @@ void main(){
       const vw = win.innerWidth, vh = win.innerHeight;
       const all = doc.body.querySelectorAll('*');
       const n = Math.min(all.length, 6000);
-      for (let i = 0; i < n; i++) {
-        const el = all[i];
+      for (let i = -1; i < n; i++) {
+        const el = i < 0 ? doc.body : all[i]; // the body itself is often what paints the page colour
         if (marked.has(el) || el === canvas || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') continue;
         const r = el.getBoundingClientRect();
         if (r.width < 8 || r.height < 8) continue;

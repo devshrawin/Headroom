@@ -2,6 +2,11 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.2.5 — 2026-11-23
+
+### Fixed
+- White page, no sky, on sites that paint their colour on the body (Gemini and others): the body itself was skipped by the 1.2.4 scan, so it covered the sky. It is now checked too. Verified on real Gemini.
+
 ## 1.2.4 — 2026-11-23
 
 ### Fixed
