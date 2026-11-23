@@ -3,14 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>AI Meter</title>
+  <title>Headroom</title>
   <link rel="stylesheet" href="popup.css">
 </head>
 <body>
   <header>
-    <img class="avatar" src="../assets/iris/sit.webp" alt="" width="32" height="32">
+    <img class="avatar" src="../../icons/icon48.png" alt="" width="32" height="32">
     <div class="title">
-      <h1>AI Meter</h1>
+      <h1>Headroom</h1>
       <div id="summary" class="summary"></div>
     </div>
     <div class="actions">
@@ -24,12 +24,12 @@
   </header>
   <main id="list"></main>
   <footer>
-    <span><i class="tag real">real</i> from provider</span>
-    <span><i class="tag estimate">est</i> counted locally</span>
-    <a id="add" href="#">+ Add site</a>
+    <span id="legend"></span>
+    <button id="add" class="link" type="button">+ Add site</button>
   </footer>
   <script src="../core/quotas.js"></script>
   <script src="../core/common.js"></script>
+  <script src="../core/glyphs.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

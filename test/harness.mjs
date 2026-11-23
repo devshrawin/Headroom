@@ -20,7 +20,7 @@ export function loadAdapter(adapterFile, { fetch, cookie = '', pathname = '/', h
   for (const f of ['src/core/quotas.js', 'src/core/common.js', 'src/core/parsers.js']) {
     vm.runInContext(read(f), ctx, { filename: f });
   }
-  const AM = ctx.AIMeter;
+  const AM = ctx.Headroom;
   AM.register = (a) => { adapter = a; };
   AM.estimator = () => ({ record() {}, refresh() {}, relabelLast() {} });
   AM.watchDomChat = () => {};

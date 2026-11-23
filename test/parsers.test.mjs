@@ -7,7 +7,7 @@ const ctx = vm.createContext({ console, atob, btoa, URL, URLSearchParams });
 for (const f of ['src/core/quotas.js', 'src/core/common.js', 'src/core/parsers.js', 'src/adapters/generic.js']) {
   vm.runInContext(readFileSync(new URL('../' + f, import.meta.url), 'utf8'), ctx, { filename: f });
 }
-const AM = ctx.AIMeter;
+const AM = ctx.Headroom;
 const plain = (v) => JSON.parse(JSON.stringify(v));
 const NOW = Date.UTC(2026, 8, 26, 10, 0, 0);
 

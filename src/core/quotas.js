@@ -1,7 +1,7 @@
 // Provider registry, default estimate rules and settings. No chrome.* or DOM access here.
 // Estimate rules are matched top-down against the model name seen in each send; first match wins.
 (() => {
-  const AM = (globalThis.AIMeter = globalThis.AIMeter || { adapters: [] });
+  const AM = (globalThis.Headroom = globalThis.Headroom || { adapters: [] });
 
   // source: what kind of number we can get. 'real' = provider-reported, 'estimate' = local counting.
   AM.PROVIDERS = [
@@ -26,7 +26,7 @@
     'src/core/parsers.js',
     'src/core/store.js',
     'src/core/banner.js',
-    'src/core/perches.js',
+    'src/core/weather-data.js',
     'src/core/widget.js',
     'src/core/chatdom.js',
     'src/adapters/claude.js',
@@ -39,18 +39,14 @@
     'src/content.js',
   ];
 
-  // Iris's engine and frames: injected into a tab only when she is switched on (see widget.js / background.js).
-  AM.PET_BUNDLE = [
-    'src/core/iris-frames.js',
-    'src/core/walk8-frames.js',
-    'src/core/pet.js',
-  ];
+  // The weather sky is injected into a tab only when the weather is switched on (see content.js / background.js).
+  AM.WEATHER_FILES = ['src/core/weather-sky.js'];
 
   AM.siteScripts = (host) => {
     const matches = [`https://${host}/*`];
     return [
-      { id: 'aimeter-main-' + host, matches, js: ['src/inject.js'], world: 'MAIN', runAt: 'document_start' },
-      { id: 'aimeter-iso-' + host, matches, js: AM.CONTENT_BUNDLE, runAt: 'document_start' },
+      { id: 'headroom-main-' + host, matches, js: ['src/inject.js'], world: 'MAIN', runAt: 'document_start' },
+      { id: 'headroom-iso-' + host, matches, js: AM.CONTENT_BUNDLE, runAt: 'document_start' },
     ];
   };
 
@@ -98,20 +94,54 @@
   AM.DEFAULT_SETTINGS = {
     widget: true,
     chatStats: true,
-    pet: true,
-    irisEnergy: 'calm',
-    explore: true,
+    meterStyle: 'bar-bottom', // 'bar-bottom' | 'bar-top': a thin bar along the edge of the page
     notify: true,
     thresholds: [75, 90, 100],
     debug: false,
+    weather: true, // the weather sky behind the page (needs a place, see weatherPlace)
+    weatherPlace: null, // { name, lat, lon }: where the weather is for, coordinates rounded to two decimals
+    weatherUnits: 'c', // 'c' | 'f'
+    weatherStrength: 1, // 0.2 .. 1: how strongly the sky shows through the page
+    weatherForce: null, // Settings → "Try a look": { weather?, season?, tod? } instead of the real thing
     quotas: AM.DEFAULT_QUOTAS,
     customSites: [],
+  };
+
+  const HOST_RE = /^[a-z0-9-]+(\.[a-z0-9-]+)+$/;
+  const cleanSites = (list) => (Array.isArray(list) ? list : []).filter((x) => x && typeof x.host === 'string' && HOST_RE.test(x.host) && x.host.length <= 253);
+  const cleanThresholds = (list) => {
+    const t = Array.isArray(list) ? list.filter((n) => typeof n === 'number' && isFinite(n) && n > 0 && n <= 100) : [];
+    return t.length ? t : AM.DEFAULT_SETTINGS.thresholds;
+  };
+
+  const cleanPlace = (p) => {
+    if (!p || typeof p !== 'object') return null;
+    const lat = Number(p.lat), lon = Number(p.lon);
+    if (!isFinite(lat) || !isFinite(lon) || lat < -90 || lat > 90 || lon < -180 || lon > 180) return null;
+    return { name: typeof p.name === 'string' ? p.name.slice(0, 80) : '', lat: Math.round(lat * 100) / 100, lon: Math.round(lon * 100) / 100 };
+  };
+  const WEATHER_KEYS = ['clear', 'partly', 'overcast', 'drizzle', 'rain', 'storm', 'snow', 'fog'];
+  const SEASON_KEYS = ['spring', 'summer', 'autumn', 'winter', 'monsoon'];
+  const cleanForce = (f) => {
+    if (!f || typeof f !== 'object') return null;
+    const out = {};
+    if (WEATHER_KEYS.includes(f.weather)) out.weather = f.weather;
+    if (SEASON_KEYS.includes(f.season)) out.season = f.season;
+    if (typeof f.tod === 'number' && isFinite(f.tod) && f.tod >= 0 && f.tod < 24) out.tod = f.tod;
+    return Object.keys(out).length ? out : null;
   };
 
   AM.mergeSettings = (s) => ({
     ...AM.DEFAULT_SETTINGS,
     ...(s || {}),
     quotas: { ...AM.DEFAULT_QUOTAS, ...((s && s.quotas) || {}) },
-    customSites: Array.isArray(s && s.customSites) ? s.customSites : [],
+    meterStyle: s && s.meterStyle === 'bar-top' ? 'bar-top' : 'bar-bottom',
+    weather: !(s && s.weather === false),
+    weatherPlace: cleanPlace(s && s.weatherPlace),
+    weatherUnits: s && s.weatherUnits === 'f' ? 'f' : 'c',
+    weatherStrength: typeof (s && s.weatherStrength) === 'number' && isFinite(s.weatherStrength) ? Math.min(1, Math.max(0.2, s.weatherStrength)) : 1,
+    weatherForce: cleanForce(s && s.weatherForce),
+    thresholds: cleanThresholds(s && s.thresholds),
+    customSites: cleanSites(s && s.customSites),
   });
 })();

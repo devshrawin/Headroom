@@ -1,7 +1,7 @@
 // Pure response parsers for provider usage endpoints. No chrome.* or DOM access here.
 // Endpoint shapes were learned from RateBucket, claudetuner and CodexBar (all MIT).
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const num = (v) => (typeof v === 'number' && isFinite(v) ? v : null);
   const ratioToPct = (r) => (r >= 0 && r <= 1 ? r * 100 : r);
 

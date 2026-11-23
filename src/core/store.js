@@ -5,7 +5,7 @@
 // "Extension context invalidated". Such an orphaned copy detects that, stops its timers,
 // removes its widget and goes quiet. The freshly injected copy takes over after a tab reload.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const KEEP_MS = 8 * 24 * 3600e3;
 
   // Track intervals created by our scripts so an orphaned copy can stop all of them.
@@ -119,7 +119,7 @@
 
   AM.estimator = (ctx, provider) => {
     const report = (events) => { if (!AM.dead) ctx.report('estimate', AM.countMeters(events, ctx.quotas())); };
-    const safe = (p) => p.then(report).catch((e) => { if (!isInvalidated(e)) console.warn('[AI Meter]', e); });
+    const safe = (p) => p.then(report).catch((e) => { if (!isInvalidated(e)) console.warn('[Headroom]', e); });
     return {
       record: (model) => { AM.emit('send'); return safe(AM.events.record(provider, model)); },
       relabelLast: (model) => safe(AM.events.relabelLast(provider, model)),

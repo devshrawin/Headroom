@@ -1,6 +1,6 @@
 // Perplexity: GET /rest/rate-limit/all → remaining_pro / remaining_research / remaining_labs (real).
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const LIMITS_RE = /\/rest\/(rate-limit|user\/settings)/;
   const LABELS = { Pro: 'Pro searches', Research: 'Research', 'Agentic Research': 'Agentic research', Labs: 'Labs' };
 

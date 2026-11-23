@@ -1,4 +1,4 @@
-# Chrome Web Store listing: AI Meter
+# Chrome Web Store listing: Headroom
 
 Everything below is written to paste into the Chrome Web Store developer dashboard. Facts come from the code and the README; if the code changes, update this file with it.
 
@@ -6,25 +6,27 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 
 | Field | Value |
 |---|---|
-| Name | AI Meter: AI usage limit tracker |
+| Name | Headroom: AI usage limit and weather |
 | Category | Productivity |
 | Language | English |
-| Package version | 0.9.2 |
-| Privacy policy URL | `https://devshrawin.github.io/ai-meter/privacy` (publish `docs/privacy.md` with GitHub Pages: Settings → Pages → Deploy from branch → `main` / `/docs`) |
-| Support URL | `https://github.com/devshrawin/ai-meter/issues` |
-| Homepage URL | `https://github.com/devshrawin/ai-meter` |
+| Package version | 1.2.6 |
+| Privacy policy URL | `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md` (no GitHub Pages needed: the repo is public, so GitHub shows `docs/privacy.md` as a page. It must be merged to `main` first, or it shows the old policy. Open it in a private window to check it loads without signing in) |
+| Support URL | `https://github.com/devshrawin/Headroom/issues` |
+| Homepage URL | `https://github.com/devshrawin/Headroom` |
 
 ## Short description (max 132 characters)
 
-> See how much of your usage limit is left on Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi and other AI chat sites.
+> See your AI usage limit as a thin bar, with the live weather as a sky behind the chat. Claude, ChatGPT, Gemini, Grok and more.
 
-(116 characters. This is also the `description` in `manifest.json`.)
+(about 125 characters. This is also the `description` in `manifest.json`.)
 
 ## Long description
 
-> AI Meter shows how much of your usage limit is left on the AI chat sites you use, right on the page, before you hit the wall.
+> Headroom does two things on the AI chat sites you use: it shows how much of your usage limit is left, and it puts the real weather behind your chat.
 >
-> A small glossy pill sits in the corner of the chat page. It shows the percentage used and when the limit resets. Click it for the details. A cat called Iris keeps you company on top of it: she is calm while you have plenty left, worried near the limit, stressed when you are about to run out, and asleep when you have.
+> **Your limit, as a thin bar.** A slim bar runs along the bottom (or top) of the page and fills as you use your limit. Point at it for the percentage and when it resets, click it for the details. Shapes as well as colours show the level, so it reads without colour.
+>
+> **The real weather, behind your chat.** Choose where you are (use your location, or type a city) and the page gets a living sky that follows the real weather and the real hour: the sun, moon and stars, clouds that move with the real wind, rain, snow, fog, lightning, and falling leaves in autumn. It never blocks the page or your clicks, you can turn it off with one click, and you can lower its strength if text is hard to read.
 >
 > **Real numbers where the provider gives them**
 > • Claude: session (5 hour) and weekly usage, with reset times
@@ -35,45 +37,49 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 > • ChatGPT: Codex usage windows, plus a message count for chat
 >
 > **Counted for the rest**
-> DeepSeek, Qwen, Le Chat, Copilot, Meta AI and Poe do not show usage, so AI Meter counts your sends against limits you set yourself.
+> DeepSeek, Qwen, Le Chat, Copilot, Meta AI and Poe do not show usage, so Headroom counts your sends against limits you set yourself.
 >
 > **Any other AI site**
-> Add any site in Settings. AI Meter asks for permission for that one site only.
+> Add any site in Settings. Headroom asks for permission for that one site only.
 >
 > **Also included**
+> • Live weather sky behind the chat (sun, moon, clouds, rain, snow, fog, lightning, falling leaves), one click to turn off
 > • Toolbar badge with the current percentage
 > • A popup with every provider in one place
 > • Optional desktop notifications at 75, 90 and 100 percent, and when a limit resets
 > • Chat length and a rough cost for your next message on Claude, ChatGPT and Gemini
 > • A visible message when a provider's usage cannot be read, with a one-click copy of the debug details
+> • A short first-run guide that explains the real / estimate / banner tags
+> • Export and import your settings, so custom limits are never lost
+> • Works from the keyboard: Tab to the meter, Enter to open it
 >
 > **Private by design**
-> Everything stays on your machine. There is no server, no account and no analytics. Usage requests go from your own logged-in tab to the provider's own site, exactly as its settings page would send them. Message text is never stored. See the privacy policy for the details.
+> Everything stays on your machine. There is no server of ours, no account and no analytics. Usage requests go from your own logged-in tab to the provider's own site, exactly as its settings page would send them. Message text is never stored. The one other request is for the weather, only if you turn it on: the rounded coordinates of the place you choose (about 1 km) go to the free Open-Meteo weather service to ask for the forecast. See the privacy policy for the details.
 >
-> AI Meter is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, OpenAI, Google, xAI, Perplexity, Moonshot AI, DeepSeek, Alibaba, Mistral AI, Microsoft, Meta or Quora. Product and company names are trademarks of their respective owners and are used only to say which services AI Meter works with.
+> Headroom is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, OpenAI, Google, xAI, Perplexity, Moonshot AI, DeepSeek, Alibaba, Mistral AI, Microsoft, Meta or Quora. Product and company names are trademarks of their respective owners and are used only to say which services Headroom works with.
 
 ## Single-purpose statement
 
-> AI Meter has one purpose: to show how much of your usage limit remains on the AI chat websites you use, as an on-page meter, a toolbar badge and popup, and optional threshold notifications.
+> Headroom makes the AI chat websites you use more informative at a glance. It shows how much of your usage limit remains (a bar along the page edge, a toolbar badge and popup, and optional threshold notifications), and it shows the real weather for a place you choose as a background sky on those same sites.
 
 ## Permission justifications
 
 Paste each into the matching box on the **Privacy practices** tab.
 
 ### `storage`
-Saves your settings (estimate limits, notification thresholds, added sites, Iris on or off), the latest usage numbers for each provider, a short list of send timestamps used for message counting, and the opt-in debug log. All in `chrome.storage.local`. Nothing is synced or sent anywhere.
+Saves your settings (estimate limits, notification thresholds, added sites, the weather options and the place you chose, rounded to about 1 km), the latest usage numbers for each provider, a short list of send timestamps used for message counting, and the opt-in debug log. All in `chrome.storage.local`. Nothing is synced or sent anywhere.
 
 ### `alarms`
-Schedules a single alarm for the moment a limit resets, so AI Meter can tell you "your limit has reset" and clear the old warning state. No polling, no background work beyond that.
+Schedules a single alarm for the moment a limit resets, so Headroom can tell you "your limit has reset" and clear the old warning state. No polling, no background work beyond that.
 
 ### `notifications`
 Shows the optional desktop notifications when a meter crosses 75, 90 or 100 percent, and when a limit resets. Turn off in Settings. Notifications contain only the provider name, the meter name and the percentage.
 
 ### `scripting`
-Used for two things only: (1) registering the content scripts for sites you add yourself in Settings, on the permission you grant for that one site, and (2) loading the Iris cat's code and images into a page only when Iris is switched on. No remote code is ever fetched or run.
+Used for two things only: (1) registering the content scripts for sites you add yourself in Settings, on the permission you grant for that one site, and (2) loading the weather sky's code into a page only when the weather is switched on. No remote code is ever fetched or run.
 
 ### Host permissions (the provider sites)
-Each host below gets the content script and the page-world hook so AI Meter can read that provider's own usage data from your logged-in tab. The extension does not run on any other site unless you add it.
+Each host below gets the content script and the page-world hook so Headroom can read that provider's own usage data from your logged-in tab. The extension does not run on any other site unless you add it.
 
 | Host | Why it is needed |
 |---|---|
@@ -95,8 +101,11 @@ The `www.` and bare-domain entries are listed separately because Chrome match pa
 ### Optional host permission `https://*/*`
 Requested only when you click **Add site** in Settings for a specific site you want measured, and Chrome then asks for that one origin (for example `https://example-ai.com/*`). It is never granted up front and the extension does nothing on a site you have not added.
 
+### Optional permission `geolocation`
+Requested only when you press **Use my location** in Settings → Weather, so Headroom can pick the place for the weather without typing a city. Chrome shows its own location prompt. The position is read once, rounded to two decimals (about 1 km) straight away, and only the rounded value is kept. Typing a city never needs this permission, and the weather works without it.
+
 ### Remote code
-**No.** All code ships in the package. The Iris images are packaged files. Nothing is downloaded and executed.
+**No.** All code ships in the package, including the weather sky (one shader, no images). Nothing is downloaded and executed.
 
 ## Data usage answers (Privacy practices tab)
 
@@ -105,40 +114,42 @@ Suggested answers. Review them against the dashboard wording on the day you subm
 | Question | Answer |
 |---|---|
 | Personally identifiable information | No. Not collected |
-| Health, financial, location, personal communications | No |
+| Health, financial, personal communications | No |
+| Location | **Yes, approximate and optional.** Only if you turn the weather on: the place you choose (by typing a city, or by pressing **Use my location**, which Chrome asks you to allow). It is rounded to two decimals (about 1 km) straight away, kept on your device, and used only to ask the Open-Meteo weather service for the forecast. Never sold, never tied to who you are, not part of exported settings |
 | Authentication information | Handled in memory only (the ChatGPT access token and the Kimi sign-in cookie), used only to call that same provider's usage endpoint, never stored and never sent to the developer or any third party. Disclose it if the dashboard asks about handling, not just collection |
-| Website content | The extension reads the page only to measure chat length and to spot message sends. It keeps counts and timestamps, never message text |
+| Website content | The extension reads the page only to measure chat length and to spot message sends. It keeps counts and timestamps, never message text. Sign-in, password, payment and similar requests are never read, and secret-looking fields are masked |
 | Web history, user activity | No browsing history is read. It sees network calls made by the supported AI sites only |
 | Sold to third parties / used for unrelated purposes / used for creditworthiness | No / No / No |
-| Data leaves the device | No. The only network calls are to each provider's own site, from your own tab |
+| Data leaves the device | Only if you turn the weather on: the rounded coordinates of your chosen place go to the free Open-Meteo weather service (`api.open-meteo.com`) to ask for the forecast, and a typed city name goes to its geocoding service. Nothing else leaves: usage requests go only to each provider's own site, from your own tab |
 
 Tick all three **certifications** (limited use, no sale, no unrelated purpose).
 
-## Screenshots to capture
+## Images (ready to upload)
 
-Chrome Web Store wants 1 to 5 screenshots at **1280 x 800** (or 640 x 400), plus an optional small promo tile (**440 x 280**) and marquee (**1400 x 560**). Use a signed-in browser window at 1280 x 800, a clean profile, light theme. Blur or crop out any account name, email or chat titles.
+All made with the real extension (`node tools/store-shots/shots.mjs` rebuilds them) on a neutral mock chat page with sample numbers, so no account name, chat title or brand logo is on screen. They are in `docs/store/assets/`.
 
-| # | Capture | What it shows | Caption |
-|---|---|---|---|
-| 1 | Claude or Gemini chat page, pill bottom-right, Iris on top, panel **closed** | The hero shot: the pill on a real chat | See your AI limit before you hit it |
-| 2 | Same page, panel **open** (Session 9%, Weekly 0%, both tagged "real", reset times, chat length) | Real provider numbers | Real numbers, straight from the provider |
-| 3 | Four crops of the pill with Iris: green (about 40%), amber (about 80%), red (about 95%), asleep (100%) | The mood system | Iris gets stressed so you don't have to |
-| 4 | The toolbar popup with several providers listed (needs a few sites visited first) | One place for every provider | Every provider in one popup |
-| 5 | Settings page: Estimate rules and "Other AI sites" with one site added | Customisation | Add any AI site, set your own limits |
-| 6 (optional) | A desktop notification at 90% beside the browser | Alerts | A heads-up before the limit |
-| 7 (optional) | A provider where usage cannot be read: the pill showing the "can't read usage here" state and the **Copy debug log** button | Honest failure state | Tells you when it can't read a number |
+| File | Size | Caption to type in the dashboard |
+|---|---|---|
+| `1-clear-day.png` | 1280 x 800 | Your AI limit, with the real weather behind it |
+| `2-rain-80-percent.png` | 1280 x 800 | Rain outside, 80% of your limit used inside |
+| `3-sunset-details.png` | 1280 x 800 | Click the bar for the details, or turn the weather off in one click |
+| `4-night-stars.png` | 1280 x 800 | The real hour: moon and stars after dark |
+| `5-settings-weather.png` | 1280 x 800 | Use your location or type a city |
+| `promo-tile-440x280.png` | 440 x 280 | Small promo tile (optional) |
+| `marquee-1400x560.png` | 1400 x 560 | Marquee promo (optional) |
 
-Promo tile: the AI Meter icon, "AI Meter", and the line "Know your limit before the cat does." on the pearl-lavender ground `#ece9f7`.
+Upload 1 to 5 screenshots (the dashboard takes up to five) in that order, the small tile in "Small promo tile", the marquee in "Marquee promo tile". Re-run the script after any visual change so the images match the extension.
 
 ## Trademark disclaimer (use verbatim in the listing, README and privacy policy)
 
-> AI Meter is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, OpenAI, Google, xAI, Perplexity, Moonshot AI, DeepSeek, Alibaba, Mistral AI, Microsoft, Meta or Quora. Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek, Qwen, Le Chat, Copilot, Meta AI and Poe, and all related names and logos, are trademarks of their respective owners. They are used here only to identify the services AI Meter works with.
+> Headroom is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, OpenAI, Google, xAI, Perplexity, Moonshot AI, DeepSeek, Alibaba, Mistral AI, Microsoft, Meta or Quora. Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek, Qwen, Le Chat, Copilot, Meta AI and Poe, and all related names and logos, are trademarks of their respective owners. They are used here only to identify the services Headroom works with.
 
 ## Before you submit
 
-- [ ] `manifest.json` and `package.json` both say 0.9.2
-- [ ] Zip contains only `manifest.json`, `src/`, `icons/` (`npm run zip`)
+- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.2.6)
+- [ ] Zip built with `npm run store-zip` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
 - [ ] Privacy policy URL is live and loads without sign-in
 - [ ] Single-purpose statement and every permission justification pasted
-- [ ] Screenshots captured with personal data removed
+- [ ] Images uploaded from `docs/store/assets/` (5 screenshots, small tile, optional marquee)
+- [ ] Full steps and the list of things only you can do: `docs/store/submit-checklist.md`
 - [ ] Reviewed the "Data usage" answers against the current dashboard wording

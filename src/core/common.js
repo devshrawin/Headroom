@@ -1,6 +1,6 @@
 // Pure helpers shared by content scripts, popup and tests. No chrome.* or DOM access here.
 (() => {
-  const AM = (globalThis.AIMeter = globalThis.AIMeter || { adapters: [] });
+  const AM = (globalThis.Headroom = globalThis.Headroom || { adapters: [] });
   const HOUR = 3600e3;
 
   AM.register = (adapter) => AM.adapters.push(adapter);
@@ -197,6 +197,9 @@
     return order(a.provider) - order(b.provider) || a.name.localeCompare(b.name);
   });
 
+  // Usage level for the glyph, colour and bar pattern: ok under 75, close 75-89, crit 90-99, empty at 100 (or a banner hit), unk = no number.
+  AM.usageLevel = (m, pct) => (m && m.source === 'banner' ? 'empty' : pct == null ? 'unk' : pct >= 100 ? 'empty' : pct >= 90 ? 'crit' : pct >= 75 ? 'close' : 'ok');
+
   AM.level = (pct) => (pct == null ? 'none' : pct >= 90 ? 'high' : pct >= 75 ? 'mid' : 'low');
 
   // Window length in hours, from explicit data or the meter's id/label; unknown sorts between day and week.
@@ -211,11 +214,11 @@
     return 100;
   };
 
-  // What the pill and badge show: the shortest-window (session) limit, unless another limit is already
+  // What the bar and badge show: the shortest-window (session) limit, unless another limit is already
   // exhausted — then that one, since it's what's actually blocking.
   AM.primaryMeter = (meters) => {
     const all = (meters || []).filter((m) => AM.pctOf(m) != null || m.remaining != null || m.used != null);
-    // Secondary meters (model-specific buckets) only drive the pill if nothing else is available.
+    // Secondary meters (model-specific buckets) only drive the bar if nothing else is available.
     const main = all.filter((m) => !m.secondary);
     const list = main.length ? main : all;
     if (!list.length) return (meters && meters[0]) || null;
@@ -259,6 +262,111 @@
     }
   };
 
+  // ---- redaction for anything written to the debug log or copied out as diagnostics ----
+  // Emails, bearer tokens, JWTs, UUIDs and long opaque strings are masked. Debug is opt-in and local, but a pasted
+  // log should never carry an identity or a credential.
+  AM.redact = (text) => String(text == null ? '' : text)
+    .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g, '[email]')
+    .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [token]')
+    .replace(/\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]*/g, '[token]')
+    .replace(/\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi, '[id]')
+    .replace(/\b[A-Za-z0-9_-]{32,}\b/g, '[token]');
+
+  // ---- messages from content scripts to the service worker ----
+  // Content scripts run in an isolated world, but their reports still cross a trust boundary on the way to storage,
+  // notifications and the badge. Only well-formed reports are accepted, rebuilt field by field with size caps.
+  AM.validateUsageMessage = (m) => {
+    if (!m || typeof m !== 'object' || Array.isArray(m)) return null;
+    const str = (v, max) => typeof v === 'string' && v.length > 0 && v.length <= max;
+    const num = (v) => typeof v === 'number' && isFinite(v);
+    if (typeof m.provider !== 'string' || !/^[A-Za-z0-9:._-]{1,100}$/.test(m.provider) || !str(m.name, 80)) return null;
+    if (!Array.isArray(m.meters) || m.meters.length > 60) return null;
+    const meters = [];
+    for (const x of m.meters) {
+      if (!x || typeof x !== 'object' || Array.isArray(x) || !str(x.id, 100) || !str(x.label, 100)) return null;
+      const o = { id: x.id, label: x.label };
+      for (const k of ['pct', 'used', 'limit', 'remaining', 'resetAt', 'windowHours', 'seenAt', 'raw']) {
+        if (x[k] == null) continue;
+        if (!num(x[k])) return null;
+        o[k] = x[k];
+      }
+      if (x.source != null) {
+        if (!['real', 'estimate', 'banner'].includes(x.source)) return null;
+        o.source = x.source;
+      }
+      if (x.secondary != null) o.secondary = !!x.secondary;
+      if (x.inferred != null) o.inferred = !!x.inferred;
+      if (x.note != null) {
+        if (typeof x.note !== 'string' || x.note.length > 300) return null;
+        o.note = x.note;
+      }
+      meters.push(o);
+    }
+    let problem = null;
+    if (m.problem != null) {
+      const p = m.problem;
+      if (!p || typeof p !== 'object' || !['error', 'signin'].includes(p.kind) || (p.text != null && !str(p.text, 200) && p.text !== '')) return null;
+      problem = { kind: p.kind, text: p.text || '', since: num(p.since) ? p.since : Date.now() };
+    }
+    return { provider: m.provider, name: m.name, meters, problem };
+  };
+
+  // ---- settings backup (Export / Import in Settings) ----
+  // A backup holds settings only: never usage numbers, message counts, the debug log or anything from a provider.
+  AM.buildExport = (settings, version, now = new Date()) => {
+    const s = AM.mergeSettings(settings);
+    const keep = {};
+    for (const k of ['widget', 'chatStats', 'meterStyle', 'notify', 'thresholds', 'debug', 'weather', 'weatherUnits', 'weatherStrength', 'quotas', 'customSites']) keep[k] = s[k]; // never the place: that is where you are
+    return { app: 'headroom', format: 1, version: version || '', exportedAt: now.toISOString(), settings: keep };
+  };
+
+  // Everything in a file the user picked is untrusted: rebuilt field by field with type and size checks.
+  // Returns { ok: true, settings, sites } or { ok: false, error }. `sites` are the added sites in the file; the caller
+  // decides which to keep, because a site needs Chrome's permission, which only the user can grant.
+  AM.parseImport = (text) => {
+    const fail = (error) => ({ ok: false, error });
+    if (typeof text !== 'string' || text.length > 200000) return fail('That file is too large to be an Headroom backup.');
+    let j;
+    try { j = JSON.parse(text); } catch { return fail('That is not a valid JSON file.'); }
+    if (!j || typeof j !== 'object' || (j.app !== 'headroom' && j.app !== 'ai-meter') || !j.settings || typeof j.settings !== 'object' || Array.isArray(j.settings)) {
+      return fail('That file is not an Headroom backup.');
+    }
+    const s = j.settings;
+    const num = (v) => typeof v === 'number' && isFinite(v);
+    const out = {};
+    for (const k of ['widget', 'chatStats', 'notify', 'debug', 'weather']) if (typeof s[k] === 'boolean') out[k] = s[k];
+    if (['bar-top', 'bar-bottom'].includes(s.meterStyle)) out.meterStyle = s.meterStyle;
+    if (s.weatherUnits === 'c' || s.weatherUnits === 'f') out.weatherUnits = s.weatherUnits;
+    if (typeof s.weatherStrength === 'number' && isFinite(s.weatherStrength)) out.weatherStrength = Math.min(1, Math.max(0.2, s.weatherStrength));
+    if (Array.isArray(s.thresholds)) {
+      const t = s.thresholds.filter((n) => num(n) && n > 0 && n <= 100).slice(0, 10);
+      if (t.length) out.thresholds = t;
+    }
+    if (s.quotas && typeof s.quotas === 'object' && !Array.isArray(s.quotas)) {
+      const quotas = {};
+      for (const [id, rules] of Object.entries(s.quotas)) {
+        if (!/^[A-Za-z0-9:._-]{1,100}$/.test(id) || id === '__proto__' || !Array.isArray(rules) || rules.length > 30) continue;
+        const clean = [];
+        for (const r of rules) {
+          if (!r || typeof r !== 'object' || typeof r.id !== 'string' || r.id.length > 100 || typeof r.label !== 'string' || r.label.length > 100) continue;
+          if (typeof r.pattern !== 'string' || r.pattern.length > 200 || !num(r.limit) || r.limit < 0 || r.limit > 1e7 || !num(r.windowHours) || r.windowHours <= 0 || r.windowHours > 24 * 365) continue;
+          try { new RegExp(r.pattern); } catch { continue; }
+          clean.push({ id: r.id, label: r.label, pattern: r.pattern, limit: r.limit, windowHours: r.windowHours });
+        }
+        quotas[id] = clean;
+      }
+      out.quotas = quotas;
+    }
+    const sites = [];
+    if (Array.isArray(s.customSites)) {
+      for (const x of s.customSites.slice(0, 50)) {
+        if (!x || typeof x.host !== 'string' || !/^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(x.host) || x.host.length > 253) continue;
+        sites.push({ host: x.host, limit: num(x.limit) && x.limit >= 0 ? x.limit : 0, windowHours: num(x.windowHours) && x.windowHours > 0 ? x.windowHours : 24 });
+      }
+    }
+    return { ok: true, settings: out, sites };
+  };
+
   // ---- "can't read usage here" ----
   // An adapter reports a problem when its usage call fails or its parser finds nothing. Transient errors
   // (the page hasn't made its own calls yet) must not flash a warning, so an 'error' only shows once it has
@@ -270,7 +378,7 @@
     AM.problemVisible(problem, now) && !(meters || []).some((m) => m.source === 'real') ? problem : null;
   AM.describeProblem = (p) => (p && p.kind === 'signin'
     ? { title: 'Sign in to see limits', pill: 'sign in', detail: p.text || 'You are not signed in here, so the site has no limits to show.' }
-    : { title: "Can't read usage here", pill: "can't read usage", detail: p && p.text ? String(p.text).slice(0, 160) : 'The site did not return usage in a form AI Meter understands.' });
+    : { title: "Can't read usage here", pill: "can't read usage", detail: p && p.text ? String(p.text).slice(0, 160) : 'The site did not return usage in a form Headroom understands.' });
   // "HTTP 401" from an error thrown by ctx.getJSON ("401 /path...") without leaking the path (it can hold ids).
   AM.errText = (e) => {
     const m = String((e && e.message) || e || '').match(/^(\d{3})\b/);
@@ -280,13 +388,13 @@
 
   // Text for the "Copy debug log" button. Shape-only debug entries (never message text); request URLs are included.
   AM.buildDiagnostics = ({ version, provider, host, problem, meters, log, now = Date.now() }) => {
-    const lines = [`AI Meter ${version || '?'} | ${provider || '?'} | ${host || '?'} | ${new Date(now).toISOString()}`];
+    const lines = [`Headroom ${version || '?'} | ${provider || '?'} | ${host || '?'} | ${new Date(now).toISOString()}`];
     if (problem) lines.push(`Problem: ${problem.kind}: ${problem.text || ''}`.trim());
     lines.push('Meters: ' + ((meters || []).map((m) => `${m.label} ${AM.meterValue(m)} [${m.source}]`).join('; ') || 'none'));
     const entries = (log || []).filter((e) => !provider || e.provider === provider).slice(0, 40);
     if (!entries.length) lines.push('(No debug entries. Tick Debug in Settings, reload the tab, then copy again for request details.)');
     for (const e of entries) {
-      lines.push(`${new Date(e.t).toISOString().slice(11, 19)} ${e.kind || ''} ${e.method || ''}${e.status ? ' ' + e.status : ''} ${e.url || ''}${e.body ? ' | ' + String(e.body).slice(0, 300) : ''}`.replace(/\s+/g, ' ').trim());
+      lines.push(AM.redact(`${new Date(e.t).toISOString().slice(11, 19)} ${e.kind || ''} ${e.method || ''}${e.status ? ' ' + e.status : ''} ${e.url || ''}${e.body ? ' | ' + String(e.body).slice(0, 300) : ''}`).replace(/\s+/g, ' ').trim());
     }
     return lines.join('\n');
   };

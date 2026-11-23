@@ -1,7 +1,7 @@
 // Claude: reads the same usage endpoint that powers Settings > Usage (real numbers),
 // plus per-chat length / cache / next-message estimates from the open conversation.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   const LABELS = {
     five_hour: 'Session (5h)',
     seven_day: 'Weekly',
@@ -101,7 +101,7 @@
           pct: v.utilization,
           resetAt: AM.toTime(v.resets_at),
           source: 'real',
-          // Model-specific and codenamed buckets are shown in the panel but never drive the pill.
+          // Model-specific and codenamed buckets are shown in the panel but never drive the bar.
           secondary: k !== 'five_hour' && k !== 'seven_day',
         });
       }

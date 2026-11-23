@@ -1,12 +1,11 @@
 {
-  "name": "ai-meter",
-  "version": "0.9.2",
+  "name": "headroom",
+  "version": "1.2.6",
   "private": true,
-  "description": "Chrome extension showing usage-limit meters for Claude, ChatGPT, Gemini, Grok and Perplexity.",
+  "description": "Chrome extension: AI usage-limit bar plus live weather behind the chat.",
   "scripts": {
     "test": "node --test",
-    "icons": "node scripts/make-icons.mjs",
-    "zip": "powershell -NoProfile -Command \"Compress-Archive -Force -Path manifest.json,src,icons -DestinationPath ai-meter.zip\""
+    "store-zip": "node scripts/build-store-zip.mjs"
   },
   "license": "MIT"
 }

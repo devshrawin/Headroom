@@ -1,6 +1,115 @@
 # Changelog
 
-All notable changes to AI Meter. Versions follow `manifest.json`.
+All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
+
+## 1.2.6 — 2026-11-23
+
+### Changed
+- **New logo**: a crescent moon over a usage bar on deep plum, no blue. Drawn as a vector and rendered at each toolbar size, so the 16 px icon is crisp. Options and the generator are in `docs/logo-options/` and `tools/logo-options/`.
+
+## 1.2.5 — 2026-11-23
+
+### Fixed
+- White page, no sky, on sites that paint their colour on the body (Gemini and others): the body itself was skipped by the 1.2.4 scan, so it covered the sky. It is now checked too. Verified on real Gemini.
+
+## 1.2.4 — 2026-11-23
+
+### Fixed
+- ChatGPT still showed white bars: the header, sidebar and bottom strip are layers that clicks pass through, which the 1.2.3 lookup could not see. The whole page is now scanned for full-width, full-height and screen-sized backgrounds, fades drawn by ::before and ::after included, and one stylesheet (removed when the weather is off) clears them. Nothing is edited inline any more.
+
+## 1.2.3 — 2026-11-23
+
+### Fixed
+- On ChatGPT and similar sites the header, sidebar and composer strip kept opaque or gradient backgrounds and showed as white bars over the sky. Full-width and full-height bars (and their fade gradients) are now cleared too, and restored when the weather is turned off.
+
+### Changed
+- Crisper sky: drawn at up to 1440 px wide instead of 960, shown at full strength by default (was 80%), and the dark-page dimming is lighter.
+
+## 1.2.2 — 2026-11-23
+
+### Changed
+- **New logo**: a sky with a cloud and sun and the usage bar (concept 8 of the redesign sheet, wordmark removed so it reads at 16 px).
+- **The sky now sits behind the page**, not on top of it. While the weather is on, the page's own full-screen backgrounds are made transparent (and put back when it is off), so photos, text and panels are never tinted or covered. In the dark it is dimmed for readability.
+- Clicking the page no longer does anything to the sky (the 1.2.1 click ripple and gust are gone).
+
+## 1.2.1 — 2026-11-23
+
+### Fixed
+- The weather sky was invisible on light pages (soft-light does nothing on white). Light pages now use a multiply tint that eases down at night; dark pages keep soft-light.
+- Clicking the page now does something you can see: a soft ring pushes the clouds, rain, snow and leaves aside, and the wind carries them smoothly instead of making them jump.
+
+### Changed
+- Settings: full-height left sidebar (brand, search, pages, guide link, save status) and each setting has its control on the right.
+
+## 1.2.0 — 2026-11-23
+
+Headroom becomes a usage bar plus a live weather sky. Iris, the pill and the animated themes are gone.
+
+### Added
+- **Live weather behind the chat.** Settings → Weather: choose your place with **Use my location** (Chrome asks once) or by typing a city. Every AI site then gets a luminous sky that follows the real weather and the real hour: a gradient that follows the real sun and moon (from the real sunrise and sunset), stars at night, soft volumetric clouds lit from the sun's side and moved by the real wind, fine rain, snow, fog banks, lightning that flashes inside the clouds, falling leaves in autumn and petals in spring. India has a monsoon, not four temperate seasons. One WebGL shader, no images, no downloads; blended into the page with soft-light so the page keeps its own contrast; never blocks the page or your clicks (pointer-events: none); about 30 frames a second at low resolution; pauses in a hidden tab; still for reduced motion; injected only when the weather is on.
+- The background script asks Open-Meteo (free, no key, no account) for the forecast every 20 minutes and keeps it in storage, so tabs never fetch anything. Only the place's coordinates, rounded to two decimals (about 1 km), are sent. The place stays on your computer and is never part of a settings backup.
+- **Sky strength** slider, **Units** (°C or °F), and **Try a look**: show any weather, season or hour on your pages for testing, then **Back to live**.
+- **Turn off weather** (and **Turn on weather**) button in the details panel on the page.
+- New optional `geolocation` permission, asked only when you press **Use my location**.
+
+### Changed
+- **Settings redesigned**: one page at a time with a left nav and search (Weather, Meter, Limits, Notifications, Other AI sites, Backup and data, Help and debug), cards of rows with the label on the left and the control on the right, and everything saves as you change it. No more long scroll and no Save button.
+- **The meter is the bar only**, at the bottom of the page by default (or the top). Point at it for the percentage and the reset time, click it or press Enter for the details. The chat length, cache timer and next-message cost are in the details panel. An old "pill" setting falls back to the bar at the bottom.
+- The extension no longer exposes any web-accessible resources.
+
+### Removed
+- **Iris** (the cat), her sprites and engine, the page "trips", and the draggable pill.
+- The earlier animated themes (koi pond, butterfly garden, firefly night, snowfall) and the living-background engine.
+
+### Tests
+- Weather data (codes, seasons, forecast parsing and clamping, sky state, targets), the background fetch (success, failure, off, alarm), the on-demand sky loader, the weather settings, the panel's weather button, and settings backups that never carry the place.
+
+## 1.1.0 — 2026-11-19
+
+### Added
+- **Living background (Settings → Background).** Koi pond, Butterfly garden, Firefly night or Snowfall. The whole scene (water with real ripples that bend and glint when you click, a golden meadow, a twilight sky) is blended into the AI page, so it reads as sitting behind the text: multiply on light pages, screen on dark ones, switching on its own when the page's colours change. Koi are shaded with scales and soft-edged markings, butterflies are monarch, morpho, swallowtail and lilac and visit flowers, fireflies pulse and scatter on click. "Look" can be set to *Creatures only* instead. Off by default.
+- **Snowfall theme.** Soft flakes at three depths with tumbling crystals, a drift that builds along the bottom of the window, and the same "drop to the first edge below" physics as Iris: snow settles as soft mounds on real surfaces (message bubbles, the message box, cards), and scrolling shakes it loose so it slides off and falls to the next ledge or the ground. A click is a gust of wind that knocks nearby snow off.
+- **Stays off the text.** Creatures keep clear of the text on the page. The page is read line by line from the text itself, so it works whatever tags a site uses, and invisible and screen-reader-only text is ignored; inputs, buttons and embedded frames are avoided too. They only gather in clear space (the koi come to look at a click only where there is no text).
+- **One-click on/off in the panel.** The Headroom panel has *Remove koi / butterflies / fireflies* (and *Bring back …*), so the background can go without a trip to Settings.
+- It never blocks the page or your clicks (pointer-events: none), pauses when the tab is hidden, stays still if your system asks for reduced motion, falls back to creatures only without WebGL, and its code is loaded into a tab only when a theme is switched on. Nothing is downloaded or sent anywhere.
+- The background setting is part of Export / Import settings.
+
+### Tests
+- Panel button (remove and bring back), Look setting, and settings validation for the new theme, the on-demand loader (refuses a missing tab or unknown theme), and a check that every theme file exists and is not part of the always-loaded bundle.
+
+## 1.0.0 — 2026-10-31
+
+First store-ready release.
+
+### Changed
+- **Meter redesign.** The pill, panel and bar follow a new design: every usage level has its own shape as well as its colour (filled dot, half dot, triangle, square, dashed ring), so it reads in greyscale and for colour-blind users; deeper status colours that pass WCAG contrast; three source-tag shapes (solid with a tick for real, dashed with "≈" for estimate, flagged for banner); small gaps at 75% and 90% on every bar and striped fill from 90%; the reset time only shows from "close" up; the cache timer uses the accent colour with a clock; a hairline and soft shadow so the pill separates on dark and busy pages. The bar style shows a label chip in the middle on hover or focus and grows from 6 to 10 px. The toolbar popup, the settings page and the first-run guide use the same tokens, level glyphs and source-tag shapes, so every surface matches.
+- **Renamed from AI Meter to Headroom.** New name in the extension, popup, settings, first-run guide, notifications, privacy policy, store listing and README. Internal identifiers were renamed too; old settings exports and the saved pill position still load.
+- **New Iris art.** Redrawn sprite pack: clearer worried and stressed faces, a soft lavender edge so she stands out on white pages, and a smooth 12-frame walk cycle. Fur colour and size are matched across every pose.
+- Popup is one collapsible line per service (0.9.2) with a lavender look and dark mode (0.9.1).
+
+### Added
+- **Bar style (experimental).** Settings → Meter style can show a thin full-width bar along the top or bottom of the page instead of the pill. It fills to your usage, shows the details when you point at it or focus it, and opens the same panel on click. No Iris in this style.
+- **First-run guide.** A short page opens once on install: what Headroom reads, how to add a site, and what the real / estimate / banner tags mean. It is also linked from Settings.
+- **Export and import settings.** Save your limits, thresholds and Iris options to a file and load them back. A backup holds settings only. Sites you added need Chrome's permission again, so you add them again after importing.
+- `npm run store-zip` builds the Web Store zip and refuses to if something is wrong.
+
+### Accessibility
+- The pill is now a real button: focusable, named (it reads out the percentage and reset time), opens with Enter or Space, closes with Escape, and moves with Shift and the arrow keys. The panel is a labelled region and each bar is a progress bar.
+- Text contrast raised to WCAG AA in light mode (links, amber text, REAL / EST tags, stale cards, cache timer). Focus rings everywhere. Animations stop under reduced-motion.
+- Popup keeps keyboard focus across refreshes. Settings: every field is labelled, messages are announced, and the Iris options are disabled while she is at home. Review: `docs/a11y-review-2026-10-31.md`.
+
+### Security
+- Sign-in, password, OAuth, MFA, checkout and payment requests are never read by the page hook, and secret-looking fields (password, token, key, card number) are masked in any body it does forward. This matters on sites you add yourself.
+- The debug log and "Copy debug log" mask emails, bearer tokens, JWTs, ids and long opaque strings.
+- The service worker validates every usage report; stored settings (added sites, thresholds) and the pill position are sanitised on load.
+- One broken site adapter can no longer stop the pill or the others: a failure now shows as "can't read usage here". Review: `docs/security-review-2026-10-31.md`.
+
+### Fixed
+- Two tabs reporting usage at the same moment could each fire the same threshold notification; usage and reset handling now run one at a time.
+- A reset notification was lost or garbled when a provider name or limit label contained a `|`.
+
+### Tests
+- New suites for the service worker (thresholds, reset, restart), the on-page widget (ok, estimate, can't-read, sign-in, chat stats, drag, Iris mood), content script host and adapter selection (including user-added sites) and Iris's state machine (alarm trips, falls and recovery, reduced motion, hidden tab, pick-up).
 
 ## 0.9.2 — 2026-10-28
 

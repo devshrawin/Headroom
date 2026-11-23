@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Welcome to Headroom</title>
+  <link rel="stylesheet" href="welcome.css">
+</head>
+<body>
+  <main>
+    <header>
+      <img src="../../icons/icon128.png" alt="" width="64" height="64">
+      <div>
+        <h1>Welcome to Headroom</h1>
+        <p class="lead">See how much of your AI usage limit is left as a thin bar on the page, with the real weather as a sky behind your chat.</p>
+      </div>
+    </header>
+
+    <section aria-labelledby="start">
+      <h2 id="start">Getting started takes no setup</h2>
+      <ol>
+        <li>Open an AI site you already use: Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek, Qwen, Le Chat, Copilot, Meta AI or Poe.</li>
+        <li>A thin bar appears along the bottom of the page showing your percentage used. <b>Point at it</b> to see the percentage and when it resets, and <b>click it</b> for the details (or focus it with the keyboard and press Enter).</li>
+        <li>Click the Headroom icon in the toolbar to see every service in one place.</li>
+      </ol>
+      <p class="hint">Sign in to the site as you normally do. Headroom never asks for a password and never signs in for you.</p>
+    </section>
+
+    <section aria-labelledby="tags">
+      <h2 id="tags">Read the tags: real, estimate, banner</h2>
+      <p>Not every site shows usage, so Headroom tells you where each number comes from.</p>
+      <dl>
+        <dt><span class="tag real">✓ real</span></dt>
+        <dd>A solid chip with a tick. The number comes from the provider itself, the same figure the site's own usage page shows. Headroom reads real numbers for Claude, Gemini, Grok, Perplexity and Kimi (and ChatGPT's Codex usage) wherever the site exposes them.</dd>
+        <dt><span class="tag estimate">≈ estimate</span></dt>
+        <dd>A dashed chip with "≈". The site shows no usage, so Headroom <b>counts the messages you send</b> and compares them with a limit. These limits are published figures that change often, so set them to match your plan in Settings.</dd>
+        <dt><span class="tag banner">⚑ banner</span></dt>
+        <dd>A chip with a flag. The site itself told you that you hit a limit (a "limit reached" notice or a rate-limit error), so Headroom shows it as full until the time the site gives.</dd>
+      </dl>
+    </section>
+
+    <section aria-labelledby="levels">
+      <h2 id="levels">The colours, and the weather</h2>
+      <p>The shape beside the percentage tells you the level, so it reads even without colour: a <b>filled dot</b> (green) under 75%, a <b>half dot</b> (amber) from 75%, a <b>triangle</b> (red) from 90%, a <b>square</b> (dark red) at 100%, and a <b>dashed ring</b> when there is no number. On the bar, small gaps mark 75% and 90%.</p>
+      <p><b>Weather:</b> in <a href="../options/options.html#weather">Settings → Weather</a>, tell Headroom where you are (use your location, or type a city) and the page gets a living sky that follows the real weather, the real hour and the wind: sun and moon, clouds, rain, snow, fog, lightning, falling leaves in autumn. It never blocks the page, and you can turn it off with one click in the details panel. Only the rounded coordinates of your chosen place are sent, to the free Open-Meteo weather service, to ask for the forecast.</p>
+    </section>
+
+    <section aria-labelledby="reads">
+      <h2 id="reads">What it reads, and what it never does</h2>
+      <ul>
+        <li>It reads your usage numbers from the AI sites you use, from your own logged-in tab, and notes <b>that</b> you sent a message and which model, to count them.</li>
+        <li>It <b>never stores the text</b> of your messages, has no server and no account, and sends nothing anywhere except to the site you are already on, plus (only if you turn the weather on) the rounded coordinates of your place to Open-Meteo.</li>
+        <li>Everything is kept on your computer. <a href="https://devshrawin.github.io/headroom/privacy" target="_blank" rel="noopener noreferrer">Read the privacy policy</a>.</li>
+      </ul>
+    </section>
+
+    <section aria-labelledby="add">
+      <h2 id="add">Another AI site?</h2>
+      <p>Open <a href="../options/options.html">Settings</a>, type the site's address under <b>Other AI sites</b>, and add it. Chrome asks for access to <b>that one site only</b>. Headroom then counts your sends there and watches for the site's own limit notices.</p>
+    </section>
+
+    <footer>
+      <a class="button" href="../options/options.html">Open Settings</a>
+      <p class="hint">Headroom is an independent project and is not affiliated with Anthropic, OpenAI, Google, xAI, Perplexity, Moonshot AI, DeepSeek, Alibaba, Mistral AI, Microsoft, Meta or Quora. Names are trademarks of their owners, used only to say which sites Headroom works with.</p>
+    </footer>
+  </main>
+</body>
+</html>

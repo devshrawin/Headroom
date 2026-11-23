@@ -1,4 +1,4 @@
-const AM = globalThis.AIMeter;
+const AM = globalThis.Headroom;
 const list = document.getElementById('list');
 const summary = document.getElementById('summary');
 
@@ -19,43 +19,52 @@ const ago = (t) => {
 
 function chip(m, now, mixed) {
   const c = el('div', 'chip');
-  const n = el('div', 'n', m.label);
-  if (mixed && m.source === 'estimate') n.append(' ', el('i', 'tag estimate', 'est'));
+  const n = el('div', 'n');
+  n.append(el('span', null, m.label));
+  if (mixed) { const t = AM.glyphs.tag(m.source); if (t) n.append(t); }
   c.append(n, el('div', 'v', AM.meterValue(m)));
   const reset = AM.resetText(m, now);
   if (reset) c.title = reset;
   return c;
 }
 
-function barRow(m, now, mixed) {
+function barRow(m, now, mixed, stale) {
   const pct = AM.pctOf(m);
+  const level = AM.usageLevel(m, pct);
   const value = AM.meterValue(m);
   const row = el('div', 'row');
   const top = el('div', 'top');
-  const val = el('span', 'val');
-  const b = el('b', null, Math.round(pct) + '%');
-  val.append(b);
-  if (!/%$/.test(value)) val.append(' · ' + value);
+  const val = el('span', stale ? 'val' : 'val lv-' + level);
+  val.append(AM.glyphs.glyph(stale ? 'hollow' : level, level), Math.round(pct) + '%');
+  if (!/%$/.test(value)) val.append(el('span', 'more', ' · ' + value));
   top.append(el('span', 'name', m.label), val);
-  const bar = el('div', 'bar');
-  const fill = el('div', 'fill ' + AM.level(pct));
+  const bar = el('div', level === 'empty' ? 'bar' : 'bar notched');
+  bar.setAttribute('role', 'progressbar');
+  bar.setAttribute('aria-label', m.label);
+  bar.setAttribute('aria-valuemin', '0');
+  bar.setAttribute('aria-valuemax', '100');
+  bar.setAttribute('aria-valuenow', String(Math.round(pct)));
+  bar.setAttribute('aria-valuetext', value);
+  const fill = el('div', 'fill f-' + level);
   fill.style.width = Math.min(100, pct) + '%';
   bar.append(fill);
   const sub = el('div', 'sub');
-  const reset = AM.resetText(m, now);
-  if (reset) sub.append(el('span', null, reset));
-  if (mixed && m.source === 'estimate') sub.append(el('i', 'tag estimate', 'est'));
-  row.append(top, bar);
-  if (sub.childNodes.length) row.append(sub);
+  sub.append(el('span', null, AM.resetText(m, now)));
+  if (mixed || m.source === 'banner') { const t = AM.glyphs.tag(m.source); if (t) sub.append(t); }
+  row.append(top, bar, sub);
   return row;
 }
 
 function problemBox(entry, prob, all) {
   const d = AM.describeProblem(prob);
   const box = el('div', 'problem');
-  box.append(el('b', null, d.title), el('div', 'why', d.detail));
+  box.setAttribute('role', 'status');
+  const title = el('p', 'pt');
+  title.append(AM.glyphs.glyph(prob.kind === 'signin' ? 'unk' : 'problem', 'unk'), d.title);
+  box.append(title, el('p', null, d.detail));
   const btn = el('button', null, 'Copy debug log');
   btn.type = 'button';
+  btn.setAttribute('aria-live', 'polite');
   btn.addEventListener('click', async () => {
     const text = AM.buildDiagnostics({ version: chrome.runtime.getManifest().version, provider: entry.provider, host: '', problem: prob, meters: entry.meters, log: all['debug.log'] || [] });
     try { await navigator.clipboard.writeText(text); btn.textContent = 'Copied ✓'; } catch { btn.textContent = 'Copy failed'; }
@@ -66,14 +75,14 @@ function problemBox(entry, prob, all) {
 }
 
 // The one-line version of a card: the limit closest to full (or the main counter), as a label, a value and a mini bar.
-function headline(entry, prob, stale) {
+function headline(entry, prob) {
   if (prob) return { text: AM.describeProblem(prob).title, pct: null };
   if (!entry.meters.length) return { text: 'No data yet', pct: null };
   const { bars } = AM.splitMeters(entry.meters);
   const worst = bars.slice().sort((x, y) => AM.pctOf(y) - AM.pctOf(x))[0];
   const m = worst || AM.primaryMeter(entry.meters);
   const pct = worst ? AM.pctOf(worst) : null;
-  return { text: `${m.label} ${worst ? Math.round(pct) + '%' : AM.meterValue(m)}`, pct };
+  return { text: `${m.label} ${worst ? Math.round(pct) + '%' : AM.meterValue(m)}`, pct, meter: worst || null };
 }
 
 const openCards = new Set();
@@ -81,28 +90,35 @@ const openCards = new Set();
 function card(entry, all, now) {
   const stale = AM.isStale(entry, now);
   const c = el('details', 'card' + (stale ? ' stale' : ''));
+  c.dataset.provider = entry.provider;
   c.open = openCards.has(entry.provider);
   c.addEventListener('toggle', () => { if (c.open) openCards.add(entry.provider); else openCards.delete(entry.provider); });
   const prob = AM.problemToShow(entry.problem, entry.meters);
   const primary = AM.primaryMeter(entry.meters);
+  const primaryPct = primary ? AM.pctOf(primary) : null;
+  const level = primary ? AM.usageLevel(primary, primaryPct) : 'unk';
   const head = el('summary', 'card-head');
-  head.append(el('span', 'led ' + (prob || stale ? 'none' : AM.level(primary ? AM.pctOf(primary) : null))), el('h2', null, entry.name));
-  const h = headline(entry, prob, stale);
+  const kind = prob ? (prob.kind === 'signin' ? 'unk' : 'problem') : stale && level === 'ok' ? 'hollow' : level;
+  head.append(AM.glyphs.glyph(kind, prob ? 'unk' : level), el('h2', null, entry.name));
+  const h = headline(entry, prob);
   head.append(el('span', 'line', h.text));
   if (h.pct != null) {
     const bar = el('span', 'mini');
-    const fill = el('i', 'fill ' + AM.level(h.pct));
+    bar.setAttribute('aria-hidden', 'true');
+    const fill = el('i', 'fill f-' + AM.usageLevel(h.meter, h.pct));
     fill.style.width = Math.min(100, h.pct) + '%';
     bar.append(fill);
     head.append(bar);
   }
-  head.append(el('span', 'chev'));
+  const chev = el('span', 'chev');
+  chev.setAttribute('aria-hidden', 'true');
+  head.append(chev);
   c.append(head);
 
   const body = el('div', 'body');
   const src = AM.cardSource(entry.meters);
   const meta = el('div', 'meta');
-  if (src === 'real' || src === 'estimate') meta.append(el('i', 'tag ' + src, src === 'real' ? 'real' : 'est'));
+  if (src === 'real' || src === 'estimate') meta.append(AM.glyphs.tag(src));
   meta.append(el('span', stale ? 'old' : null, (stale ? 'stale · ' : '') + 'updated ' + ago(entry.updatedAt)));
   body.append(meta);
 
@@ -113,7 +129,7 @@ function card(entry, all, now) {
   const mixed = src === 'mixed';
   if (bars.length) {
     const wrap = el('div', 'bars');
-    for (const m of bars) wrap.append(barRow(m, now, mixed));
+    for (const m of bars) wrap.append(barRow(m, now, mixed, stale));
     body.append(wrap);
   }
   if (counters.length) {
@@ -133,25 +149,41 @@ async function render() {
   };
   const now = Date.now();
   const entries = AM.sortEntries(Object.keys(all).filter((k) => k.startsWith('usage.')).map((k) => all[k]), order, now);
+  const focused = document.activeElement;
+  const keep = focused && focused.tagName === 'SUMMARY' && focused.parentElement && focused.parentElement.dataset ? focused.parentElement.dataset.provider : null;
   list.textContent = '';
   if (!entries.length) {
     summary.textContent = 'Nothing tracked yet';
     const empty = el('div', 'empty');
-    empty.append(el('b', null, 'Open an AI site'), 'Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek… and AI Meter starts tracking. Add other sites in Settings.');
+    empty.append(el('b', null, 'Open an AI site'), 'Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek… and Headroom starts tracking. Add other sites in Settings.');
     list.append(empty);
     return;
   }
   const fresh = entries.filter((e) => !AM.isStale(e, now)).length;
   summary.textContent = `${entries.length} ${entries.length === 1 ? 'service' : 'services'} · ${fresh} up to date`;
   for (const entry of entries) list.append(card(entry, all, now));
+  if (keep) {
+    const again = [...list.querySelectorAll('details.card')].find((d) => d.dataset.provider === keep);
+    if (again) again.querySelector('summary').focus();
+  }
+}
+
+// footer legend: the three source tags, drawn with the real tag shapes
+const legend = document.getElementById('legend');
+if (legend) {
+  for (const [source, text] of [['real', 'from provider'], ['estimate', 'counted locally'], ['banner', 'site said so']]) {
+    const s = el('span');
+    s.append(AM.glyphs.tag(source), text);
+    legend.append(s);
+  }
 }
 
 document.getElementById('settings').addEventListener('click', () => chrome.runtime.openOptionsPage());
-document.getElementById('add').addEventListener('click', (e) => { e.preventDefault(); chrome.runtime.openOptionsPage(); });
+document.getElementById('add').addEventListener('click', () => chrome.runtime.openOptionsPage());
 document.getElementById('refresh').addEventListener('click', async () => {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   if (tab && tab.id != null) {
-    try { await chrome.tabs.sendMessage(tab.id, { type: 'aimeter:refresh' }); } catch {}
+    try { await chrome.tabs.sendMessage(tab.id, { type: 'headroom:refresh' }); } catch {}
   }
   setTimeout(render, 800);
 });

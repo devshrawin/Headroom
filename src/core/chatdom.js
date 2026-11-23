@@ -1,6 +1,6 @@
 // Per-chat stats read from the page's own rendered messages — works signed in or out, no API calls.
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
 
   // cfg: { selector, ratio (tokens per char), systemTokens?, next?(tokens) → tokens, note? }
   AM.watchDomChat = (ctx, cfg) => {

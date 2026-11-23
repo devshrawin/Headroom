@@ -1,5 +1,5 @@
 (() => {
-  const AM = globalThis.AIMeter;
+  const AM = globalThis.Headroom;
   if (window.top !== window) return;
 
   const host = location.hostname;
@@ -35,10 +35,14 @@
     try { chrome.runtime.sendMessage(msg).catch(() => {}); } catch {}
   };
   const safe = (fn, arg) => {
-    try { fn(arg); } catch (e) { console.warn('[AI Meter]', e); }
+    try { fn(arg); } catch (e) { console.warn('[Headroom]', e); }
   };
   const dlog = (entry) => {
-    if (settings.debug && alive()) AM.debugLog({ provider: adapter ? adapter.id : host, ...entry });
+    if (!settings.debug || !alive()) return;
+    const clean = { ...entry };
+    if (clean.url) clean.url = AM.redact(clean.url);
+    if (clean.body) clean.body = AM.redact(clean.body);
+    AM.debugLog({ provider: adapter ? adapter.id : host, ...clean });
   };
 
   const ctx = {
@@ -49,7 +53,7 @@
     debug: () => !!settings.debug,
     log: (...a) => {
       if (!settings.debug) return;
-      console.log('[AI Meter]', adapter.id, ...a);
+      console.log('[Headroom]', adapter.id, ...a);
       dlog({ kind: 'note', url: host, body: a.map((x) => (typeof x === 'string' ? x : JSON.stringify(x))).join(' ').slice(0, 3000) });
     },
     report(group, meters) {
@@ -57,7 +61,7 @@
       if (group === 'real' && meters && meters.length) problem = null; // real numbers prove the usage path works
       publish();
     },
-    // An adapter could not get usage ('error') or the user is signed out ('signin'). Shown in the pill and panel.
+    // An adapter could not get usage ('error') or the user is signed out ('signin'). Shown in the bar and panel.
     problem(kind, text) {
       const t = String(text || '').slice(0, 160);
       if (!problem || problem.kind !== kind || problem.text !== t) problem = { kind, text: t, since: Date.now() };
@@ -71,7 +75,7 @@
       publish();
     },
     async getJSON(url, init) {
-      if (AM.dead) throw new Error('AI Meter was reloaded');
+      if (AM.dead) throw new Error('Headroom was reloaded');
       const r = await fetch(url, { credentials: 'include', ...(init || {}) });
       if (!r.ok) throw new Error(`${r.status} ${url}`);
       return r.json();
@@ -99,18 +103,39 @@
     const meters = current();
     const shown = AM.problemToShow(problem, meters);
     AM.widget.update(adapter.name, meters, settings, settings.chatStats ? chat : null, shown);
-    send({ type: 'aimeter:usage', provider: adapter.id, name: adapter.name, meters, problem: shown });
+    send({ type: 'headroom:usage', provider: adapter.id, name: adapter.name, meters, problem: shown });
   }
 
-  // Iris's code is not in the always-loaded bundle: the background script injects it into this tab on request.
-  AM.loadPet = () => new Promise((resolve, reject) => {
+  // Weather (Settings → Weather): the real weather as a living sky behind the page. Its renderer is injected on demand;
+  // the data is fetched by the background script and kept in storage ('weather.data'), so tabs never fetch anything.
+  AM.loadWeather = () => new Promise((resolve, reject) => {
     try {
-      chrome.runtime.sendMessage({ type: 'aimeter:loadPet' }, (r) => {
-        if (chrome.runtime.lastError || !r || !r.ok) reject(new Error((r && r.error) || 'could not load Iris'));
+      chrome.runtime.sendMessage({ type: 'headroom:loadWeather' }, (r) => {
+        if (chrome.runtime.lastError || !r || !r.ok) reject(new Error((r && r.error) || 'could not load the weather'));
         else resolve();
       });
     } catch (e) { reject(e); }
   });
+  let sky = null;
+  let skyToken = 0;
+  let weatherData = null;
+  const applyWeather = async () => {
+    const token = ++skyToken;
+    const show = adapter && settings.weather && settings.weatherPlace && (weatherData || settings.weatherForce);
+    if (!show) {
+      if (sky) { sky.destroy(); sky = null; }
+      return;
+    }
+    try {
+      if (!AM.WeatherSky) await AM.loadWeather();
+      if (token !== skyToken || !AM.WeatherSky) return;
+      if (!sky) {
+        sky = AM.WeatherSky.mount({ strength: settings.weatherStrength, onLost: () => { sky = null; } });
+        if (!sky) return;
+      } else sky.setStrength(settings.weatherStrength);
+      sky.setState(AM.WEATHER.skyState(weatherData, Date.now(), settings.weatherForce));
+    } catch (e) { console.warn('[Headroom] weather', e); }
+  };
 
   // "Copy debug log": diagnostics for the current provider, from this tab's state plus the stored debug log.
   AM.copyDiagnostics = async () => {
@@ -174,12 +199,12 @@
       if (adapter) handle(d);
       else if (pending.length < 200) pending.push(d);
     };
-    window.postMessage({ source: 'aimeter-content', kind: 'hello' }, location.origin, [ch.port2]);
+    window.postMessage({ source: 'headroom-content', kind: 'hello' }, location.origin, [ch.port2]);
     setTimeout(connect, 1500); // no answer yet (inject.js may start later): try again with a fresh channel
   }
   // inject.js announces itself when it starts, in case we sent our hello before it was listening.
   window.addEventListener('message', (e) => {
-    if (!port && e.source === window && e.data && e.data.source === 'aimeter-inject' && e.data.kind === 'ready') connect();
+    if (!port && e.source === window && e.data && e.data.source === 'headroom-inject' && e.data.kind === 'ready') connect();
   });
   connect();
 
@@ -190,19 +215,33 @@
     }, 3000);
   }
 
+  // A broken adapter (it throws, or its parser chokes on a changed response) must not take the bar, the other
+  // handlers or the page down: failures become a visible "can't read usage" problem instead.
+  const failed = (what, e) => {
+    console.warn('[Headroom]', adapter && adapter.id, what, e);
+    if (adapter) ctx.problem('error', 'Headroom hit an internal error reading this site (' + what + ')');
+    if (problem) { problem.since = Date.now() - AM.PROBLEM_DELAY_MS; publish(); } // our own failure: show it now, not after the delay
+  };
+  const refreshAdapter = async () => {
+    try { if (adapter && adapter.refresh) await adapter.refresh(); } catch (e) { failed('refresh', e); }
+  };
+
   chrome.runtime.onMessage.addListener((msg, _sender, reply) => {
-    if (msg && msg.type === 'aimeter:refresh' && adapter) {
-      Promise.resolve(adapter.refresh && adapter.refresh()).finally(() => reply({ ok: true }));
+    if (msg && msg.type === 'headroom:refresh' && adapter) {
+      refreshAdapter().finally(() => reply({ ok: true }));
       return true;
     }
   });
 
   chrome.storage.onChanged.addListener((changes, area) => {
-    if (area !== 'local' || !changes.settings || !adapter) return;
+    if (area !== 'local' || !adapter) return;
+    if (changes['weather.data']) { weatherData = changes['weather.data'].newValue || null; applyWeather(); }
+    if (!changes.settings) return;
     const wasDebug = settings.debug;
     settings = AM.mergeSettings(changes.settings.newValue);
     if (settings.debug !== wasDebug) checkHook();
-    if (adapter.refresh) adapter.refresh();
+    applyWeather();
+    refreshAdapter();
     publish();
   });
 
@@ -213,15 +252,17 @@
       adapter = AM.adapterFor(host, settings);
       if (!adapter) return;
       AM.siteId = adapter.id;
-      // Lets the on-page panel change a setting (e.g. "Send Iris home"); onChanged below applies it.
+      // Lets the on-page panel change a setting (e.g. "Turn off weather"); onChanged below applies it.
       AM.setSetting = async (key, value) => {
+        const patch = key && typeof key === 'object' ? key : { [key]: value };
         const { settings: stored } = await AM.storage.get('settings');
-        await AM.storage.set({ settings: { ...(stored || {}), [key]: value } });
+        await AM.storage.set({ settings: { ...(stored || {}), ...patch } });
       };
-      adapter.init(ctx);
-      AM.banner.watch(ctx);
+      try { adapter.init(ctx); } catch (e) { failed('start', e); }
+      try { AM.banner.watch(ctx); } catch (e) { console.warn('[Headroom] banner', e); }
       pending.splice(0).forEach(handle);
       publish();
       checkHook();
+      AM.storage.get('weather.data').then((r) => { weatherData = (r && r['weather.data']) || null; applyWeather(); }, () => applyWeather());
     });
 })();

@@ -10,7 +10,7 @@ const read = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
 const AM = (() => {
   const ctx = vm.createContext({ console });
   for (const f of ['src/core/quotas.js', 'src/core/common.js']) vm.runInContext(read(f), ctx, { filename: f });
-  return ctx.AIMeter;
+  return ctx.Headroom;
 })();
 const plain = (v) => JSON.parse(JSON.stringify(v));
 
@@ -65,7 +65,7 @@ function loadInject() {
   vm.runInContext(read('src/inject.js'), sandbox, { filename: 'inject.js' });
   const fakePort = () => ({ sent: [], postMessage(d) { this.sent.push(d); }, onmessage: null });
   const hello = (port, over = {}) => {
-    const ev = { source: vm.runInContext('window', sandbox), origin: 'https://example.test', data: { source: 'aimeter-content', kind: 'hello' }, ports: port ? [port] : [], swallowed: false, stopImmediatePropagation() { this.swallowed = true; }, ...over };
+    const ev = { source: vm.runInContext('window', sandbox), origin: 'https://example.test', data: { source: 'headroom-content', kind: 'hello' }, ports: port ? [port] : [], swallowed: false, stopImmediatePropagation() { this.swallowed = true; }, ...over };
     handlers.filter((h) => h.type === 'message').forEach((h) => h.fn(ev));
     return ev;
   };
@@ -136,4 +136,30 @@ test('inject.js: everything it sends passes the content script validator', async
   await new Promise((r) => setTimeout(r, 20));
   assert.ok(port.sent.length >= 2);
   for (const d of port.sent) assert.ok(AM.validateInjectMessage(d), JSON.stringify(d).slice(0, 120));
+});
+
+test('inject.js: login, sign-up, password, payment and OAuth requests never forward a body (also on sites the user adds)', async () => {
+  const { sandbox, fakePort, hello } = loadInject();
+  const port = fakePort();
+  hello(port);
+  const urls = ['/login', '/api/v1/sign-in', '/signup', '/users/password/reset', '/oauth/authorize', '/checkout/pay', '/api/payment/intent', '/api/mfa/verify', '/account/2fa'];
+  for (const u of urls) await sandbox.fetch('https://example.test' + u, { method: 'POST', body: '{"password":"hunter2","card":"4111111111111111"}' });
+  const bodies = port.sent.filter((d) => d.kind === 'request');
+  assert.equal(bodies.length, urls.length);
+  assert.ok(bodies.every((d) => d.body == null), 'no body forwarded: ' + JSON.stringify(bodies.map((d) => d.url)));
+});
+
+test('inject.js: on a forwarded body, secret-looking fields are masked and the rest is untouched', async () => {
+  const { sandbox, fakePort, hello } = loadInject();
+  const port = fakePort();
+  hello(port);
+  await sandbox.fetch('https://example.test/api/chat', { method: 'POST', body: JSON.stringify({ model: 'gpt-x', api_key: 'sk-live-123', nested: { access_token: 'tok-9' }, prompt: 'hello' }) });
+  await sandbox.fetch('https://example.test/api/form', { method: 'POST', body: 'model=m&passwd=abc&otp=123456&note=hi' });
+  const [a, b] = port.sent.filter((d) => d.kind === 'request').map((d) => d.body);
+  assert.equal(/sk-live-123|tok-9/.test(a), false);
+  assert.match(a, /"model":"gpt-x"/);
+  assert.match(a, /hello/);
+  assert.equal(/abc|123456/.test(b), false);
+  assert.match(b, /model=m/);
+  assert.match(b, /note=hi/);
 });
