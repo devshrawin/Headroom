@@ -94,7 +94,7 @@
   AM.DEFAULT_SETTINGS = {
     widget: true,
     chatStats: true,
-    meterStyle: 'bar-bottom', // 'bar-bottom' | 'bar-top': a thin bar along the edge of the page
+    meterStyle: 'bar-bottom', // 'bar-bottom' | 'bar-top' | 'bar-left' | 'bar-right': a thin bar along that edge of the page
     notify: true,
     thresholds: [75, 90, 100],
     debug: false,
@@ -135,7 +135,7 @@
     ...AM.DEFAULT_SETTINGS,
     ...(s || {}),
     quotas: { ...AM.DEFAULT_QUOTAS, ...((s && s.quotas) || {}) },
-    meterStyle: s && s.meterStyle === 'bar-top' ? 'bar-top' : 'bar-bottom',
+    meterStyle: s && ['bar-top', 'bar-left', 'bar-right'].includes(s.meterStyle) ? s.meterStyle : 'bar-bottom',
     weather: !(s && s.weather === false),
     weatherPlace: cleanPlace(s && s.weatherPlace),
     weatherUnits: s && s.weatherUnits === 'f' ? 'f' : 'c',

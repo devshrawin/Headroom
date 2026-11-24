@@ -335,7 +335,7 @@
     const num = (v) => typeof v === 'number' && isFinite(v);
     const out = {};
     for (const k of ['widget', 'chatStats', 'notify', 'debug', 'weather']) if (typeof s[k] === 'boolean') out[k] = s[k];
-    if (['bar-top', 'bar-bottom'].includes(s.meterStyle)) out.meterStyle = s.meterStyle;
+    if (['bar-top', 'bar-bottom', 'bar-left', 'bar-right'].includes(s.meterStyle)) out.meterStyle = s.meterStyle;
     if (s.weatherUnits === 'c' || s.weatherUnits === 'f') out.weatherUnits = s.weatherUnits;
     if (typeof s.weatherStrength === 'number' && isFinite(s.weatherStrength)) out.weatherStrength = Math.min(1, Math.max(0.2, s.weatherStrength));
     if (Array.isArray(s.thresholds)) {

@@ -217,6 +217,16 @@ void main(){
       const l = lum(getComputedStyle(el).backgroundColor);
       if (l !== null) return l < 0.45;
     }
+    // No opaque page colour to read (the page paints it on an inner element, or ours was cleared): ask the page's own theme.
+    const root = document.documentElement;
+    if (root.hasAttribute('data-hr-night')) return false; // our own light-text rule is on: the page underneath is light
+    const cs = getComputedStyle(root).colorScheme || '';
+    if (/\bdark\b/.test(cs) && !/\blight\b/.test(cs)) return true;
+    if (/(^|\s)dark(\s|$)/.test(root.className || '') || /dark/i.test(root.getAttribute('data-theme') || root.getAttribute('data-color-mode') || '')) return true;
+    if (document.body) {
+      const tl = lum(getComputedStyle(document.body).color); // light text means a dark page
+      if (tl !== null) return tl > 0.6;
+    }
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
@@ -253,14 +263,17 @@ void main(){
     let pageBg = null;
     for (const el of [doc.body, rootEl]) { if (!el) continue; const c = win.getComputedStyle(el).backgroundColor; if (c && alphaOf(c) >= .5) { pageBg = c; break; } }
     const rootPrev = [rootEl.style.getPropertyValue('background-color'), rootEl.style.getPropertyPriority('background-color')];
-    rootEl.style.setProperty('background-color', pageBg || (win.matchMedia('(prefers-color-scheme: dark)').matches ? '#14141c' : '#ffffff'), 'important');
+    rootEl.style.setProperty('background-color', pageBg || (pageIsDark() ? '#14141c' : '#ffffff'), 'important');
     // Marked elements lose their background (and any fade drawn by ::before / ::after) through one
     // stylesheet, so nothing is edited inline and everything comes back when the sheet is removed.
     const MARK = 'data-hr-sky';
     const sheet = doc.createElement('style');
     sheet.setAttribute('data-headroom', 'weather');
     sheet.textContent = ':root [' + MARK + '][' + MARK + ']{background-color:transparent !important;background-image:none !important}'
-      + ':root [' + MARK + '][' + MARK + ']::before,:root [' + MARK + '][' + MARK + ']::after{background:none !important}';
+      + ':root [' + MARK + '][' + MARK + ']::before,:root [' + MARK + '][' + MARK + ']::after{background:none !important}'
+      // night on a light page: flip the page dark; media is flipped back so it keeps its real colours
+      + ':root[data-hr-night] body{filter:invert(1) hue-rotate(180deg)}'
+      + ':root[data-hr-night] body img,:root[data-hr-night] body video,:root[data-hr-night] body picture,:root[data-hr-night] body canvas,:root[data-hr-night] body [style*="background-image"]{filter:invert(1) hue-rotate(180deg)}';
     (doc.head || rootEl).appendChild(sheet);
     const marked = new Set();
     const isBacking = (cs) => alphaOf(cs.backgroundColor) >= .9 || (cs.backgroundImage || '').indexOf('gradient') >= 0;
@@ -286,6 +299,7 @@ void main(){
     const restoreBackdrops = () => {
       for (const el of marked) el.removeAttribute(MARK);
       marked.clear();
+      rootEl.removeAttribute('data-hr-night');
       sheet.remove();
       if (rootPrev[0]) rootEl.style.setProperty('background-color', rootPrev[0], rootPrev[1]); else rootEl.style.removeProperty('background-color');
     };
@@ -305,27 +319,48 @@ void main(){
     let boltNext = 3, first = true, shX = 0, shY = 0;
 
     const resize = () => {
-      // drawn at up to 1440 px wide, so edges (sun, moon, rain) stay crisp; wider screens are stretched a little
-      const k = Math.min(1, 1440 / Math.max(1, win.innerWidth));
+      // drawn at the screen's real pixels (so stars, moon and rain edges are crisp), capped near 3.4 million pixels so a big or high-DPI screen stays light on the GPU
+      const dpr = Math.min(2, win.devicePixelRatio || 1);
+      const k = Math.max(.6, Math.min(dpr, Math.sqrt(3.4e6 / Math.max(1, win.innerWidth * win.innerHeight))));
       const w = Math.max(2, Math.round(win.innerWidth * k)), h = Math.max(2, Math.round(win.innerHeight * k));
       if (w === W && h === H) return;
       W = w; H = h; canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H);
     };
 
+    // A light page at night gets the real night sky, and the page is flipped to a dark look (the usual invert + hue-rotate
+    // trick, with images, video and canvases flipped back so photos keep their colours). It is only used when the page itself
+    // does not scroll, because a filter on <body> would move the fixed parts of a page that scrolls as a whole.
+    let pure = false, lastNight = 0, noPure = false;
+    const docScrolls = () => rootEl.scrollHeight > win.innerHeight + 4;
+    function setPure(on) {
+      if (on === pure) return;
+      pure = on;
+      if (on) { rootEl.setAttribute('data-hr-night', ''); clearBackdrops(); }
+      else rootEl.removeAttribute('data-hr-night');
+      lastOp = -1; setOpacity(lastNight);
+    }
+    const keepTimer = win.setInterval(() => { if (pure && docScrolls()) { noPure = true; setPure(false); } }, 1500);
+
     let lastOp = -1;
     function setOpacity(night) {
-      const o = strength * (dark ? .92 : 1 - .45 * night);
-      if (Math.abs(o - lastOp) > .01) { lastOp = o; canvas.style.opacity = String(o); }
+      lastNight = night;
+      if (!dark && (night > .55 && !pure && !noPure && !docScrolls() || night < .4 && pure)) { setPure(night > .55); return; }
+      const deep = dark || pure;
+      const o = strength * (deep ? .92 : 1 - .68 * night);
+      if (Math.abs(o - lastOp) > .01) {
+        lastOp = o; canvas.style.opacity = String(o);
+        // dusk and dawn on a light page: lift the sky to a soft tone so the dark text stays readable
+        canvas.style.filter = deep ? 'brightness(.9)' : night > .02 ? 'brightness(' + (1 + 2.2 * night).toFixed(2) + ') saturate(.8)' : 'none';
+      }
     }
     function applyTone() {
       const t = dark ? 'dark' : 'light';
       if (t === tone) return;
       tone = t;
-      // the sky sits behind the page; the page keeps its own text, images and panels on top of it. In the dark it is dimmed, and at night on a light page it is eased down so dark text stays readable.
+      if (dark && pure) setPure(false);
       canvas.style.mixBlendMode = 'normal';
-      canvas.style.filter = dark ? 'brightness(.78)' : 'none';
       lastOp = -1;
-      setOpacity(1);
+      setOpacity(lastNight || 1);
     }
 
     function setState(st) {
@@ -405,7 +440,7 @@ void main(){
         destroyed = true;
         stop();
         win.clearInterval(toneTimer);
-        win.clearInterval(maskTimer); win.removeEventListener('resize', clearBackdrops); restoreBackdrops();
+        win.clearInterval(maskTimer); win.clearInterval(keepTimer); win.removeEventListener('resize', clearBackdrops); restoreBackdrops();
         win.removeEventListener('resize', resize);
         doc.removeEventListener('visibilitychange', onVis);
         reduceMq.removeEventListener('change', onMotion);

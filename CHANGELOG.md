@@ -2,6 +2,17 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.3.0 — 2026-11-24
+
+### Fixed
+- Night on a light page is now the real night sky with the whole page flipped to a dark look (invert plus hue-rotate; photos, video and canvases are flipped back). It is skipped on pages that scroll as a whole, where a body filter would move fixed parts; those keep the soft dusk.
+- The sky is drawn at the screen's real pixels (capped near 3.4 million) instead of at most 1440 px wide, so stars, moon and rain stay crisp on big and high-DPI screens.
+- A dark-theme page whose background is painted on an inner element (ChatGPT dark) was read as light and got the washed-out sky; the page's theme and text colour are now checked too.
+
+### Added
+- A settings gear at the bottom-left of the details panel opens Headroom Settings.
+- Drag the bar to any screen edge (top, bottom, left or right). It snaps to the nearest edge as you drag and remembers the choice. Left and right give a vertical bar that fills upward, with the panel beside it. Settings has the same four choices.
+
 ## 1.2.8 — 2026-11-24
 
 ### Fixed

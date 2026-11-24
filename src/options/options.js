@@ -161,7 +161,7 @@ function meterPage() {
   return `<h1 class="page-h">Meter</h1><p class="page-d">${PAGES[1].desc}</p>
   <section class="card">
     ${row('Show the meter', 'Point at the bar for the percentage and when it resets, click it for the details.', sw('widget', 'On', S.widget))}
-    ${row('Position', 'Which edge of the page the bar sits on.', seg('meterStyle', [['bar-bottom', 'Bottom'], ['bar-top', 'Top']], S.meterStyle))}
+    ${row('Position', 'Which edge of the page the bar sits on. You can also drag the bar to another edge.', seg('meterStyle', [['bar-bottom', 'Bottom'], ['bar-top', 'Top'], ['bar-left', 'Left'], ['bar-right', 'Right']], S.meterStyle))}
     ${row('Chat details', 'Show the length of the open chat, the cache timer and the cost of your next message in the details panel (Claude, ChatGPT, Gemini).', sw('chatStats', 'On', S.chatStats))}
   </section>`;
 }
