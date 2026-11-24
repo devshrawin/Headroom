@@ -2,6 +2,12 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.2.8 — 2026-11-24
+
+### Fixed
+- With the bar on top, the details panel now opens downward from it (it opened upward and ran off the screen). The panel scrolls if the window is short.
+- The usage bar is now attached to the page root instead of `<body>`, so a site that shifts or transforms its body (seen on ChatGPT, where the top bar sat below the screen edge) can no longer offset it.
+
 ## 1.2.7 — 2026-11-23
 
 ### Changed

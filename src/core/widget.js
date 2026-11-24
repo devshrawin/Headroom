@@ -85,6 +85,8 @@
     /* Bar style: a thin full-width bar along the top or bottom edge; the label chip shows on hover or focus */
     .wrap.edge { width: 100%; gap: 0; }
     .wrap.edge .pbox { margin: 8px 12px; }
+    .wrap.edge.top { flex-direction: column; } /* bar on top: the panel drops down from it */
+    .wrap.edge .panel { max-height: calc(100vh - 56px); overflow-y: auto; }
     .pill.edge { align-self: stretch; display: block; width: 100%; height: var(--hr-bar-h); padding: 0; border: 0; border-radius: 0; background: transparent;
       box-shadow: none; cursor: pointer; overflow: visible; transition: height var(--hr-dur-fast); }
     .pill.edge::after { content: ""; position: absolute; left: 0; right: 0; height: 12px; }
@@ -178,7 +180,8 @@
     host = document.createElement('div');
     host.setAttribute('data-headroom', '');
     barMode = lastSettings.meterStyle === 'bar-top' ? 'top' : 'bottom';
-    host.style.cssText = `position:fixed;left:0;right:0;${barMode}:0;z-index:2147483646;`;
+    // Fixed to the screen edge, and hung off <html> (not <body>) so a page that shifts or transforms its body cannot offset the bar.
+    host.style.cssText = `position:fixed;left:0;right:0;${barMode === 'top' ? 'top:0;bottom:auto' : 'bottom:0;top:auto'};margin:0;padding:0;transform:none;z-index:2147483646;`;
     root = host.attachShadow({ mode: 'open' });
     const style = el('style');
     style.textContent = CSS;
@@ -199,7 +202,7 @@
     attachKeys(pill);
     wrap.append(pill, panelBox);
     root.append(style, wrap);
-    document.body.appendChild(host);
+    document.documentElement.appendChild(host);
     ticker = setInterval(render, 30000);
   }
 
@@ -429,7 +432,7 @@
         }
         mount();
       } else if (!host.isConnected && document.body) {
-        document.body.appendChild(host);
+        document.documentElement.appendChild(host);
       }
       render();
     },

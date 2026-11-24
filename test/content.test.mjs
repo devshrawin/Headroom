@@ -14,7 +14,7 @@ const quotas = (() => {
 // Runs the real content-script bundle (exactly the manifest's file order) on a fake page at `host`.
 async function loadContent(host, { settings, top = true, beforeContent } = {}) {
   const document = makeDocument();
-  document.documentElement = { innerHTML: '', lang: 'en' };
+  document.documentElement = { innerHTML: '', lang: 'en', appendChild: (n) => document.body.appendChild(n) };
   document.querySelector = () => null;
   document.querySelectorAll = () => [];
   document.cookie = '';

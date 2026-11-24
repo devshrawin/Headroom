@@ -56,6 +56,7 @@ export class FakeEl {
 export function makeDocument() {
   const doc = { listeners: {} };
   doc.body = new FakeEl('body', doc);
+  doc.documentElement = doc.body; // the stub has one root; the widget hangs off <html>, which is the same node here
   doc.createElement = (tag) => new FakeEl(tag, doc);
   doc.createElementNS = (ns, tag) => new FakeEl(tag, doc);
   doc.addEventListener = (t, fn) => { (doc.listeners[t] = doc.listeners[t] || []).push(fn); };
