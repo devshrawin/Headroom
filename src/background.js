@@ -60,6 +60,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e) }));
     return true;
   }
+  if (msg && msg.type === 'headroom:openSettings') {
+    // The on-page panel's gear: content scripts cannot open the options page themselves.
+    chrome.runtime.openOptionsPage().then(() => sendResponse({ ok: true }), () => sendResponse({ ok: false }));
+    return true;
+  }
   if (msg && msg.type === 'headroom:weatherNow') {
     // The Settings page just chose a place: fetch now instead of waiting for the next alarm.
     refreshWeather().then((r) => sendResponse(r)).catch(() => sendResponse({ ok: false }));

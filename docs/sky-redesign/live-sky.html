@@ -1,0 +1,642 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Headroom sky — live prototype</title>
+<style>
+  :root{color-scheme:dark}
+  html,body{margin:0;height:100%;overflow:hidden;background:#0b1220;font-family:Inter,"Segoe UI",system-ui,sans-serif}
+  canvas{position:fixed;inset:0;width:100%;height:100%;display:block}
+  /* sample page on top of the sky */
+  .page{position:fixed;inset:0;display:none;pointer-events:none;font-size:15px;line-height:23px}
+  .page.on{display:block}
+  .page .col{position:absolute;left:50%;transform:translateX(-50%);top:56px;width:min(680px,86vw);display:flex;flex-direction:column;gap:14px}
+  .page .b{padding:11px 16px;border-radius:18px;max-width:78%}
+  .page .u{align-self:flex-end}
+  .page .composer{position:absolute;left:50%;transform:translateX(-50%);bottom:28px;width:min(720px,88vw);height:52px;border-radius:26px;box-sizing:border-box;padding:14px 20px}
+  .page .brand{position:absolute;left:22px;top:16px;font-weight:600;font-size:14px}
+  .dark .b.a,.dark .composer{background:#26272e;color:#eef0f4}.dark .b.u{background:#3b3563;color:#f3f1fb}.dark .composer{color:#8a8a96}.dark .brand{color:rgba(255,255,255,.6)}
+  .light .b.a,.light .composer{background:rgba(255,255,255,.92);color:#1d1f24}.light .b.u{background:#ece9f7;color:#25223a}.light .composer{color:#80838c}.light .brand{color:rgba(20,22,28,.65)}
+  .page .composer{box-shadow:0 8px 30px rgba(0,0,0,.18)}
+  /* controls */
+  .panel{position:fixed;left:16px;bottom:16px;width:332px;max-width:calc(100vw - 32px);box-sizing:border-box;padding:14px 14px 12px;border-radius:16px;
+    background:rgba(14,18,26,.62);backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+    color:#e9edf3;font-size:12.5px;box-shadow:0 10px 40px rgba(0,0,0,.25);border:1px solid rgba(255,255,255,.08);transition:opacity .3s}
+  .panel.min .body{display:none}
+  .head{display:flex;align-items:center;gap:8px}
+  .head .t{font-weight:600;font-size:13px;flex:1}
+  .clock{font-variant-numeric:tabular-nums;font-size:22px;font-weight:600;letter-spacing:-.01em}
+  .sub{color:#aab4c3;font-size:12px}
+  .row{margin-top:11px}
+  .lbl{color:#9aa5b5;font-size:11px;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+  .chips{display:flex;flex-wrap:wrap;gap:5px}
+  button{font:inherit;color:inherit;background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.08);border-radius:999px;padding:6px 10px;min-height:30px;cursor:pointer}
+  button:hover{background:rgba(255,255,255,.14)}
+  button[aria-pressed="true"]{background:#e9edf3;color:#111722;border-color:#e9edf3}
+  button:focus-visible,input:focus-visible{outline:2px solid #fff;outline-offset:2px}
+  input[type=range]{width:100%;accent-color:#e9edf3;margin:2px 0 0}
+  .flex{display:flex;gap:6px;align-items:center}
+  .grow{flex:1}
+  .icon{width:30px;height:30px;padding:0;display:grid;place-items:center}
+  .note{color:#8f9aab;font-size:11px;margin-top:10px;line-height:1.45}
+</style>
+</head>
+<body>
+<canvas id="c" aria-hidden="true"></canvas>
+<div class="page dark" id="page" aria-hidden="true">
+  <div class="brand">Assistant</div>
+  <div class="col">
+    <div class="b u">Can you summarise the main risks in this contract?</div>
+    <div class="b a">Three things stand out: the auto-renewal clause, the liability cap, and the unusual termination notice period. Want me to go through each one?</div>
+    <div class="b u">Yes, start with the liability cap.</div>
+    <div class="b a">The cap is set at the fees paid in the last twelve months, which is common, but it excludes data loss. That is the part worth negotiating.</div>
+  </div>
+  <div class="composer">Message the assistant...</div>
+</div>
+
+<section class="panel" id="panel" aria-label="Sky controls">
+  <div class="head">
+    <div class="grow">
+      <div class="clock" id="clock">--:--</div>
+      <div class="sub" id="desc">Live</div>
+    </div>
+    <button class="icon" id="minBtn" aria-label="Collapse controls" title="Collapse">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg>
+    </button>
+  </div>
+  <div class="body">
+    <div class="row">
+      <div class="lbl">Time of day</div>
+      <input type="range" id="hour" min="0" max="24" step="0.01" aria-label="Hour of day">
+      <div class="chips" style="margin-top:6px">
+        <button data-mode="live" aria-pressed="true">Live clock</button>
+        <button data-mode="lapse" aria-pressed="false">Time-lapse</button>
+        <button data-mode="hold" aria-pressed="false">Hold</button>
+      </div>
+    </div>
+    <div class="row">
+      <div class="lbl">Season</div>
+      <div class="chips" id="seasons"></div>
+    </div>
+    <div class="row">
+      <div class="lbl">Weather</div>
+      <div class="chips" id="weathers"></div>
+    </div>
+    <div class="row">
+      <div class="lbl">Page on top</div>
+      <div class="chips" id="pages"></div>
+    </div>
+    <div class="row flex">
+      <button id="motion" aria-pressed="false">Reduce motion</button>
+      <button id="calm" aria-pressed="true">Quiet reading column</button>
+    </div>
+    <div class="note">One fragment shader, no images. Changes in weather and season ease in over a few seconds, the way the real sky would.</div>
+  </div>
+</section>
+
+<script id="frag" type="x-shader/x-fragment">
+precision highp float;
+uniform vec2 uRes; uniform float uTime;
+// sky stops, computed on the CPU from hour x season x weather
+uniform vec3 uTop,uMid,uHor,uGlow;
+// light: sun or moon colour, cloud lit side, cloud shadow side
+uniform vec3 uSunCol,uLit,uAmb,uFogCol;
+uniform vec2 uSun,uMoon;
+uniform float uSunVis,uMoonVis,uMoonPhase,uTwi,uNight,uDay;
+uniform float uCover,uGloom,uTower,uCirrus,uRain,uSnow,uFog,uHaze,uHalo,uSparkle;
+uniform float uStars,uMilky,uPetals,uLeaves,uFlash,uFlashX,uBolt,uCalm;
+uniform vec2 uWind,uSeed;
+
+float h21(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  float a=h21(i),b=h21(i+vec2(1,0)),c=h21(i+vec2(0,1)),d=h21(i+vec2(1,1));
+  return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}
+const mat2 RT=mat2(.8,.6,-.6,.8);
+float fbm(vec2 p,int oct){float v=0.,a=.5;for(int i=0;i<6;i++){if(i>=oct)break;v+=a*vn(p);p=RT*p*2.03+vec2(11.7,5.3);a*=.5;}return v;}
+// billowy fbm: rounded "cauliflower" lobes for cumulus tops
+float bill(vec2 p,int oct){float v=0.,a=.5;for(int i=0;i<6;i++){if(i>=oct)break;v+=a*(1.-abs(vn(p)*2.-1.));p=RT*p*2.07+vec2(3.1,7.9);a*=.5;}return v;}
+float luma(vec3 c){return dot(c,vec3(.2126,.7152,.0722));}
+
+// ---------- 1. sky dome ----------
+vec3 skyDome(vec2 uv,float asp){
+  float y=uv.y+.035*pow(abs(uv.x-.5)*2.,2.);          // stops bend a little: reads as a dome, not a flat card
+  vec3 g=mix(uHor,uMid,smoothstep(0.,.42,y));
+  g=mix(g,uTop,smoothstep(.3,1.05,y));
+  vec2 ds=(uv-uSun)*vec2(asp,1.);
+  float l=length(ds);
+  // forward scattering: the sky whitens towards the sun (strong at low sun, gentle by day)
+  vec2 dw=(uv-uSun)*vec2(asp*.5,1.7);
+  g+=uGlow*exp(-dot(dw,dw)*2.2)*(.12+.36*uTwi)*max(uSunVis,uTwi*.6);
+  g+=uSunCol*exp(-l*2.4)*.10*uSunVis*(1.-uTwi);
+  // anti-twilight: a rosy band opposite the sun with the blue earth shadow under it
+  float opp=smoothstep(.25,.75,abs(uv.x-uSun.x));
+  g+=vec3(.42,.20,.22)*exp(-pow((y-.17)/.07,2.))*opp*uTwi*.22*(1.-uGloom);
+  g=mix(g,g*vec3(.78,.84,1.),smoothstep(.12,0.,y)*opp*uTwi*.5);
+  // horizon haze: summer heat, autumn dust, monsoon humidity
+  g=mix(g,mix(uHor,vec3(1.),.25),uHaze*exp(-max(y,0.)*7.));
+  return g;
+}
+
+// ---------- 2. night: Milky Way and stars ----------
+vec3 starLayer(vec2 q,float sc,float prob,float rad,float seed){
+  vec2 p=q*sc,id=floor(p),f=fract(p)-.5;
+  float h=h21(id+seed);
+  if(h>prob)return vec3(0.);
+  vec2 o=(vec2(h21(id+seed+1.),h21(id+seed+2.))-.5)*.7;
+  float d=length(f-o),b=h21(id+seed+3.);
+  float tw=b>.8?.6+.4*sin(uTime*(1.1+b*1.7)+h*70.):1.;    // only one star in five twinkles
+  vec3 tint=mix(vec3(.72,.80,1.),vec3(1.,.86,.70),h21(id+seed+4.));
+  return tint*exp(-d*d/(rad*rad))*(.25+.75*b*b*b)*tw;
+}
+vec3 nightSky(vec2 uv,float asp){
+  vec2 q=uv*vec2(asp,1.);
+  vec2 a=vec2(-.1,-.15),dir=normalize(vec2(asp*.75,1.25)),nrm=vec2(-dir.y,dir.x);
+  float dist=dot(q-a,nrm),along=dot(q-a,dir);
+  float band=exp(-dist*dist/.07);
+  float core=exp(-pow((along-.55)/.45,2.));
+  float cl=fbm(q*2.6+7.,5);
+  float lane=smoothstep(.5,.72,fbm(vec2(along*3.,dist*9.)+3.,4))*exp(-dist*dist/.006);
+  float mw=band*smoothstep(.25,.7,cl)*(.55+.9*core)*(1.-.75*lane)*uMilky;
+  vec3 c=mix(vec3(.50,.58,.76),vec3(.92,.84,.72),core*.55)*mw*.24;
+  float boost=1.+band*uMilky*2.5;
+  c+=starLayer(q,260.,.06*boost,.07,1.)*.55;
+  c+=starLayer(q,120.,.05,.075,7.)*.9;
+  c+=starLayer(q,46.,.035,.06,13.)*1.5;
+  return c*uStars*smoothstep(.0,.35,uv.y);
+}
+
+// ---------- 3. clouds ----------
+// density on a cloud deck seen in perspective: big overhead, small and flat near the horizon
+float cumDensity(vec2 p,float cov,float bias){
+  float shape=fbm(p*.55,4);                               // where the clouds are
+  vec2 w=vec2(vn(p*1.3+4.1),vn(p*1.3+9.7))-.5;
+  float detail=fbm(p*2.6+w*.9+shape*1.5,5);              // the puffs inside them
+  float lobes=bill(p*5.2+w,3);                           // small rounded lobes on the edges
+  float n=shape*.62+detail*.36+lobes*.12+bias;
+  float lo=mix(.75,.36,cov);
+  return clamp((n-lo)*mix(6.,3.,uGloom),0.,1.);
+}
+vec4 cumulus(vec2 uv,float asp,float cov,float bias,float calm,vec2 Lp,float Lvis,float sc){
+  float hz=max(uv.y,0.)+.28;                             // distance to the horizon: clouds shrink and flatten towards it
+  vec2 p=vec2((uv.x-.5)*asp/pow(hz,.55)*.62,1./hz*.85)*sc+uSeed;
+  p+=uWind*uTime*.012;
+  float d=cumDensity(p,cov,bias);
+  if(d<.002)return vec4(0.);
+  vec2 Ls=(Lp-uv)*vec2(asp,1.);Ls=normalize(Ls+vec2(0.,.4));
+  vec2 dq=vec2(Ls.x*.6,Ls.y*.9)/hz*.06*sc;
+  float dl=cumDensity(p+dq,cov,bias);
+  float du=cumDensity(p+vec2(0.,.05/hz*sc),cov,bias);
+  float lit=clamp(.58+(d-dl)*1.5+(d-du)*.9-.25*d*d,0.,1.);
+  lit=lit*lit*(3.-2.*lit);
+  vec3 c=mix(uAmb,uLit,lit);
+  c*=1.-(.08+.32*uTower)*smoothstep(.55,1.,d)*(1.-lit);
+  float near=exp(-length((uv-Lp)*vec2(asp,1.))*3.);
+  float edge=1.-smoothstep(.0,.45,d);
+  c+=uSunCol*edge*(.05+.8*near)*Lvis*(1.-.85*uGloom);
+  float far=smoothstep(.45,.0,uv.y);
+  c=mix(c,mix(uHor,uLit,.3),far*.45);
+  float a=smoothstep(0.,.6,d)*(1.-.35*calm);
+  return vec4(c,a);
+}
+// high, thin ice cloud: fine streaks that catch the low sun
+float cirrus(vec2 uv,float asp){
+  vec2 p=vec2(uv.x*asp,uv.y);
+  p=mat2(.94,.34,-.34,.94)*p;
+  p+=uWind*uTime*.004;
+  float w=fbm(p*vec2(1.2,3.),3);
+  float n=fbm(vec2(p.x*1.6+w*1.5,p.y*11.+w*2.),5);
+  return smoothstep(.5,.82,n)*smoothstep(.35,.9,uv.y)*uCirrus;
+}
+
+// ---------- 4. particles ----------
+float rainLayer(vec2 uv,float asp,float sc,float spd,float seed,float slant,float thick){
+  vec2 p=vec2(uv.x*asp,uv.y)*vec2(sc,sc*.085);
+  p.x+=p.y*slant;p.y+=uTime*spd;
+  vec2 id=floor(p),f=fract(p);
+  float h=h21(id+seed);
+  if(h21(id+seed+9.)>uRain*.75)return 0.;
+  float x=abs(f.x-(.15+.7*h));
+  float len=(.35+.35*h21(id+seed+5.))*mix(.4,1.,uRain);
+  float t=f.y/len;
+  if(t>1.)return 0.;
+  float tail=pow(1.-t,1.4)*smoothstep(0.,.05,t);
+  return smoothstep(thick,thick*.2,x)*tail;
+}
+float snowLayer(vec2 uv,float asp,float sc,float spd,float seed,float rad,float soft){
+  vec2 p=vec2(uv.x*asp,uv.y)*sc;
+  p.y+=uTime*spd;p.x+=sin(uTime*.4+p.y*.9+seed)*.25+uWind.x*uTime*.1;
+  vec2 id=floor(p),f=fract(p)-.5;
+  if(h21(id+seed+7.)>uSnow*.45)return 0.;
+  vec2 o=(vec2(h21(id+seed),h21(id+seed+3.))-.5)*.55;
+  float r=rad*(.6+.7*h21(id+seed+13.));
+  return smoothstep(r,r*soft,length(f-o));
+}
+// petals (kind 0) or leaves (kind 1): sparse, tumbling, out of focus when near
+vec4 drift(vec2 uv,float asp,float sc,float spd,float seed,float dens,float kind,float blur){
+  vec2 p=vec2(uv.x*asp,uv.y)*sc;
+  p.y+=uTime*spd;p.x+=uWind.x*uTime*.3+sin(uTime*.35+p.y*.8+seed)*.35;
+  vec2 id=floor(p),f=fract(p)-.5;
+  float h=h21(id+seed);
+  if(h21(id+seed+4.)>dens)return vec4(0.);
+  vec2 o=(vec2(h,h21(id+seed+2.))-.5)*.45;
+  float ang=h*6.28+uTime*(h-.5)*.9;
+  vec2 q=f-o;float cs=cos(ang),sn=sin(ang);q=vec2(cs*q.x-sn*q.y,sn*q.x+cs*q.y);
+  float flip=.35+.65*abs(cos(uTime*(.5+h)+h*9.));      // tumbling: the shape foreshortens as it turns
+  float s=.075*(.7+.6*h21(id+seed+8.));
+  float m;vec3 col;float k=h21(id+seed+6.);
+  if(kind<.5){
+    q/=vec2(s*flip,s*.62);
+    float d=length(q)+.18*smoothstep(.6,1.,q.x)*(1.-abs(q.y)*2.); // a soft notch at the tip
+    m=smoothstep(1.,1.-blur,d);
+    col=mix(vec3(1.,.84,.88),vec3(1.,.95,.96),k)*mix(.94,1.06,smoothstep(1.,0.,d));
+  }else{
+    q/=vec2(s*flip*1.1,s*.48);
+    float d=length(vec2(q.x,q.y*(1.+.6*q.x*q.x)));        // pointed ends
+    m=smoothstep(1.,1.-blur,d)*(1.-.25*exp(-q.y*q.y*90.)*step(abs(q.x),.9)); // faint midrib
+    col=k<.4?vec3(.96,.56,.18):k<.75?vec3(.86,.36,.14):vec3(.98,.74,.30);
+    col*=.82+.3*smoothstep(.2,-.6,q.x);                  // sunlight through the leaf: one side glows
+  }
+  return vec4(col,m);
+}
+
+// ---------- 5. the moon ----------
+vec4 moonDisc(vec2 uv,float asp){
+  vec2 d=(uv-uMoon)*vec2(asp,1.);
+  float r=.024,l=length(d);
+  if(l>r*1.3)return vec4(0.);
+  vec2 n2=d/r;float z=sqrt(max(0.,1.-dot(n2,n2)));
+  vec3 N=vec3(n2,z),L=normalize(vec3(sin(uMoonPhase),.12,-cos(uMoonPhase)));
+  float lit=smoothstep(-.06,.16,dot(N,L));
+  float mar=fbm(n2*1.9+4.2,4);
+  float alb=.92-.26*smoothstep(.48,.66,mar)-.05*fbm(n2*7.,3);
+  vec3 s=vec3(1.,.985,.95)*alb*(.06+.98*lit)*(.84+.16*z);   // a hint of earthshine and limb darkening
+  float m=smoothstep(r,r-1.6/uRes.y,l);
+  return vec4(s*1.4,m);
+}
+
+void main(){
+  vec2 uv=gl_FragCoord.xy/uRes;
+  float asp=uRes.x/uRes.y;
+  // the reading column: middle third, lower two thirds of the window
+  float calm=(1.-smoothstep(.17,.36,abs(uv.x-.5)))*(1.-smoothstep(.70,.95,uv.y))*uCalm;
+
+  vec3 base=skyDome(uv,asp);
+  vec3 col=base;
+
+  if(uNight>.01)col+=nightSky(uv,asp)*uNight*(1.-smoothstep(.25,.85,uCover))*(1.-.5*calm);
+
+  // sun behind everything else
+  float ls=length((uv-uSun)*vec2(asp,1.));
+  col+=uSunCol*(exp(-ls*4.)*.16+exp(-ls*14.)*.28+exp(-ls*55.)*.55)*uSunVis;
+  col=mix(col,vec3(1.,.99,.96)*1.7,smoothstep(.021,.0175,ls)*uSunVis*(1.-uFog*.85));
+
+  // moon: soft atmosphere, a faint 22-degree ice halo in cold, hazy air, then the disc
+  float lm=length((uv-uMoon)*vec2(asp,1.));
+  col+=vec3(.78,.84,.95)*(exp(-lm*5.)*.08+exp(-lm*18.)*.18+exp(-lm*60.)*.3)*uMoonVis;
+  float ring=exp(-pow((lm-.20)/.022,2.))*(.6+.4*fbm(uv*vec2(asp,1.)*6.,3));
+  col+=(vec3(.72,.78,.92)*ring+vec3(.06,.03,.01)*exp(-pow((lm-.182)/.012,2.)))*.035*uHalo*uMoonVis;
+  vec4 mo=moonDisc(uv,asp);
+  col=mix(col,mo.rgb,mo.a*uMoonVis);
+
+  vec2 Lp=uSunVis>uMoonVis?uSun:uMoon;
+  float Lvis=max(uSunVis,uMoonVis*.55);
+
+  // high cirrus, then the cumulus deck in two depths
+  // a solid cloud deck under heavy cover: soft, low-contrast texture so grey never reads as flat paint
+  if(uCover>.8){
+    float hz=max(uv.y,0.)+.3;
+    vec2 sp=vec2((uv.x-.5)*asp/pow(hz,.55)*.5,1./hz*.7)*1.6+uSeed*.7+uWind*uTime*.008;
+    float stx=fbm(sp,5);
+    vec3 deck=mix(uAmb,mix(uAmb,uLit,.75),smoothstep(.3,.75,stx));
+    col=mix(col,mix(deck,base,.35),smoothstep(.8,1.,uCover)*.75*(1.-.3*calm));
+  }
+  float ci=cirrus(uv,asp);
+  col=mix(col,uLit*1.02+uGlow*.12*uTwi,ci*.42*(1.-.4*calm));
+  // keep the open sky open where people read: clouds lean to the top and the side edges
+  float edges=smoothstep(.22,.5,abs(uv.x-.5));
+  float topb=smoothstep(.55,.95,uv.y);
+  float bias=(.05*topb+.05*edges-.09*calm)*(1.-uCover*uCover);
+  vec4 c2=cumulus(uv+vec2(.37,.0),asp,uCover*.8,bias-.03,calm,Lp,Lvis,1.9);
+  c2.rgb=mix(c2.rgb,base,.18);
+  col=mix(col,c2.rgb,c2.a*.85*(1.-.75*uCover*uCover));
+  vec4 c1=cumulus(uv,asp,uCover,bias,calm,Lp,Lvis,1.1);
+  col=mix(col,c1.rgb,c1.a);
+  float cloudA=max(c1.a,c2.a*.85);
+
+  // glare on top of the clouds: the sun still burns through thin edges
+  col+=uSunCol*(exp(-ls*18.)*.18+exp(-ls*70.)*.45)*uSunVis*(1.-.75*cloudA)*(1.-uGloom);
+
+  // lightning: the cloud lights from inside, then an optional thin bolt at the window edge
+  if(uFlash>.001){
+    vec2 fd=(uv-vec2(uFlashX,.80))*vec2(asp*.8,1.3);float g=exp(-dot(fd,fd)*7.);
+    col+=vec3(.78,.84,1.)*uFlash*(.03+g*(.15+cloudA*.75));
+    if(uBolt>.001&&uv.y<.74&&uv.y>.2){
+      float y=uv.y;
+      float xo=uFlashX+(fbm(vec2(y*6.,uFlashX*9.),4)-.5)*.07+(vn(vec2(y*55.,2.))-.5)*.008;
+      float dx=abs(uv.x-xo)*asp;
+      float bb=exp(-dx*dx/2.2e-6)*1.1+exp(-dx*55.)*.22;
+      float xb=xo+(.56-y)*.22+(vn(vec2(y*48.,9.))-.5)*.008;    // one branch
+      float db=abs(uv.x-xb)*asp;
+      bb+=(exp(-db*db/1.2e-6)*.7+exp(-db*70.)*.12)*step(y,.56)*smoothstep(.36,.5,y);
+      col+=vec3(.90,.93,1.)*bb*uBolt*smoothstep(.2,.32,y)*(1.-.8*c1.a);
+    }
+  }
+
+  // fog: horizontal banks that thicken towards the ground; the sun becomes a pale disc
+  if(uFog>.01){
+    float f=0.;
+    for(int i=0;i<3;i++){
+      float fi=float(i);
+      float n=fbm(vec2(uv.x*asp*(1.1+fi*.5)+uTime*.006*(fi+1.)+fi*13.,uv.y*(4.5+fi)),4);
+      f+=smoothstep(.32,.78,n)*exp(-pow((uv.y-(.12+fi*.2))/.2,2.))*(.75-fi*.15);
+    }
+    f=clamp(.42+f*.55+(1.-uv.y)*.3,0.,1.)*uFog;
+    vec3 fc=uFogCol+uSunCol*(exp(-ls*3.)*.18+exp(-ls*16.)*.35+smoothstep(.03,.026,ls)*.25)*uSunVis+vec3(.6,.65,.75)*(exp(-lm*4.)*.08+exp(-lm*16.)*.12+smoothstep(.03,.026,lm)*.15)*uMoonVis;
+    col=mix(col,fc,f*.9);
+  }
+
+  // rain: fine streaks at four depths and soft curtains below the cloud base
+  if(uRain>.01){
+    float sl=-uWind.x*.35-.08;
+    float shafts=fbm(vec2(uv.x*asp*5.+uv.y*sl*4.,uv.y*.6+uTime*.05),3);
+    col=mix(col,uAmb*.92,smoothstep(.45,.8,shafts)*smoothstep(.9,.35,uv.y)*uRain*.22*(1.-calm*.5));
+    float r=rainLayer(uv,asp,34.,3.6,1.,sl,.035)*.55+rainLayer(uv,asp,60.,3.0,3.,sl,.03)*.6
+           +rainLayer(uv,asp,105.,2.4,7.,sl,.026)*.5+rainLayer(uv,asp,170.,2.,11.,sl,.022)*.38;
+    vec3 rc=mix(uLit,vec3(1.),.3);
+    col+=rc*r*(.16+.26*uDay)*(1.-.5*calm);
+    col=mix(col,uFogCol,smoothstep(.45,0.,uv.y)*uRain*.18);    // spray haze
+  }
+  // snow: near flakes large and out of focus, far flakes small and crisp
+  if(uSnow>.01){
+    float s=snowLayer(uv,asp,6.,.09,1.,.16,.0)*.22+snowLayer(uv,asp,13.,.12,5.,.12,.25)*.45
+           +snowLayer(uv,asp,26.,.10,9.,.10,.45)*.6+snowLayer(uv,asp,48.,.07,15.,.09,.5)*.45;
+    col+=vec3(.97,.98,1.)*s*(.45+.4*uDay+.15*uNight)*(1.-.5*calm);
+  }
+  // diamond dust: tiny glints in very cold, clear air
+  if(uSparkle>.01){
+    vec2 p=uv*vec2(asp,1.)*90.;p.y+=uTime*.25;
+    vec2 id=floor(p),f=fract(p)-.5;
+    float h=h21(id+31.);
+    float sp=step(.985,h)*exp(-dot(f,f)*220.)*pow(.5+.5*sin(uTime*2.5+h*90.),6.);
+    col+=vec3(1.,.97,.9)*sp*uSparkle*(1.-calm);
+  }
+  // petals and leaves, kept to the edges
+  float dens=uPetals+uLeaves;
+  if(dens>.01){
+    float kind=uLeaves>uPetals?1.:0.;
+    float side=mix(.15,1.,edges);
+    vec4 d2=drift(uv,asp,9.,.05,4.,dens*.13*side,kind,.3);
+    vec4 d1=drift(uv,asp,3.2,.08,1.,dens*.12*side,kind,.8);
+    float lightK=(.35+.65*uDay)*(1.-.3*uGloom);
+    col=mix(col,d2.rgb*lightK,d2.a*.85);
+    col=mix(col,d1.rgb*lightK*1.04,d1.a*.6);
+  }
+
+  // the reading column: pull mid-tones gently back towards the open sky
+  col=mix(col,base+(col-base)*.6,calm*.5);
+  // soft shoulder so glows never clip into flat white
+  col=vec3(col.r<.82?col.r:.82+.18*(1.-exp(-(col.r-.82)/.18)),
+           col.g<.82?col.g:.82+.18*(1.-exp(-(col.g-.82)/.18)),
+           col.b<.82?col.b:.82+.18*(1.-exp(-(col.b-.82)/.18)));
+  // corners just a touch deeper for depth; never the middle
+  col*=1.-.10*pow(length((uv-vec2(.5,.45))*vec2(1.,1.2)),2.5);
+  col+=(h21(gl_FragCoord.xy+fract(uTime)*91.)-.5)/255.;
+  gl_FragColor=vec4(col,1.);
+}
+</script>
+<script>
+// Headroom sky: everything that depends on hour, season and weather is decided here, on the CPU, once per change.
+// The shader only receives final colours and a handful of 0..1 amounts.
+(() => {
+  const hex = (h) => [1, 3, 5].map((i) => parseInt(h.slice(i, i + 2), 16) / 255);
+  const mix = (a, b, k) => a.map((v, i) => v + (b[i] - v) * k);
+  const mul = (a, k) => a.map((v) => v * k);
+
+  // Sky stops per season and time of day: [zenith, middle, horizon]
+  const SKY = {
+    spring:  { dawn: ['#2A3E6D', '#AE8798', '#F2C2A4'], day: ['#2363BE', '#5B9CE3', '#C6E3F4'], golden: ['#33507F', '#D29A80', '#FFD7A2'], night: ['#050B1A', '#0D1A36', '#1E3155'] },
+    summer:  { dawn: ['#23386A', '#C28A86', '#FFC690'], day: ['#0D48A8', '#2C7EDC', '#ADD4F2'], golden: ['#2A4279', '#DD875E', '#FFBF6C'], night: ['#03081A', '#0A1636', '#1B2C50'] },
+    autumn:  { dawn: ['#2C3960', '#B0857D', '#F2BA8C'], day: ['#1F4F96', '#4B87C8', '#D3D9D6'], golden: ['#323F6C', '#CF7C4E', '#F7AA5E'], night: ['#060912', '#101A30', '#252C42'] },
+    winter:  { dawn: ['#2B3B60', '#8E9AB8', '#E9C6B4'], day: ['#3268AC', '#78A7D8', '#E0ECF5'], golden: ['#35476E', '#B39AA2', '#F3CBA9'], night: ['#02060F', '#08132A', '#172744'] },
+    monsoon: { dawn: ['#1A2836', '#4A5E6C', '#E39C6A'], day: ['#2C4656', '#5B7A8A', '#A9BCC0'], golden: ['#1B2633', '#4C5A66', '#EE965A'], night: ['#04070C', '#0C141C', '#18242E'] },
+  };
+  // Light by time: sun/moon colour, horizon glow, cloud lit side, cloud shadow side
+  const LIGHT = {
+    dawn:   { sun: '#FFB894', glow: '#E88C74', lit: '#FFD8C8', amb: '#5D6888' },
+    day:    { sun: '#FFF5E4', glow: '#FFFFFF', lit: '#FCFDFF', amb: '#A7B9D2' },
+    golden: { sun: '#FFA052', glow: '#FF8C40', lit: '#FFCB92', amb: '#5A617C' },
+    night:  { sun: '#DCE5F6', glow: '#1A2440', lit: '#56637E', amb: '#0C1424' },
+  };
+  // Weather skies by day and by night: [zenith, middle, horizon, cloud lit, cloud shadow, fog]
+  const WX = {
+    overcast: { w: .85, day: ['#7C8CA2', '#A2B1C3', '#CAD3DD', '#E6EBF1', '#8C99AC', '#C9D0D8'], night: ['#0C1119', '#161E2A', '#232D3B', '#2E3848', '#121821', '#202834'] },
+    drizzle:  { w: .85, day: ['#62728A', '#8697AC', '#B0BDCB', '#D2D9E2', '#6E7C90', '#B4BECA'], night: ['#0A0F17', '#141B27', '#212B39', '#283242', '#0E141D', '#1C2430'] },
+    rain:     { w: .92, day: ['#4D5D73', '#74859A', '#A0AFBF', '#BAC5D2', '#56657A', '#9CA8B6'], night: ['#080C13', '#111823', '#1C2533', '#232D3C', '#0B1018', '#18202B'] },
+    storm:    { w: 1,   day: ['#161C27', '#2A3341', '#4A5564', '#66728A', '#1A212C', '#3E4855'], night: ['#04060B', '#0B1018', '#161E29', '#1E2633', '#06090E', '#121821'] },
+    snow:     { w: .8,  day: ['#8494AB', '#B2BFCE', '#DDE4EB', '#F2F5F8', '#9AA8BA', '#DCE2E9'], night: ['#0F1520', '#1B2434', '#2C3748', '#3A4558', '#151C28', '#28313F'] },
+    fog:      { w: .55, day: ['#8FA2BA', '#BAC6D2', '#E2E5E7', '#EEF0F2', '#B5BDC7', '#DCE0E4'], night: ['#0B111B', '#18202C', '#2A323E', '#2F3846', '#141A24', '#2A323D'] },
+  };
+  // amounts per condition
+  const COND = {
+    clear:    { cover: .06, gloom: 0,   rain: 0,   snow: 0,  fog: 0,   tower: .2 },
+    partly:   { cover: .42, gloom: 0,   rain: 0,   snow: 0,  fog: 0,   tower: .35 },
+    overcast: { cover: 1.0,  gloom: .35, rain: 0,   snow: 0,  fog: .05, tower: .25 },
+    drizzle:  { cover: .86, gloom: .42, rain: .32, snow: 0,  fog: .12, tower: .3 },
+    rain:     { cover: .97, gloom: .65, rain: .7,  snow: 0,  fog: .12, tower: .55 },
+    storm:    { cover: 1,   gloom: .9,  rain: .95, snow: 0,  fog: .08, tower: 1 },
+    snow:     { cover: .88, gloom: .25, rain: 0,   snow: .8, fog: .18, tower: .2 },
+    fog:      { cover: .25, gloom: .1,  rain: 0,   snow: 0,  fog: .9,  tower: .1 },
+  };
+  // the season's own default mood (what a typical day looks like), plus its details
+  const SEASON = {
+    spring:  { cond: 'partly', cover: .4, cirrus: .12, haze: .08, petals: .9,  leaves: 0,  milky: .55, halo: 0,  sparkle: 0,  sunDay: [.73, .80], moon: [.76, .79], phase: 2.0 },
+    summer:  { cond: 'partly', cover: .34, cirrus: 0,   haze: .32, petals: 0,   leaves: 0,  milky: 1.0, halo: 0,  sparkle: 0,  sunDay: [.70, .90], moon: [.75, .82], phase: 2.5 },
+    autumn:  { cond: 'partly', cover: .26, cirrus: .6,  haze: .22, petals: 0,   leaves: .8, milky: .6,  halo: 0,  sparkle: 0,  sunDay: [.74, .74], moon: [.76, .78], phase: 2.2 },
+    winter:  { cond: 'clear',  cover: .05, cirrus: .35, haze: 0,   petals: 0,   leaves: 0,  milky: .4,  halo: .9, sparkle: .7, sunDay: [.77, .60], moon: [.74, .84], phase: 2.7 },
+    monsoon: { cond: 'rain',   cover: .82, cirrus: 0,   haze: .25, petals: 0,   leaves: 0,  milky: 0,   halo: 0,  sparkle: 0,  sunDay: [.72, .80], moon: [.76, .80], phase: 2.3, rain: .4, gloom: .35, tower: .9, wxw: .12 },
+  };
+  // sunrise / sunset (local hours) and how high the sun climbs, per season
+  const SUNPATH = { spring: [6.1, 18.4, .84], summer: [5.7, 19.0, .88], autumn: [6.2, 18.0, .74], winter: [6.9, 17.6, .55], monsoon: [5.8, 19.0, .86] };
+  // the four key hours used for the comparison frames
+  const KEYHOUR = { spring: { dawn: 6.25, day: 14.5, golden: 18.05, night: 2 }, summer: { dawn: 5.85, day: 14.5, golden: 18.65, night: 2 }, autumn: { dawn: 6.35, day: 14.3, golden: 17.65, night: 2 }, winter: { dawn: 7.05, day: 15.0, golden: 17.25, night: 2 }, monsoon: { dawn: 5.95, day: 14.5, golden: 18.65, night: 2 } };
+  const ss = (a, b, x) => { const t = Math.min(1, Math.max(0, (x - a) / (b - a))); return t * t * (3 - 2 * t); };
+
+  function sky(season, hour) {
+    const [rise, set, top] = SUNPATH[season];
+    const L = set - rise, f = (hour - rise) / L;
+    let e, sun;
+    if (f >= 0 && f <= 1) { e = Math.sin(Math.PI * f); sun = [.1 + .8 * f, .04 + top * Math.sin(Math.PI * f)]; }
+    else { const nf = (((hour - set) + 24) % 24) / (24 - L); e = -Math.sin(Math.PI * Math.min(1, nf)) * .6; sun = [f > 1 ? .9 + (f - 1) * .3 : .1 + f * .3, -.25]; }
+    const nf = f > 1 ? (hour - set) / (24 - L) : f < 0 ? (hour + 24 - set) / (24 - L) : -1;
+    const moon = nf >= 0 && nf <= 1 ? [.12 + .8 * nf, .18 + .64 * Math.sin(Math.PI * nf)] : [.5, -.4];
+    // weights of the four key palettes
+    let wN = 1 - ss(-.16, .0, e), wT = Math.exp(-Math.pow((e - .03) / .17, 2)), wD = ss(.1, .42, e);
+    const sum = wN + wT + wD; wN /= sum; wT /= sum; wD /= sum;
+    return { e, sun, moon, wN, wT, wD, twiKey: hour < 12 ? 'dawn' : 'golden', sunUp: ss(-.05, .03, e) };
+  }
+
+  function uniforms(st) {
+    const season = SKY[st.season] ? st.season : 'summer';
+    const se = SEASON[season];
+    const hour = st.hour != null ? st.hour : KEYHOUR[season][st.time || 'day'];
+    const S = sky(season, hour);
+    const auto = !st.weather || st.weather === 'auto';
+    const wname = auto ? se.cond : st.weather;
+    const c = { ...COND[wname] };
+    if (auto) { c.cover = se.cover; if (se.rain != null) c.rain = se.rain; if (se.gloom != null) c.gloom = se.gloom; if (se.tower != null) c.tower = se.tower; if (season !== 'monsoon') c.gloom = 0; }
+    const blend3 = (fn) => { const d = fn('day'), t = fn(S.twiKey), n = fn('night'); return d.map((v, i) => v * S.wD + t[i] * S.wT + n[i] * S.wN); };
+    let top = blend3((k) => hex(SKY[season][k][0])), mid = blend3((k) => hex(SKY[season][k][1])), hor = blend3((k) => hex(SKY[season][k][2]));
+    let sun = blend3((k) => hex(LIGHT[k].sun)), glow = blend3((k) => hex(LIGHT[k].glow)), lit = blend3((k) => hex(LIGHT[k].lit)), amb = blend3((k) => hex(LIGHT[k].amb));
+    amb = mix(amb, mid, .25);
+    let fogC = mix(hor, [1, 1, 1], .3 * (1 - S.wN));
+    const wx = WX[wname];
+    if (wx && !(auto && season !== 'monsoon')) {
+      const ww = auto ? se.wxw : wx.w;
+      const day = S.wD + .55 * S.wT; // twilight under cloud sits between the day and night greys
+      const W = wx.day.map((h, i) => mix(hex(wx.night[i]), hex(h), day));
+      top = mix(top, W[0], ww); mid = mix(mid, W[1], ww); hor = mix(hor, W[2], ww * (1 - .3 * S.wT));
+      lit = mix(lit, W[3], ww * .9); amb = mix(amb, W[4], ww); fogC = W[5];
+      glow = mul(glow, 1 - ww * .6);
+    }
+    if (season === 'monsoon') fogC = mix(hor, mid, .3);
+    const veil = Math.min(1, Math.max(0, (c.cover - .55) / .45));
+    const sunVis = S.sunUp * (1 - .75 * veil) * (1 - .8 * c.gloom);
+    const moonVis = S.wN * (S.moon[1] > -.1 ? 1 : 0) * (1 - .6 * veil) * (1 - .7 * c.gloom);
+    const flashDefault = wname === 'storm' ? .55 : 0;
+    return {
+      uTime: 37.0 + (st.t || 0), uTop: top, uMid: mid, uHor: hor, uGlow: glow, uSunCol: sun, uLit: lit, uAmb: amb, uFogCol: fogC,
+      uSun: S.sun, uMoon: S.moon, uSunVis: sunVis, uMoonVis: moonVis, uMoonPhase: se.phase, uTwi: S.wT * (1 - .5 * c.gloom), uNight: S.wN, uDay: S.wD + .35 * S.wT,
+      uCover: c.cover, uGloom: c.gloom, uTower: c.tower, uCirrus: (auto ? se.cirrus : 0) * (1 - veil), uRain: c.rain, uSnow: c.snow, uFog: c.fog,
+      uHaze: auto ? se.haze : 0, uHalo: auto ? se.halo : 0, uSparkle: auto ? se.sparkle * (1 - S.wN) : 0,
+      uStars: S.wN, uMilky: auto ? se.milky : .6, uPetals: auto ? se.petals : 0, uLeaves: auto ? se.leaves : 0,
+      uFlash: st.flash != null ? st.flash : flashDefault, uFlashX: st.flashX != null ? st.flashX : .84, uBolt: st.bolt != null ? st.bolt : (wname === 'storm' ? 1 : 0),
+      uCalm: st.calm != null ? st.calm : 1, uWind: st.wind || [.6, 0],
+      uSeed: (({ spring: [3, 1], summer: [11, 4], autumn: [23, 7], winter: [5, 13], monsoon: [17, 2] })[season]).map((v, i) => v + (auto ? 0 : ({ clear: 0, partly: 0, overcast: 0, drizzle: 6.1, rain: 9.7, storm: 4.4, snow: 7.9, fog: 0 })[wname] * (i ? .6 : 1))),
+    };
+  }
+  globalThis.HRSKY = { uniforms, sky, SUNPATH, KEYHOUR, SKY, LIGHT, WX, COND, SEASON };
+})();
+
+</script>
+<script>
+(() => {
+  const cv = document.getElementById('c');
+  const gl = cv.getContext('webgl', { antialias: false, alpha: false, powerPreference: 'low-power' });
+  if (!gl) { document.body.style.background = 'linear-gradient(#2363BE,#C6E3F4)'; return; }
+  const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) console.error(gl.getShaderInfoLog(o)); return o; };
+  const pr = gl.createProgram();
+  gl.attachShader(pr, sh(gl.VERTEX_SHADER, 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}'));
+  gl.attachShader(pr, sh(gl.FRAGMENT_SHADER, document.getElementById('frag').textContent));
+  gl.linkProgram(pr); gl.useProgram(pr);
+  gl.bindBuffer(gl.ARRAY_BUFFER, gl.createBuffer());
+  gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+  gl.enableVertexAttribArray(0); gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
+  const U = {};
+  for (let i = 0, n = gl.getProgramParameter(pr, gl.ACTIVE_UNIFORMS); i < n; i++) { const u = gl.getActiveUniform(pr, i); U[u.name] = gl.getUniformLocation(pr, u.name); }
+  const set = (k, v) => { const l = U[k]; if (l == null) return; if (typeof v === 'number') gl.uniform1f(l, v); else if (v.length === 2) gl.uniform2fv(l, v); else gl.uniform3fv(l, v); };
+
+  // ---- state ----
+  const now = new Date();
+  const m = now.getMonth();
+  // India: Mar-May summer, Jun-Sep monsoon, Oct-Nov autumn, Dec-Feb winter
+  const season0 = m >= 2 && m <= 4 ? 'summer' : m >= 5 && m <= 8 ? 'monsoon' : m >= 9 && m <= 10 ? 'autumn' : 'winter';
+  const st = { season: season0, weather: 'auto', hour: now.getHours() + now.getMinutes() / 60, mode: 'live', page: 'none', reduce: matchMedia('(prefers-reduced-motion: reduce)').matches, calm: 1 };
+  const SEASONS = [['spring', 'Spring'], ['summer', 'Summer'], ['autumn', 'Autumn'], ['winter', 'Winter'], ['monsoon', 'Monsoon']];
+  const WEATHERS = [['auto', "Season's own"], ['clear', 'Clear'], ['partly', 'Partly cloudy'], ['overcast', 'Overcast'], ['drizzle', 'Drizzle'], ['rain', 'Rain'], ['storm', 'Thunderstorm'], ['snow', 'Snow'], ['fog', 'Fog']];
+  const PAGES = [['none', 'None'], ['dark', 'Dark chat'], ['light', 'Light chat']];
+
+  const $ = (id) => document.getElementById(id);
+  function chips(el, list, key) {
+    for (const [v, label] of list) {
+      const b = document.createElement('button'); b.textContent = label; b.dataset.v = v;
+      b.addEventListener('click', () => { st[key] = v; sync(); });
+      el.appendChild(b);
+    }
+  }
+  chips($('seasons'), SEASONS, 'season'); chips($('weathers'), WEATHERS, 'weather'); chips($('pages'), PAGES, 'page');
+  document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
+    st.mode = b.dataset.mode;
+    if (st.mode === 'live') { const d = new Date(); st.hour = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; }
+    sync();
+  }));
+  $('hour').addEventListener('input', (e) => { st.hour = +e.target.value; if (st.mode !== 'hold') st.mode = 'hold'; sync(); });
+  $('motion').addEventListener('click', () => { st.reduce = !st.reduce; sync(); });
+  $('calm').addEventListener('click', () => { st.calm = st.calm ? 0 : 1; sync(); });
+  $('minBtn').addEventListener('click', () => { const p = $('panel'); p.classList.toggle('min'); $('minBtn').setAttribute('aria-label', p.classList.contains('min') ? 'Expand controls' : 'Collapse controls'); });
+
+  const fmt = (h) => { h = ((h % 24) + 24) % 24; const H = Math.floor(h), M = Math.floor((h - H) * 60); return String(H).padStart(2, '0') + ':' + String(M).padStart(2, '0'); };
+  function phaseName(h) {
+    const [rise, setH] = HRSKY.SUNPATH[st.season];
+    if (h > rise - .6 && h < rise + 1) return 'Dawn'; if (h > setH - 1.2 && h < setH + .6) return 'Golden hour';
+    if (h >= rise + 1 && h <= setH - 1.2) return 'Day'; return 'Night';
+  }
+  function sync() {
+    for (const [id, key] of [['seasons', 'season'], ['weathers', 'weather'], ['pages', 'page']])
+      $(id).querySelectorAll('button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === st[key])));
+    document.querySelectorAll('[data-mode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === st.mode)));
+    $('motion').setAttribute('aria-pressed', String(st.reduce));
+    $('calm').setAttribute('aria-pressed', String(!!st.calm));
+    const pg = $('page'); pg.className = 'page ' + (st.page === 'none' ? '' : 'on ' + st.page);
+  }
+  sync();
+
+  // ---- size: real pixels, capped so a big or high-DPI screen stays light ----
+  let W = 0, H = 0;
+  function resize() {
+    const dpr = Math.min(1.5, devicePixelRatio || 1);
+    const k = Math.min(dpr, Math.sqrt(2.2e6 / (innerWidth * innerHeight)));
+    const w = Math.round(innerWidth * k), h = Math.round(innerHeight * k);
+    if (w !== W || h !== H) { W = cv.width = w; H = cv.height = h; gl.viewport(0, 0, w, h); }
+  }
+
+  // ---- lightning: a few quick pulses, sometimes with a bolt at a window edge ----
+  let nextFlash = 2.5, flashT0 = -10, flashX = .85, boltOn = false;
+  function flashAt(t) {
+    const d = t - flashT0; if (d < 0 || d > 1.2) return 0;
+    return Math.exp(-d * 9) + .7 * Math.exp(-Math.abs(d - .16) * 22) + .45 * Math.exp(-Math.abs(d - .38) * 16);
+  }
+
+  // ---- loop: everything eases toward its target ----
+  let cur = null, last = performance.now(), simT = 0, lastDescKey = '';
+  function frame(nowMs) {
+    const dt = Math.min(.1, (nowMs - last) / 1000); last = nowMs;
+    if (document.hidden) { requestAnimationFrame(frame); return; }
+    resize();
+    if (!st.reduce) simT += dt;
+    if (st.mode === 'live') { const d = new Date(); st.hour = d.getHours() + d.getMinutes() / 60 + d.getSeconds() / 3600; }
+    else if (st.mode === 'lapse') st.hour = (st.hour + dt * (st.reduce ? .05 : .25)) % 24;   // a day in about 96 s
+    $('hour').value = st.hour.toFixed(2);
+    $('clock').textContent = fmt(st.hour);
+    const dk = phaseName(st.hour) + st.season + st.weather + st.mode;
+    if (dk !== lastDescKey) { lastDescKey = dk; $('desc').textContent = phaseName(st.hour) + ' · ' + SEASONS.find((s) => s[0] === st.season)[1] + ' · ' + WEATHERS.find((w) => w[0] === st.weather)[1] + (st.mode === 'live' ? ' · live clock' : st.mode === 'lapse' ? ' · time-lapse' : ''); }
+
+    const tgt = HRSKY.uniforms({ season: st.season, weather: st.weather, hour: st.hour, t: simT, calm: st.calm, flash: 0, bolt: 0 });
+    // storms flash at random; the monsoon flickers far away at night
+    const stormy = st.weather === 'storm' || (st.weather === 'auto' && st.season === 'monsoon' && tgt.uNight > .5);
+    if (stormy && !st.reduce && simT > nextFlash) {
+      flashT0 = simT; nextFlash = simT + 4 + Math.random() * 7;
+      flashX = Math.random() < .5 ? .07 + Math.random() * .13 : .8 + Math.random() * .13;
+      boltOn = st.weather === 'storm' && Math.random() < .45;
+    }
+    const fl = stormy ? flashAt(simT) * (st.weather === 'storm' ? .75 : .3) : 0;
+    if (!cur) cur = JSON.parse(JSON.stringify(tgt));
+    const kSlow = 1 - Math.exp(-dt / 1.6), kFast = 1 - Math.exp(-dt / (st.mode === 'hold' ? .35 : 1.6));
+    for (const key in tgt) {
+      if (key === 'uTime') { cur[key] = tgt[key]; continue; }
+      const fast = key === 'uSun' || key === 'uMoon';
+      const k = fast ? kFast : kSlow;
+      if (typeof tgt[key] === 'number') cur[key] += (tgt[key] - cur[key]) * k;
+      else for (let i = 0; i < tgt[key].length; i++) cur[key][i] += (tgt[key][i] - cur[key][i]) * k;
+    }
+    set('uRes', [W, H]);
+    for (const key in cur) set(key, cur[key]);
+    set('uFlash', fl); set('uFlashX', flashX); set('uBolt', boltOn ? Math.min(1, fl * 1.6) : 0);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

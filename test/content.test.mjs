@@ -12,8 +12,9 @@ const quotas = (() => {
 })();
 
 // Runs the real content-script bundle (exactly the manifest's file order) on a fake page at `host`.
-async function loadContent(host, { settings, top = true, beforeContent } = {}) {
+async function loadContent(host, { settings, top = true, beforeContent, hidden = false, stored: extraStored } = {}) {
   const document = makeDocument();
+  document.hidden = hidden;
   document.documentElement = { innerHTML: '', lang: 'en', appendChild: (n) => document.body.appendChild(n) };
   document.querySelector = () => null;
   document.querySelectorAll = () => [];
@@ -21,7 +22,7 @@ async function loadContent(host, { settings, top = true, beforeContent } = {}) {
   const sent = [];
   const onMessage = [];
   const onChanged = [];
-  const stored = { ...(settings ? { settings } : {}) };
+  const stored = { ...(settings ? { settings } : {}), ...(extraStored || {}) };
   const sandbox = {
     console: { ...console, warn() {}, log() {}, debug() {} },
     document, Date, URL, URLSearchParams, JSON, Promise, Math, setTimeout, clearTimeout,
@@ -160,4 +161,22 @@ test('an adapter whose refresh throws (sync or async) is contained: the request 
     assert.equal(replied && replied.ok, true);
     c.onChanged.forEach((fn) => fn({ settings: { newValue: {} } }, 'local')); // a settings change must not throw either
   }
+});
+
+test('weather: a hidden tab does not mount the sky until it becomes visible', async () => {
+  let mounts = 0;
+  const fakeSky = { destroy() {}, setStrength() {}, setState() {} };
+  const opts = {
+    settings: { weather: true, weatherPlace: { lat: 28.6, lon: 77.2, name: 'Test' }, weatherForce: { weather: 'clear' } },
+    stored: {},
+    beforeContent: (AM) => { AM.WeatherSky = { mount: () => { mounts++; return fakeSky; } }; },
+  };
+  const hiddenPage = await loadContent('claude.ai', { ...opts, hidden: true });
+  assert.equal(mounts, 0, 'no mount while hidden');
+  const fns = hiddenPage.document.listeners.visibilitychange || [];
+  assert.ok(fns.length >= 1, 'a visibilitychange listener waits for the tab to be shown');
+  hiddenPage.document.hidden = false;
+  fns.forEach((fn) => fn());
+  await new Promise((r) => setTimeout(r, 30));
+  assert.equal(mounts, 1, 'mounts once the tab is visible');
 });

@@ -119,6 +119,8 @@
   let sky = null;
   let skyToken = 0;
   let weatherData = null;
+  let skyRetries = 0;
+  let skyWaitingVisible = false;
   const applyWeather = async () => {
     const token = ++skyToken;
     const show = adapter && settings.weather && settings.weatherPlace && (weatherData || settings.weatherForce);
@@ -126,11 +128,31 @@
       if (sky) { sky.destroy(); sky = null; }
       return;
     }
+    // A hidden tab (for example one restored with many others) never gets its own WebGL canvas until it is shown.
+    if (!sky && document.hidden) {
+      if (!skyWaitingVisible && document.addEventListener) {
+        skyWaitingVisible = true;
+        document.addEventListener('visibilitychange', function onVisible() {
+          if (document.hidden) return;
+          skyWaitingVisible = false;
+          try { document.removeEventListener('visibilitychange', onVisible); } catch {}
+          applyWeather();
+        });
+      }
+      return;
+    }
     try {
       if (!AM.WeatherSky) await AM.loadWeather();
       if (token !== skyToken || !AM.WeatherSky) return;
       if (!sky) {
-        sky = AM.WeatherSky.mount({ strength: settings.weatherStrength, onLost: () => { sky = null; } });
+        sky = AM.WeatherSky.mount({
+          strength: settings.weatherStrength,
+          // The renderer has destroyed itself after a lost graphics context: try again, at most 3 times per page load.
+          onLost: () => {
+            sky = null;
+            if (skyRetries < 3) { skyRetries++; setTimeout(applyWeather, 5000); }
+          },
+        });
         if (!sky) return;
       } else sky.setStrength(settings.weatherStrength);
       sky.setState(AM.WEATHER.skyState(weatherData, Date.now(), settings.weatherForce));

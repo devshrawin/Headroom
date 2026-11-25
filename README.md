@@ -11,7 +11,7 @@ A Chrome extension with two jobs on the AI sites you use. It shows how much of y
 1. Clone or download this repo.
 2. Open `chrome://extensions`, turn on **Developer mode**.
 3. Click **Load unpacked** and pick the repo folder (the one with `manifest.json`).
-4. A short "how it works" page opens on first install. Open any supported site: a thin bar appears along the bottom of the page (point at it for the percentage, click or press Enter for details). Open **Settings → Weather** to choose your place and switch the sky on.
+4. A short "how it works" page opens on first install. Open any supported site: a thin bar appears along the bottom of the page (point at it for the percentage, click or press Enter for details; drag it to the top, left or right edge if you prefer, and use the gear in the details panel to open Settings). Open **Settings → Weather** to choose your place and switch the sky on.
 
 Settings is one page at a time with a left nav and search, and everything saves as you change it. It also has **Export / Import settings** (a backup file with your limits, thresholds and meter and weather options, never usage data or your place) and a link to the first-run guide.
 
@@ -45,10 +45,10 @@ Estimate limits change often and differ by plan — set yours in **Settings → 
 Settings → **Weather**. Choose where you are with **Use my location** (Chrome asks once) or by typing a city. From then on every AI site you use gets a sky behind the chat that follows the real weather.
 
 - **What it shows.** Clear, partly cloudy, overcast, drizzle, rain, thunderstorm, snow and fog, with the sun and moon at the real hour (from the real sunrise and sunset), clouds that move the way the real wind blows, and falling leaves (autumn) or petals (spring). India gets a monsoon, not four temperate seasons.
-- **How it is drawn.** One WebGL fragment shader in `src/core/weather-sky.js`, no images, no downloads. It sits behind the page (the page's big opaque backgrounds are made transparent while it is on), so text and images are never tinted; **Sky strength** in Settings turns it up or down. It never blocks the page or your clicks (`pointer-events: none`), draws at about 30 frames a second at low resolution, pauses when the tab is hidden, stays still if your system asks for reduced motion, and its code is injected into a tab only when the weather is on.
+- **How it is drawn.** One WebGL fragment shader in `src/core/weather-sky.js`, no images, no downloads. It sits behind the page (the page's big opaque backgrounds are made transparent while it is on), so text and images keep their own colours by day. At night on a light page, the page is flipped to a dark look and its images are flipped back so they look normal; **Sky strength** in Settings turns it up or down. It never blocks the page or your clicks (`pointer-events: none`), draws at most 30 frames a second, at the screen's pixel density (capped) and steps its resolution down by itself on a slow graphics card, pauses when the tab is hidden, stays still if your system asks for reduced motion, and its code is injected into a tab only when the weather is on.
 - **Where the data comes from.** The background script asks [Open-Meteo](https://open-meteo.com) (free, no key, no account) for the forecast every 20 minutes and keeps it in `chrome.storage.local`; tabs only read it. Only the place's **coordinates rounded to two decimals** (about 1 km) are sent, to `api.open-meteo.com`. The place is stored on your computer and is never part of a settings backup.
-- **One click off.** The details panel on the page has **Turn off weather**. Settings → Weather → **Try a look** shows any weather, season or hour for testing.
-- Preview with controls: `node tools/weather-preview/serve.mjs` and open http://localhost:8802.
+- **One click off.** The details panel on the page has **Turn off weather** and a settings gear that opens Settings. Settings → Weather → **Try a look** shows any weather, season or hour for testing.
+- Preview with controls: `node tools/weather-preview/serve.mjs` and open http://localhost:8802. This dev page still shows the pre-1.4 sky; the current design reference is `docs/sky-redesign/live-sky.html`.
 
 ## Adding any AI site
 
@@ -104,6 +104,7 @@ src/
     banner.js          watches for the site's own limit notices
     widget.js          on-page meter bar (shadow DOM)
     weather-data.js    weather codes, seasons, sun times, the look of the sky (pure functions)
+    sky-palette.js     hour x season x weather to sky colours and amounts (pure functions)
     weather-sky.js     the weather sky renderer (WebGL), injected on demand
   adapters/            one file per provider; generic.js = counting sites + user-added sites
   popup/  options/  welcome/   toolbar popup, settings page, first-run guide

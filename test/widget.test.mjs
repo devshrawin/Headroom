@@ -170,7 +170,8 @@ test('a11y: Enter and Space open the panel, Escape closes it, other keys do noth
   const key = (k, extra = {}) => { const e = { prevented: false }; pill.fire('keydown', { key: k, preventDefault() { e.prevented = true; }, ...extra }); return e; };
   assert.equal(key('Enter').prevented, true);
   assert.ok(w.panelText(), 'Enter opens');
-  key('Escape');
+  // Escape is handled on the wrapper (the stub does not bubble, so fire it there, as a keydown from the panel would)
+  w.root.byClass('wrap')[0].fire('keydown', { key: 'Escape', preventDefault() {} });
   assert.equal(w.panelText(), null, 'Escape closes');
   key(' ');
   assert.ok(w.panelText(), 'Space opens');
@@ -251,6 +252,49 @@ test('switching the position remounts the meter on the other edge; anything else
   assert.match(w.host.style.cssText, /bottom:0/);
 });
 
+
+test('the panel has a gear button that asks the extension to open Settings', () => {
+  const w = loadWidget();
+  const sent = [];
+  w.sandbox.chrome.runtime.sendMessage = (m) => sent.push(m);
+  w.update('Claude', [real(10)]);
+  assert.equal(w.root.byClass('gear').length, 0, 'no gear while the panel is closed');
+  w.click();
+  const gear = w.root.byClass('gear')[0];
+  assert.ok(gear, 'the gear is in the panel');
+  assert.equal(gear.tagName, 'BUTTON', 'a real button, so it is in the tab order');
+  assert.equal(gear.attrs['aria-label'], 'Open Headroom settings');
+  gear.fire('click');
+  assert.equal(JSON.stringify(sent), JSON.stringify([{ type: 'headroom:openSettings' }]));
+});
+
+test('a11y: Escape pressed inside the panel closes it and returns focus to the bar', () => {
+  const w = loadWidget();
+  w.update('Claude', [real(10)]);
+  let focused = 0;
+  w.pill().focus = () => { focused++; };
+  w.click();
+  assert.ok(w.panelText());
+  let prevented = false;
+  w.root.byClass('wrap')[0].fire('keydown', { key: 'Escape', preventDefault() { prevented = true; } });
+  assert.equal(w.panelText(), null);
+  assert.equal(prevented, true);
+  assert.equal(focused, 1);
+  w.root.byClass('wrap')[0].fire('keydown', { key: 'Escape', preventDefault() {} });
+  assert.equal(focused, 1, 'Escape with the panel closed does nothing');
+});
+
+test('a11y: Escape that closes the panel stops propagation so the site does not also see it', () => {
+  const w = loadWidget();
+  w.update('Claude', [real(10)]);
+  w.click();
+  let stopped = 0;
+  w.root.byClass('wrap')[0].fire('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() { stopped++; } });
+  assert.equal(w.panelText(), null);
+  assert.equal(stopped, 1);
+  w.root.byClass('wrap')[0].fire('keydown', { key: 'Escape', preventDefault() {}, stopPropagation() { stopped++; } });
+  assert.equal(stopped, 1, 'a closed panel lets Escape through to the site');
+});
 
 test('the panel has a one-click "Turn off weather", and "Turn on weather" after it', () => {
   const w = loadWidget();

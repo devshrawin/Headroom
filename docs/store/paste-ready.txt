@@ -27,7 +27,7 @@ Privacy policy URL: https://github.com/devshrawin/Headroom/blob/main/docs/privac
 === DESCRIPTION (paste everything below this line) ===
 Headroom does two things on the AI chat sites you use: it shows how much of your usage limit is left, and it puts the real weather behind your chat.
 
-Your limit, as a thin bar. A slim bar runs along the bottom (or top) of the page and fills as you use your limit. Point at it for the percentage and when it resets, click it for the details. Shapes as well as colours show the level, so it reads without colour.
+Your limit, as a thin bar. A slim bar runs along the edge of the page and fills as you use your limit. Drag it to the top, bottom, left or right edge, wherever it bothers you least. Point at it for the percentage and when it resets, click it for the details. Shapes as well as colours show the level, so it reads without colour.
 
 The real weather, behind your chat. Choose where you are (use your location, or type a city) and the page gets a living sky that follows the real weather and the real hour: sun, moon and stars, moving clouds, rain, snow, fog, lightning and falling leaves in autumn. It never blocks the page or your clicks, you can turn it off with one click, and you can lower its strength if text is hard to read.
 
@@ -46,6 +46,6 @@ Also included
 • Keyboard support: Tab to the bar, Enter to open it
 
 Private by design
-Everything stays on your machine. There is no server of ours, no account and no analytics. Usage requests go from your own logged-in tab to the site's own servers, exactly as its settings page would send them. Message text is never stored. The one other request is for the weather, only if you turn it on: the rounded coordinates of the place you choose (about 1 km) go to the free Open-Meteo weather service to ask for the forecast. See the privacy policy for the details.
+Everything stays on your machine. There is no server of ours, no account and no analytics. Usage requests go from your own logged-in tab to the site's own servers, exactly as its settings page would send them. Message text is never stored. The one other request is for the weather, only if you turn it on: the rounded coordinates of the place you choose (about 1 km) go to the free Open-Meteo weather service to ask for the forecast. If you type a city name to choose the place, that name goes to the free Open-Meteo geocoding service to find it. See the privacy policy for the details.
 
 Headroom is an independent project and is not affiliated with, endorsed by or sponsored by any of the AI services it works with. All product names belong to their owners.

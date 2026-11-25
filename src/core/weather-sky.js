@@ -6,206 +6,332 @@
 (() => {
   const AM = globalThis.Headroom;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const lerp = (a, b, k) => a + (b - a) * k;
-  const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
   const VERT = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
   const FRAG = `
 precision highp float;
 uniform vec2 uRes; uniform float uTime;
-uniform vec2 uSun, uMoon;                 // positions on screen (0..1)
-uniform float uDay,uTwi,uNight;           // how much day, twilight and night there is
-uniform float uCover,uGloom,uRain,uSnow,uFog,uLight,uLightX,uLeaves,uLeafKind;
-uniform vec2 uWind, uShift;   // wind now, and how far the wind has carried things in all
-uniform vec3 uSeasonTint;
+// sky stops, computed on the CPU from hour x season x weather
+uniform vec3 uTop,uMid,uHor,uGlow;
+// light: sun or moon colour, cloud lit side, cloud shadow side
+uniform vec3 uSunCol,uLit,uAmb,uFogCol;
+uniform vec2 uSun,uMoon;
+uniform float uSunVis,uMoonVis,uMoonPhase,uTwi,uNight,uDay;
+uniform float uCover,uGloom,uTower,uCirrus,uRain,uSnow,uFog,uHaze,uHalo,uSparkle;
+uniform float uStars,uMilky,uPetals,uLeaves,uFlash,uFlashX,uBolt,uCalm;
+uniform float uLift; // light page by day: eases the whole sky toward white (0..1) so grey text on the sidebar and header stays readable
+uniform float uVeil; // reading-column veil, -1..1: >0 darkens (white text on a bright sky), <0 lightens (dark text on a deep sky)
+uniform vec2 uWind,uSeed,uShift; // uShift: how far the wind has carried things in all (so a change in wind never makes clouds jump)
 
-float h11(float p){p=fract(p*.1031);p*=p+33.33;p*=p+p;return fract(p);}
 float h21(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
-float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*f*(f*(f*6.-15.)+10.);
-  float a=h21(i),b=h21(i+vec2(1.,0.)),c=h21(i+vec2(0.,1.)),d=h21(i+vec2(1.,1.));
+float vn(vec2 p){vec2 i=floor(p),f=fract(p);f=f*f*(3.-2.*f);
+  float a=h21(i),b=h21(i+vec2(1,0)),c=h21(i+vec2(0,1)),d=h21(i+vec2(1,1));
   return mix(mix(a,b,f.x),mix(c,d,f.x),f.y);}
-float fbm(vec2 p){float v=0.,a=.5;for(int i=0;i<5;i++){v+=a*vn(p);p=p*2.02+vec2(17.3,9.1);a*=.5;}return v;}
-float fbm4(vec2 p){float v=0.,a=.5;for(int i=0;i<4;i++){v+=a*vn(p);p=p*2.02+vec2(17.3,9.1);a*=.5;}return v;}
-float luma(vec3 c){return dot(c,vec3(.299,.587,.114));}
+const mat2 RT=mat2(.8,.6,-.6,.8);
+float fbm(vec2 p,int oct){float v=0.,a=.5;for(int i=0;i<6;i++){if(i>=oct)break;v+=a*vn(p);p=RT*p*2.03+vec2(11.7,5.3);a*=.5;}return v;}
+// billowy fbm: rounded "cauliflower" lobes for cumulus tops
+float bill(vec2 p,int oct){float v=0.,a=.5;for(int i=0;i<6;i++){if(i>=oct)break;v+=a*(1.-abs(vn(p)*2.-1.));p=RT*p*2.07+vec2(3.1,7.9);a*=.5;}return v;}
+float luma(vec3 c){return dot(c,vec3(.2126,.7152,.0722));}
 
-// sky gradient: bottom (horizon glow) -> middle -> top, for the hour and the weather
-vec3 skyGradient(vec2 uv){
-  float y=uv.y;
-  vec3 dayT=vec3(.10,.34,.80), dayM=vec3(.27,.55,.92), dayB=vec3(.60,.80,.98);
-  vec3 nightT=vec3(.008,.014,.06), nightM=vec3(.03,.06,.16), nightB=vec3(.07,.12,.27);
-  vec3 twiT=vec3(.12,.16,.42), twiM=vec3(.62,.32,.50), twiB=vec3(1.,.58,.30);
-  vec3 t=mix(nightT,dayT,uDay), m=mix(nightM,dayM,uDay), b=mix(nightB,dayB,uDay);
-  t=mix(t,twiT,uTwi*.85); m=mix(m,twiM,uTwi*.85); b=mix(b,twiB,uTwi*.9);
-  vec3 g=y>.5?mix(m,t,smoothstep(.5,1.,y)):mix(b,m,smoothstep(0.,.5,y));
-  // warm glow where the sun is going down or coming up
-  float side=smoothstep(.75,0.,distance(vec2(uv.x*1.2,y*1.6),vec2(uSun.x*1.2,uSun.y*1.6)));
-  g+=vec3(1.,.5,.2)*side*uTwi*.35;
-  // weather greys the sky and darkens it
-  float grey=clamp(smoothstep(.35,1.,uCover)*.85+uGloom*.3,0.,1.);
-  vec3 gc=vec3(luma(g))*vec3(.94,1.,1.1)*mix(1.,.34,uGloom);
-  g=mix(g,gc,grey);
-  g*=uSeasonTint;
+// ---------- 1. sky dome ----------
+vec3 skyDome(vec2 uv,float asp){
+  float y=uv.y+.035*pow(abs(uv.x-.5)*2.,2.);          // stops bend a little: reads as a dome, not a flat card
+  vec3 g=mix(uHor,uMid,smoothstep(0.,.42,y));
+  g=mix(g,uTop,smoothstep(.3,1.05,y));
+  vec2 ds=(uv-uSun)*vec2(asp,1.);
+  float l=length(ds);
+  // forward scattering: the sky whitens towards the sun (strong at low sun, gentle by day)
+  vec2 dw=(uv-uSun)*vec2(asp*.5,1.7);
+  g+=uGlow*exp(-dot(dw,dw)*2.2)*(.12+.36*uTwi)*max(uSunVis,uTwi*.6);
+  g+=uSunCol*exp(-l*2.4)*.10*uSunVis*(1.-uTwi);
+  // anti-twilight: a rosy band opposite the sun with the blue earth shadow under it
+  float opp=smoothstep(.25,.75,abs(uv.x-uSun.x));
+  g+=vec3(.42,.20,.22)*exp(-pow((y-.17)/.07,2.))*opp*uTwi*.22*(1.-uGloom);
+  g=mix(g,g*vec3(.78,.84,1.),smoothstep(.12,0.,y)*opp*uTwi*.5);
+  // horizon haze: summer heat, autumn dust, monsoon humidity
+  g=mix(g,mix(uHor,vec3(1.),.25),uHaze*exp(-max(y,0.)*7.));
   return g;
 }
 
-// soft volumetric clouds: wide smooth edges, lit from the sun's side, driven by the wind
-vec4 clouds(vec2 uv,float asp,float scale,float speed,float seed,float cover,vec2 sunDir){
-  vec2 p=vec2(uv.x*asp,uv.y)*scale+uShift*speed+seed;
-  float warp=fbm4(p*.4+3.1);
-  float n=fbm4(p+.55*warp);
-  float lo=.86-cover*.54, hi=lo+.42;
-  float d=smoothstep(lo,hi,n);
-  float n2=fbm4(p+sunDir*.2+.55*warp);
-  float d2=smoothstep(lo,hi,n2);
-  float lit=clamp(.62+(d-d2)*1.5-.2*d*uGloom,0.,1.);
-  // clouds hug the upper two thirds of the sky and thin out near the horizon
-  float vis=smoothstep(.1,.45,uv.y);
-  float a=d*mix(vis,1.,smoothstep(.5,1.,uCover));
-  vec3 sunCol=mix(vec3(1.,.55,.28),vec3(1.,.97,.92),smoothstep(0.,.7,uDay*(1.-uTwi)));
-  vec3 lightC=mix(sunCol,vec3(.75,.82,1.),uNight*.8)*(.3+.85*(1.-uNight*.7));
-  lightC=mix(lightC,vec3(.6,.65,.76)*(.26+.5*uDay),uGloom*.9);
-  vec3 shadowC=mix(vec3(.62,.70,.84),vec3(.19,.22,.31),uGloom)*(.28+.72*uDay)+vec3(.02,.03,.07)*uNight;
-  shadowC=mix(shadowC,shadowC*vec3(1.1,.8,.8)+vec3(.2,.08,.12)*uTwi,uTwi*.6);
-  vec3 c=mix(shadowC,lightC,lit);
-  // a bright rim on the side facing the sun
-  c+=lightC*pow(clamp(1.-d,0.,1.),3.)*.35*uDay*(1.-uGloom);
-  return vec4(c,clamp(a,0.,1.));
+// ---------- 2. night: Milky Way and stars ----------
+vec3 starLayer(vec2 q,float sc,float prob,float rad,float seed){
+  vec2 p=q*sc,id=floor(p),f=fract(p)-.5;
+  float h=h21(id+seed);
+  if(h>prob)return vec3(0.);
+  vec2 o=(vec2(h21(id+seed+1.),h21(id+seed+2.))-.5)*.7;
+  float d=length(f-o),b=h21(id+seed+3.);
+  float tw=b>.8?.6+.4*sin(uTime*(1.1+b*1.7)+h*70.):1.;    // only one star in five twinkles
+  vec3 tint=mix(vec3(.72,.80,1.),vec3(1.,.86,.70),h21(id+seed+4.));
+  return tint*exp(-d*d/(rad*rad))*(.25+.75*b*b*b)*tw;
+}
+vec3 nightSky(vec2 uv,float asp){
+  vec2 q=uv*vec2(asp,1.);
+  vec2 a=vec2(-.1,-.15),dir=normalize(vec2(asp*.75,1.25)),nrm=vec2(-dir.y,dir.x);
+  float dist=dot(q-a,nrm),along=dot(q-a,dir);
+  float band=exp(-dist*dist/.07);
+  float core=exp(-pow((along-.55)/.45,2.));
+  float cl=fbm(q*2.6+7.,5);
+  float lane=smoothstep(.5,.72,fbm(vec2(along*3.,dist*9.)+3.,4))*exp(-dist*dist/.006);
+  float mw=band*smoothstep(.25,.7,cl)*(.55+.9*core)*(1.-.75*lane)*uMilky;
+  vec3 c=mix(vec3(.50,.58,.76),vec3(.92,.84,.72),core*.55)*mw*.24;
+  float boost=1.+band*uMilky*2.5;
+  c+=starLayer(q,260.,.06*boost,.07,1.)*.55;
+  c+=starLayer(q,120.,.05,.075,7.)*.9;
+  c+=starLayer(q,46.,.035,.06,13.)*1.5;
+  return c*uStars*smoothstep(.0,.35,uv.y);
 }
 
-// one depth of falling rain: a streak is a bright head with a long fading tail, softer when it is close
-float rainLayer(vec2 uv,float scale,float speed,float seed,float slant,float asp,float thick){
-  vec2 p=vec2(uv.x*asp,uv.y)*vec2(scale,scale*.11);
-  p.x+=p.y*slant; p.y+=uTime*speed;
+// ---------- 3. clouds ----------
+// density on a cloud deck seen in perspective: big overhead, small and flat near the horizon
+float cumDensity(vec2 p,float cov,float bias){
+  float shape=fbm(p*.55+vec2(uTime*.004,uTime*.002),4);                               // where the clouds are
+  vec2 w=vec2(vn(p*1.3+4.1),vn(p*1.3+9.7))-.5;
+  float detail=fbm(p*2.6+w*.9+shape*1.5+vec2(uTime*.021,-uTime*.014),5);              // the puffs inside them
+  float lobes=bill(p*5.2+w+vec2(-uTime*.034,uTime*.022),3);                           // small rounded lobes on the edges
+  float n=shape*.62+detail*.36+lobes*.12+bias;
+  float lo=mix(.75,.36,cov);
+  return clamp((n-lo)*mix(6.,3.,uGloom),0.,1.);
+}
+vec4 cumulus(vec2 uv,float asp,float cov,float bias,float calm,vec2 Lp,float Lvis,float sc){
+  float hz=max(uv.y,0.)+.28;                             // distance to the horizon: clouds shrink and flatten towards it
+  vec2 p=vec2((uv.x-.5)*asp/pow(hz,.55)*.62,1./hz*.85)*sc+uSeed;
+  p+=uShift*.06;
+  float d=cumDensity(p,cov,bias);
+  if(d<.002)return vec4(0.);
+  vec2 Ls=(Lp-uv)*vec2(asp,1.);Ls=normalize(Ls+vec2(0.,.4));
+  vec2 dq=vec2(Ls.x*.6,Ls.y*.9)/hz*.06*sc;
+  float dl=cumDensity(p+dq,cov,bias);
+  float du=cumDensity(p+vec2(0.,.05/hz*sc),cov,bias);
+  float lit=clamp(.58+(d-dl)*1.5+(d-du)*.9-.25*d*d,0.,1.);
+  lit=lit*lit*(3.-2.*lit);
+  vec3 c=mix(uAmb,uLit,lit);
+  c*=1.-(.08+.32*uTower)*smoothstep(.55,1.,d)*(1.-lit);
+  float near=exp(-length((uv-Lp)*vec2(asp,1.))*3.);
+  float edge=1.-smoothstep(.0,.45,d);
+  c+=uSunCol*edge*(.05+.8*near)*Lvis*(1.-.85*uGloom);
+  float far=smoothstep(.45,.0,uv.y);
+  c=mix(c,mix(uHor,uLit,.3),far*.45);
+  float a=smoothstep(0.,.6,d)*(1.-.35*calm);
+  return vec4(c,a);
+}
+// high, thin ice cloud: fine streaks that catch the low sun
+float cirrus(vec2 uv,float asp){
+  vec2 p=vec2(uv.x*asp,uv.y);
+  p=mat2(.94,.34,-.34,.94)*p;
+  p+=uShift*.022;
+  float w=fbm(p*vec2(1.2,3.),3);
+  float n=fbm(vec2(p.x*1.6+w*1.5,p.y*11.+w*2.),5);
+  return smoothstep(.5,.82,n)*smoothstep(.35,.9,uv.y)*uCirrus;
+}
+
+// ---------- 4. particles ----------
+float rainLayer(vec2 uv,float asp,float sc,float spd,float seed,float slant,float thick){
+  vec2 p=vec2(uv.x*asp,uv.y)*vec2(sc,sc*.085);
+  p.x+=p.y*slant;p.y+=uTime*spd;
   vec2 id=floor(p),f=fract(p);
   float h=h21(id+seed);
-  float on=step(1.-uRain*.7,h21(id+seed+9.));
-  float x=abs(f.x-(.2+.6*h));
-  float len=.55+.4*h21(id+seed+5.);
-  float t=clamp(f.y/len,0.,1.);
-  float tail=pow(1.-t,1.7)*smoothstep(0.,.04,f.y);        // brightest at the head, gone at the end of the tail
-  float w=thick*(.6+.4*(1.-t));                            // and a little thinner toward the tail
-  return smoothstep(w,w*.15,x)*tail*step(f.y,len)*on;
+  if(h21(id+seed+9.)>uRain*.75)return 0.;
+  float x=abs(f.x-(.15+.7*h));
+  float len=(.35+.35*h21(id+seed+5.))*mix(.4,1.,uRain);
+  float t=f.y/len;
+  if(t>1.)return 0.;
+  float tail=pow(1.-t,1.4)*smoothstep(0.,.05,t);
+  return smoothstep(thick,thick*.2,x)*tail;
 }
-float snowLayer(vec2 uv,float scale,float speed,float seed,float size,float soft,float asp){
-  vec2 p=vec2(uv.x*asp,uv.y)*scale;
-  p.y+=uTime*speed;
-  p.x+=sin(uTime*.5+p.y*1.7+seed)*.3+uShift.x*.16;
+float snowLayer(vec2 uv,float asp,float sc,float spd,float seed,float rad,float soft){
+  vec2 p=vec2(uv.x*asp,uv.y)*sc;
+  p.y+=uTime*spd;p.x+=sin(uTime*.4+p.y*.9+seed)*.25+uShift.x*.1;
+  vec2 id=floor(p),f=fract(p)-.5;
+  if(h21(id+seed+7.)>uSnow*.45)return 0.;
+  vec2 o=(vec2(h21(id+seed),h21(id+seed+3.))-.5)*.55;
+  float r=rad*(.6+.7*h21(id+seed+13.));
+  return smoothstep(r,r*soft,length(f-o));
+}
+// petals (kind 0) or leaves (kind 1): sparse, tumbling, out of focus when near
+vec4 drift(vec2 uv,float asp,float sc,float spd,float seed,float dens,float kind,float blur){
+  vec2 p=vec2(uv.x*asp,uv.y)*sc;
+  p.y+=uTime*spd;p.x+=uShift.x*.3+sin(uTime*.35+p.y*.8+seed)*.35;
   vec2 id=floor(p),f=fract(p)-.5;
   float h=h21(id+seed);
-  vec2 off=(vec2(h,h21(id+seed+3.))-.5)*.6;
-  float on=step(1.-uSnow*.9,h21(id+seed+7.));
-  float sz=size*(.6+.8*h21(id+seed+13.));
-  return smoothstep(sz,sz*soft,length(f-off))*on;
-}
-vec4 leaves(vec2 uv,float scale,float speed,float seed,float asp){
-  vec2 p=vec2(uv.x*asp,uv.y)*scale;
-  p.y+=uTime*speed*.5; p.x+=uShift.x*.25+sin(uTime*.5+p.y*1.3+seed)*.4;
-  vec2 id=floor(p),f=fract(p)-.5;
-  float h=h21(id+seed);
-  float on=step(1.-uLeaves*.5,h21(id+seed+4.));
-  vec2 off=(vec2(h,h21(id+seed+2.))-.5)*.5;
-  float ang=uTime*(h*2.-1.)*1.6+h*6.28;
-  vec2 q=f-off; float c=cos(ang),s=sin(ang);
-  q=vec2(c*q.x-s*q.y,s*q.x+c*q.y);
-  float sz=.1*(.7+.6*h21(id+seed+8.));
-  float d=length(q/vec2(sz,sz*(uLeafKind>.5?.55:.42)));
-  float m=smoothstep(1.,.6,d)*on;
-  vec3 col; float k=h21(id+seed+6.);
-  if(uLeafKind>.5) col=mix(vec3(1.,.8,.88),vec3(1.,.94,.96),k);
-  else col=k<.34?vec3(.92,.42,.12):k<.67?vec3(.82,.22,.1):vec3(.98,.74,.2);
+  if(h21(id+seed+4.)>dens)return vec4(0.);
+  vec2 o=(vec2(h,h21(id+seed+2.))-.5)*.45;
+  float ang=h*6.28+uTime*(h-.5)*.9;
+  vec2 q=f-o;float cs=cos(ang),sn=sin(ang);q=vec2(cs*q.x-sn*q.y,sn*q.x+cs*q.y);
+  float flip=.35+.65*abs(cos(uTime*(.5+h)+h*9.));      // tumbling: the shape foreshortens as it turns
+  float s=.075*(.7+.6*h21(id+seed+8.));
+  float m;vec3 col;float k=h21(id+seed+6.);
+  if(kind<.5){
+    q/=vec2(s*flip,s*.62);
+    float d=length(q)+.18*smoothstep(.6,1.,q.x)*(1.-abs(q.y)*2.); // a soft notch at the tip
+    m=smoothstep(1.,1.-blur,d);
+    col=mix(vec3(1.,.84,.88),vec3(1.,.95,.96),k)*mix(.94,1.06,smoothstep(1.,0.,d));
+  }else{
+    q/=vec2(s*flip*1.1,s*.48);
+    float d=length(vec2(q.x,q.y*(1.+.6*q.x*q.x)));        // pointed ends
+    m=smoothstep(1.,1.-blur,d)*(1.-.25*exp(-q.y*q.y*90.)*step(abs(q.x),.9)); // faint midrib
+    col=k<.4?vec3(.96,.56,.18):k<.75?vec3(.86,.36,.14):vec3(.98,.74,.30);
+    col*=.82+.3*smoothstep(.2,-.6,q.x);                  // sunlight through the leaf: one side glows
+  }
   return vec4(col,m);
+}
+
+// ---------- 5. the moon ----------
+vec4 moonDisc(vec2 uv,float asp){
+  vec2 d=(uv-uMoon)*vec2(asp,1.);
+  float r=.024,l=length(d);
+  if(l>r*1.3)return vec4(0.);
+  vec2 n2=d/r;float z=sqrt(max(0.,1.-dot(n2,n2)));
+  vec3 N=vec3(n2,z),L=normalize(vec3(sin(uMoonPhase),.12,-cos(uMoonPhase)));
+  float lit=smoothstep(-.06,.16,dot(N,L));
+  float mar=fbm(n2*1.9+4.2,4);
+  float alb=.92-.26*smoothstep(.48,.66,mar)-.05*fbm(n2*7.,3);
+  vec3 s=vec3(1.,.985,.95)*alb*(.06+.98*lit)*(.84+.16*z);   // a hint of earthshine and limb darkening
+  float m=smoothstep(r,r-1.6/uRes.y,l);
+  return vec4(s*1.4,m);
 }
 
 void main(){
   vec2 uv=gl_FragCoord.xy/uRes;
   float asp=uRes.x/uRes.y;
-  vec2 pv=uv;
-  vec3 col=skyGradient(uv);
+  // the reading column: middle third, lower two thirds of the window
+  float calm=(1.-smoothstep(.17,.36,abs(uv.x-.5)))*(1.-smoothstep(.70,.95,uv.y))*uCalm;
 
-  // stars
-  if(uNight>.02){
-    vec2 q=uv*vec2(asp,1.)*vec2(70.,70.);
-    vec2 id=floor(q),f=fract(q)-.5;
-    float hh=h21(id);
-    float st=step(.965,hh)*smoothstep(.22,0.,length(f-(vec2(h21(id+3.),h21(id+7.))-.5)*.6));
-    st*=.55+.45*sin(uTime*(1.2+hh*3.)+hh*50.);
-    float big=step(.996,h21(id+11.))*smoothstep(.45,0.,length(f))*.6;
-    col+=vec3(.85,.9,1.)*(st+big)*pow(uNight,3.)*(1.-smoothstep(.2,.9,uCover))*smoothstep(.1,.6,uv.y);
+  vec3 base=skyDome(uv,asp);
+  vec3 col=base;
+
+  if(uNight>.01)col+=nightSky(uv,asp)*uNight*(1.-smoothstep(.25,.85,uCover))*(1.-.5*calm);
+
+  // sun behind everything else
+  float ls=length((uv-uSun)*vec2(asp,1.));
+  col+=uSunCol*(exp(-ls*4.)*.16+exp(-ls*14.)*.28+exp(-ls*55.)*.55)*uSunVis;
+  col=mix(col,vec3(1.,.99,.96)*1.7,smoothstep(.021,.0175,ls)*uSunVis*(1.-uFog*.85));
+
+  // moon: soft atmosphere, a faint 22-degree ice halo in cold, hazy air, then the disc
+  float lm=length((uv-uMoon)*vec2(asp,1.));
+  col+=vec3(.78,.84,.95)*(exp(-lm*5.)*.08+exp(-lm*18.)*.18+exp(-lm*60.)*.3)*uMoonVis;
+  if(uHalo>.001&&uMoonVis>.001){
+    float ring=exp(-pow((lm-.20)/.022,2.))*(.6+.4*fbm(uv*vec2(asp,1.)*6.,3));
+    col+=(vec3(.72,.78,.92)*ring+vec3(.06,.03,.01)*exp(-pow((lm-.182)/.012,2.)))*.035*uHalo*uMoonVis;
   }
-  // sun: a soft glow and a bright core, behind the clouds
-  float ds=distance((uv-uSun)*vec2(asp,1.),vec2(0.));
-  float sunVis=max(uDay,uTwi*.95)*(1.-.55*smoothstep(.3,1.,uCover))*(1.-uGloom);
-  vec3 sunCol=mix(vec3(1.,.55,.25),vec3(1.,.95,.85),smoothstep(0.,.5,uDay*(1.-uTwi)));
-  col+=sunCol*(exp(-ds*2.6)*.22+exp(-ds*7.)*.3+exp(-ds*22.)*.5+exp(-ds*80.)*1.1)*sunVis*(1.+uTwi*.6);
-  col+=vec3(1.,.98,.92)*smoothstep(.03,.022,ds)*2.5*sunVis*(1.-uCover*.6);
-  // moon
-  float dm=distance((uv-uMoon)*vec2(asp,1.),vec2(0.));
-  float moonVis=uNight*(1.-.7*smoothstep(.3,1.,uCover));
-  float mdisc=smoothstep(.034,.03,dm);
-  float crater=.9+.12*vn((uv-uMoon)*vec2(asp,1.)*90.);
-  col+=vec3(.7,.78,1.)*(exp(-dm*9.)*.18+exp(-dm*35.)*.3)*moonVis;
-  col=mix(col,vec3(.93,.95,1.)*crater,mdisc*moonVis);
+  vec4 mo=moonDisc(uv,asp);
+  col=mix(col,mo.rgb,mo.a*uMoonVis);
 
-  // clouds: two layers at different distances, so they drift at different speeds
-  vec2 sdir=normalize(uSun-vec2(.5,.45)+1e-3);
-  vec4 c2=clouds(pv,asp,1.0,.012,5.,uCover*.9,sdir);
-  col=mix(col,c2.rgb,c2.a*.8);
-  vec4 c1=clouds(pv,asp,1.7,.02,0.,uCover,sdir);
+  vec2 Lp=uSunVis>uMoonVis?uSun:uMoon;
+  float Lvis=max(uSunVis,uMoonVis*.55);
+
+  // high cirrus, then the cumulus deck in two depths
+  // a solid cloud deck under heavy cover: soft, low-contrast texture so grey never reads as flat paint
+  if(uCover>.8){
+    float hz=max(uv.y,0.)+.3;
+    vec2 sp=vec2((uv.x-.5)*asp/pow(hz,.55)*.5,1./hz*.7)*1.6+uSeed*.7+uShift*.035;
+    float stx=fbm(sp,5);
+    vec3 deck=mix(uAmb,mix(uAmb,uLit,.75),smoothstep(.3,.75,stx));
+    col=mix(col,mix(deck,base,.35),smoothstep(.8,1.,uCover)*.75*(1.-.3*calm));
+  }
+  float ci=cirrus(uv,asp);
+  col=mix(col,uLit*1.02+uGlow*.12*uTwi,ci*.42*(1.-.4*calm));
+  // keep the open sky open where people read: clouds lean to the top and the side edges
+  float edges=smoothstep(.22,.5,abs(uv.x-.5));
+  float topb=smoothstep(.55,.95,uv.y);
+  float bias=(.05*topb+.05*edges-.09*calm)*(1.-uCover*uCover);
+  vec4 c2=cumulus(uv+vec2(.37,.0),asp,uCover*.8,bias-.03,calm,Lp,Lvis,1.9);
+  c2.rgb=mix(c2.rgb,base,.18);
+  col=mix(col,c2.rgb,c2.a*.85*(1.-.75*uCover*uCover));
+  vec4 c1=cumulus(uv,asp,uCover,bias,calm,Lp,Lvis,1.1);
   col=mix(col,c1.rgb,c1.a);
-  // fog banks
+  float cloudA=max(c1.a,c2.a*.85);
+
+  // glare on top of the clouds: the sun still burns through thin edges
+  col+=uSunCol*(exp(-ls*18.)*.18+exp(-ls*70.)*.45)*uSunVis*(1.-.75*cloudA)*(1.-uGloom);
+
+  // lightning: the cloud lights from inside, then an optional thin bolt at the window edge
+  if(uFlash>.001){
+    vec2 fd=(uv-vec2(uFlashX,.80))*vec2(asp*.8,1.3);float g=exp(-dot(fd,fd)*7.);
+    col+=vec3(.78,.84,1.)*uFlash*(.03+g*(.15+cloudA*.75));
+    if(uBolt>.001&&uv.y<.74&&uv.y>.2){
+      float y=uv.y;
+      float xo=uFlashX+(fbm(vec2(y*6.,uFlashX*9.),4)-.5)*.07+(vn(vec2(y*55.,2.))-.5)*.008;
+      float dx=abs(uv.x-xo)*asp;
+      float bb=exp(-dx*dx/2.2e-6)*1.1+exp(-dx*55.)*.22;
+      float xb=xo+(.56-y)*.22+(vn(vec2(y*48.,9.))-.5)*.008;    // one branch
+      float db=abs(uv.x-xb)*asp;
+      bb+=(exp(-db*db/1.2e-6)*.7+exp(-db*70.)*.12)*step(y,.56)*smoothstep(.36,.5,y);
+      col+=vec3(.90,.93,1.)*bb*uBolt*smoothstep(.2,.32,y)*(1.-.8*c1.a);
+    }
+  }
+
+  // fog: horizontal banks that thicken towards the ground; the sun becomes a pale disc
   if(uFog>.01){
-    float fn=fbm4(vec2(uv.x*asp*1.6+uShift.x*.012,uv.y*2.2));
-    vec3 fogC=mix(vec3(.66,.69,.74),vec3(.16,.18,.24),uNight)*(.5+.5*uDay);
-    col=mix(col,fogC,clamp(uFog*(.35+.65*fn)*(.55+.45*(1.-uv.y)),0.,.93));
+    float f=0.;
+    for(int i=0;i<3;i++){
+      float fi=float(i);
+      float n=fbm(vec2(uv.x*asp*(1.1+fi*.5)+uTime*.006*(fi+1.)+fi*13.,uv.y*(4.5+fi)),4);
+      f+=smoothstep(.32,.78,n)*exp(-pow((uv.y-(.12+fi*.2))/.2,2.))*(.75-fi*.15);
+    }
+    f=clamp(.42+f*.55+(1.-uv.y)*.3,0.,1.)*uFog;
+    vec3 fc=uFogCol+uSunCol*(exp(-ls*3.)*.18+exp(-ls*16.)*.35+smoothstep(.03,.026,ls)*.25)*uSunVis+vec3(.6,.65,.75)*(exp(-lm*4.)*.08+exp(-lm*16.)*.12+smoothstep(.03,.026,lm)*.15)*uMoonVis;
+    col=mix(col,fc,f*.9);
   }
-  // rain: fine streaks at three depths
+
+  // rain: fine streaks at four depths and soft curtains below the cloud base
   if(uRain>.01){
-    float slant=-uWind.x*.4-.06;
-    float r=rainLayer(pv,30.,4.6,1.,slant,asp,.05)*.55+rainLayer(pv,52.,3.8,3.,slant,asp,.032)*.6+rainLayer(pv,92.,3.0,7.,slant,asp,.022)*.5+rainLayer(pv,150.,2.4,11.,slant,asp,.016)*.35;
-    // a soft mist that rises from the ground and thickens with the rain
-    float mist=smoothstep(.55,0.,uv.y)*uRain*.1;
-    col+=vec3(.82,.9,1.)*(r*(.22+.4*uDay)*(.5+.5*uRain)+mist*(.4+.6*uDay));
+    float sl=-uWind.x*.35-.08;
+    float shafts=fbm(vec2(uv.x*asp*5.+uv.y*sl*4.,uv.y*.6+uTime*.05),3);
+    col=mix(col,uAmb*.92,smoothstep(.45,.8,shafts)*smoothstep(.9,.35,uv.y)*uRain*.22*(1.-calm*.5));
+    float r=rainLayer(uv,asp,34.,3.6,1.,sl,.035)*.55+rainLayer(uv,asp,60.,3.0,3.,sl,.03)*.6
+           +rainLayer(uv,asp,105.,2.4,7.,sl,.026)*.5+rainLayer(uv,asp,170.,2.,11.,sl,.022)*.38;
+    vec3 rc=mix(uLit,vec3(1.),.3);
+    col+=rc*r*(.16+.26*uDay)*(1.-.5*calm);
+    col=mix(col,uFogCol,smoothstep(.45,0.,uv.y)*uRain*.18);    // spray haze
   }
-  // snow: soft flakes, the big near ones out of focus
+  // snow: near flakes large and out of focus, far flakes small and crisp
   if(uSnow>.01){
-    float s=snowLayer(pv,22.,.5,1.,.22,.05,asp)*.5+snowLayer(pv,40.,.38,5.,.16,.15,asp)*.75+snowLayer(pv,80.,.28,9.,.12,.3,asp)*.8;
-    col+=vec3(1.)*s*(.55+.45*uDay);
+    float s=snowLayer(uv,asp,6.,.09,1.,.16,.0)*.22+snowLayer(uv,asp,13.,.12,5.,.12,.25)*.45
+           +snowLayer(uv,asp,26.,.10,9.,.10,.45)*.6+snowLayer(uv,asp,48.,.07,15.,.09,.5)*.45;
+    col+=vec3(.97,.98,1.)*s*(.45+.4*uDay+.15*uNight)*(1.-.5*calm);
   }
-  // leaves or petals
-  if(uLeaves>.01){
-    vec4 l1=leaves(pv,7.,.55,1.,asp),l2=leaves(pv,13.,.45,6.,asp);
-    col=mix(col,l2.rgb*(.45+.55*uDay),l2.a*.6);
-    col=mix(col,l1.rgb*(.5+.5*uDay),l1.a*.9);
+  // diamond dust: tiny glints in very cold, clear air
+  if(uSparkle>.01){
+    vec2 p=uv*vec2(asp,1.)*90.;p.y+=uTime*.25;
+    vec2 id=floor(p),f=fract(p)-.5;
+    float h=h21(id+31.);
+    float sp=step(.985,h)*exp(-dot(f,f)*220.)*pow(.5+.5*sin(uTime*2.5+h*90.),6.);
+    col+=vec3(1.,.97,.9)*sp*uSparkle*(1.-calm);
   }
-  // lightning: the clouds light up from inside
-  if(uLight>.01){
-    float g=exp(-distance((uv-vec2(uLightX,.72))*vec2(asp,1.),vec2(0.))*3.2);
-    col+=vec3(.62,.7,1.)*uLight*(.16+.7*g)*(.3+.7*smoothstep(.1,.9,uv.y));
+  // petals and leaves, kept to the edges
+  float dens=uPetals+uLeaves;
+  if(dens>.01){
+    float kind=uLeaves>uPetals?1.:0.;
+    float side=mix(.15,1.,edges);
+    vec4 d2=drift(uv,asp,9.,.05,4.,dens*.13*side,kind,.3);
+    vec4 d1=drift(uv,asp,3.2,.08,1.,dens*.12*side,kind,.8);
+    float lightK=(.35+.65*uDay)*(1.-.3*uGloom);
+    col=mix(col,d2.rgb*lightK,d2.a*.85);
+    col=mix(col,d1.rgb*lightK*1.04,d1.a*.6);
   }
-  // a touch of dither so the gradients never band
-  col+=(h21(gl_FragCoord.xy+uTime*60.)-.5)*(1./128.);
-  col*=1.-.16*pow(length(uv-.5)*1.2,2.);
+
+  // the reading column: pull mid-tones gently back towards the open sky
+  col=mix(col,base+(col-base)*.6,calm*.5);
+  // targeted veil under the text: the sky stays vivid at the edges, only the reading column is pushed away from the text colour
+  float cv=calm;
+  if(uVeil>0.)col=mix(col,col*(1.-.30*uVeil),cv*cv);
+  else if(uVeil<0.)col=mix(col,mix(col,vec3(1.),.32),cv*cv*-uVeil);
+  // light pages: a dark sky (storm, overcast, deep blue zenith) is eased toward white everywhere, not only in the reading column
+  col=mix(col,vec3(1.),uLift);
+  // soft shoulder so glows never clip into flat white
+  col=vec3(col.r<.82?col.r:.82+.18*(1.-exp(-(col.r-.82)/.18)),
+           col.g<.82?col.g:.82+.18*(1.-exp(-(col.g-.82)/.18)),
+           col.b<.82?col.b:.82+.18*(1.-exp(-(col.b-.82)/.18)));
+  // corners just a touch deeper for depth; never the middle
+  col*=1.-.10*pow(length((uv-vec2(.5,.45))*vec2(1.,1.2)),2.5);
+  col+=(h21(gl_FragCoord.xy+fract(uTime)*91.)-.5)/255.;
   gl_FragColor=vec4(col,1.);
 }
 `;
 
-  // Sun and moon on the screen, and how much day, twilight and night there is, for a time at the place.
-  function skyAt(tod, rise, set) {
-    const L = set - rise, f = (tod - rise) / L;
-    let e, sun;
-    if (f >= 0 && f <= 1) { e = Math.sin(Math.PI * f); sun = [lerp(.1, .9, f), .14 + .62 * Math.sin(Math.PI * f)]; }
-    else {
-      const nl = 24 - L, nf = (((tod - set) + 24) % 24) / nl;
-      e = -Math.sin(Math.PI * Math.min(1, nf)) * .6;
-      sun = [lerp(.1, .9, f > 1 ? 1 + (f - 1) * .2 : f), -.2];
-    }
-    const nf = f > 1 ? (tod - set) / (24 - L) : f < 0 ? (tod + 24 - set) / (24 - L) : -1;
-    const moon = nf >= 0 && nf <= 1 ? [lerp(.12, .88, nf), .16 + .58 * Math.sin(Math.PI * nf)] : [.5, -.3];
-    return { sun, moon, day: sstep(-.12, .3, e), twi: Math.exp(-Math.pow(e / .2, 2)), night: 1 - sstep(-.2, .06, e) };
-  }
-
   // Is the page itself dark? Read its own background, fall back to the browser preference.
-  function pageIsDark() {
+  // ignoreNight: skip the "our night flip is on" short-circuit (used when re-reading the page's real theme).
+  function pageIsDark(ignoreNight) {
     const lum = (css) => {
       const m = /rgba?\((\d+)[ ,]+(\d+)[ ,]+(\d+)(?:[ ,/]+([\d.]+))?/.exec(css || '');
       if (!m) return null;
@@ -217,10 +343,20 @@ void main(){
       const l = lum(getComputedStyle(el).backgroundColor);
       if (l !== null) return l < 0.45;
     }
+    // No opaque page colour to read (the page paints it on an inner element, or ours was cleared): ask the page's own theme.
+    const root = document.documentElement;
+    if (!ignoreNight && root.hasAttribute('data-hr-night')) return false; // our own light-text rule is on: the page underneath is light
+    const cs = getComputedStyle(root).colorScheme || '';
+    if (/\bdark\b/.test(cs) && !/\blight\b/.test(cs)) return true;
+    if (/(^|\s)dark(\s|$)/.test(root.className || '') || /dark/i.test(root.getAttribute('data-theme') || root.getAttribute('data-color-mode') || '')) return true;
+    if (document.body) {
+      const tl = lum(getComputedStyle(document.body).color); // light text means a dark page
+      if (tl !== null) return tl > 0.6;
+    }
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
-  // opts: { strength: 0.3..1, onLost() }. Returns null when WebGL is not available.
+  // opts: { strength: 0.2..1, onLost() }. Returns null when WebGL is not available.
   function mount(opts = {}) {
     const doc = document, win = window;
     const canvas = doc.createElement('canvas');
@@ -250,173 +386,386 @@ void main(){
     // when it is turned off. Text, images and panels stay exactly as they are, on top of the sky.
     const rootEl = doc.documentElement;
     const alphaOf = (css) => { const n = (css || '').slice(css.indexOf('(') + 1, css.lastIndexOf(')')).split(/[ ,/]+/).filter(Boolean); return n.length > 3 ? +n[3] : 1; };
-    let pageBg = null;
-    for (const el of [doc.body, rootEl]) { if (!el) continue; const c = win.getComputedStyle(el).backgroundColor; if (c && alphaOf(c) >= .5) { pageBg = c; break; } }
+    const readPageBg = () => {
+      for (const el of [doc.body, rootEl]) { if (!el) continue; const c = win.getComputedStyle(el).backgroundColor; if (c && alphaOf(c) >= .5) return c; }
+      return null;
+    };
+    const pageBg = readPageBg();
     const rootPrev = [rootEl.style.getPropertyValue('background-color'), rootEl.style.getPropertyPriority('background-color')];
-    rootEl.style.setProperty('background-color', pageBg || (win.matchMedia('(prefers-color-scheme: dark)').matches ? '#14141c' : '#ffffff'), 'important');
+    rootEl.style.setProperty('background-color', pageBg || (pageIsDark() ? '#14141c' : '#ffffff'), 'important');
     // Marked elements lose their background (and any fade drawn by ::before / ::after) through one
     // stylesheet, so nothing is edited inline and everything comes back when the sheet is removed.
     const MARK = 'data-hr-sky';
     const sheet = doc.createElement('style');
     sheet.setAttribute('data-headroom', 'weather');
     sheet.textContent = ':root [' + MARK + '][' + MARK + ']{background-color:transparent !important;background-image:none !important}'
-      + ':root [' + MARK + '][' + MARK + ']::before,:root [' + MARK + '][' + MARK + ']::after{background:none !important}';
+      + ':root [' + MARK + '][' + MARK + ']::before,:root [' + MARK + '][' + MARK + ']::after{background:none !important}'
+      // night on a light page: flip the page dark; media is flipped back so it keeps its real colours
+      + ':root[data-hr-night] body{filter:invert(1) hue-rotate(180deg)}'
+      // only the outermost media element is flipped back (a <picture><img> would otherwise be inverted three times)
+      + ':root[data-hr-night] body :is(img,video,canvas,picture,[style*="background-image"]):not(:is(picture,video,[style*="background-image"]) *){filter:invert(1) hue-rotate(180deg)}';
     (doc.head || rootEl).appendChild(sheet);
-    const marked = new Set();
+    let destroyed = false;
+    const marked = new Set();     // full-screen / bar backdrops: marked once
+    const bandMarked = new Set(); // edge bands: re-validated on every scan, unmarked when they stop qualifying
     const isBacking = (cs) => alphaOf(cs.backgroundColor) >= .9 || (cs.backgroundImage || '').indexOf('gradient') >= 0;
-    function clearBackdrops() {
-      if (destroyed || !doc.body) return;
-      const vw = win.innerWidth, vh = win.innerHeight;
-      const all = doc.body.querySelectorAll('*');
-      const n = Math.min(all.length, 6000);
-      for (let i = -1; i < n; i++) {
-        const el = i < 0 ? doc.body : all[i]; // the body itself is often what paints the page colour
-        if (marked.has(el) || el === canvas || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') continue;
-        const r = el.getBoundingClientRect();
-        if (r.width < 8 || r.height < 8) continue;
-        // a page backdrop: most of the screen, or a bar across it (header, sidebar, the strip round the composer)
-        if (!(r.width * r.height >= vw * vh * .5 || r.width >= vw * .85 || r.height >= vh * .85)) continue;
-        const cs = win.getComputedStyle(el);
-        if (cs.display === 'none') continue;
-        if (isBacking(cs) || isBacking(win.getComputedStyle(el, '::before')) || isBacking(win.getComputedStyle(el, '::after'))) {
-          marked.add(el); el.setAttribute(MARK, '');
-        }
+    const XHTML = 'http://www.w3.org/1999/xhtml';
+    const OVERLAY_SEL = '[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[role=tooltip],[role=status],[role=alert],dialog,[popover],[aria-modal=true]';
+    // A square-cornered band stuck to the top or bottom edge (the strip behind a composer): a fixed or sticky element that sits
+    // fully inside the viewport. In-flow things that merely cross the edge while scrolling, rounded cards and overlays do not count.
+    function bandShape(el, r, vw, vh) {
+      if (r.width < vw * .4 || r.height < 20 || r.height > vh * .4) return false;
+      if (!((r.top >= -1 && r.top <= 3) || (r.bottom <= vh + 1 && r.bottom >= vh - 3))) return false;
+      const cs = win.getComputedStyle(el);
+      if (cs.display === 'none') return false;
+      if (parseFloat(cs.borderTopLeftRadius) > 0 || parseFloat(cs.borderTopRightRadius) > 0 || parseFloat(cs.borderBottomLeftRadius) > 0 || parseFloat(cs.borderBottomRightRadius) > 0) return false;
+      // pinned: the element itself is fixed or sticky, or an ancestor (up to 3 up) is AND shares the element's edge on the
+      // band's side (within 3 px): an in-flow child of a fixed app shell that merely crosses the edge does not qualify
+      const topBand = r.top >= -1 && r.top <= 3;
+      let pinned = cs.position === 'fixed' || cs.position === 'sticky';
+      for (let a = el.parentElement, i = 0; !pinned && a && i < 3; a = a.parentElement, i++) {
+        const p = win.getComputedStyle(a).position;
+        if (p !== 'fixed' && p !== 'sticky') continue;
+        const ar = a.getBoundingClientRect();
+        if (Math.abs((topBand ? ar.top - r.top : ar.bottom - r.bottom)) <= 3) pinned = true;
+        break;
+      }
+      if (!pinned) return false;
+      return !el.closest(OVERLAY_SEL);
+    }
+    function visit(el, vw, vh) {
+      if (marked.has(el) || bandMarked.has(el) || el === canvas || el.namespaceURI !== XHTML) return;
+      if (el.closest(OVERLAY_SEL)) return; // never clear anything inside a dialog, menu, tooltip or alert
+      const r = el.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8) return;
+      // a page backdrop: most of the screen, or as tall as it. Width-only bars (headers, composer strips) go through bandShape.
+      const full = r.width * r.height >= vw * vh * .5 || r.height >= vh * .85;
+      if (!full && !bandShape(el, r, vw, vh)) return;
+      const cs = win.getComputedStyle(el);
+      if (cs.display === 'none') return;
+      if (isBacking(cs) || isBacking(win.getComputedStyle(el, '::before')) || isBacking(win.getComputedStyle(el, '::after'))) {
+        (full ? marked : bandMarked).add(el); el.setAttribute(MARK, '');
       }
     }
+    // The scan runs in ~4 ms slices (idle time when available) and resumes where it stopped: no element cap.
+    let scanNodes = null, scanI = 0, scanHandle = 0, scanIdle = false;
+    const schedule = (fn) => {
+      if (win.requestIdleCallback) { scanIdle = true; scanHandle = win.requestIdleCallback(fn, { timeout: 400 }); }
+      else { scanIdle = false; scanHandle = win.setTimeout(fn, 16); }
+    };
+    const cancelScan = () => {
+      if (scanHandle) { if (scanIdle) win.cancelIdleCallback(scanHandle); else win.clearTimeout(scanHandle); }
+      scanHandle = 0; scanNodes = null;
+    };
+    function scanSlice() {
+      scanHandle = 0;
+      if (destroyed || !scanNodes || !doc.body) { scanNodes = null; return; }
+      const vw = win.innerWidth, vh = win.innerHeight, all = scanNodes, t0 = performance.now();
+      let c = 0;
+      while (scanI < all.length) {
+        const el = scanI < 0 ? doc.body : all[scanI]; // the body itself is often what paints the page colour
+        scanI++;
+        visit(el, vw, vh);
+        if ((++c & 15) === 0 && performance.now() - t0 > 4) break;
+      }
+      if (scanI >= all.length) scanNodes = null; else schedule(scanSlice);
+    }
+    function clearBackdrops() {
+      if (destroyed || !doc.body || doc.hidden || scanNodes) return;
+      // drop detached nodes, and let bands go that stopped qualifying
+      for (const el of marked) if (!el.isConnected) { el.removeAttribute(MARK); marked.delete(el); }
+      const vw = win.innerWidth, vh = win.innerHeight;
+      for (const el of bandMarked) {
+        if (!el.isConnected) { el.removeAttribute(MARK); bandMarked.delete(el); continue; }
+        if (!bandShape(el, el.getBoundingClientRect(), vw, vh)) { el.removeAttribute(MARK); bandMarked.delete(el); }
+      }
+      scanNodes = doc.body.querySelectorAll('*'); scanI = -1;
+      scanSlice();
+    }
     const restoreBackdrops = () => {
+      cancelScan();
       for (const el of marked) el.removeAttribute(MARK);
-      marked.clear();
+      for (const el of bandMarked) el.removeAttribute(MARK);
+      marked.clear(); bandMarked.clear();
+      for (const el of doc.querySelectorAll('[' + MARK + ']')) el.removeAttribute(MARK);
+      rootEl.removeAttribute('data-hr-night');
       sheet.remove();
       if (rootPrev[0]) rootEl.style.setProperty('background-color', rootPrev[0], rootPrev[1]); else rootEl.style.removeProperty('background-color');
     };
     const maskTimer = win.setInterval(clearBackdrops, 1500);
+    let resizeScanT = 0;
+    const onResizeScan = () => { win.clearTimeout(resizeScanT); resizeScanT = win.setTimeout(clearBackdrops, 250); };
     (doc.documentElement).appendChild(canvas);
 
     const reduceMq = win.matchMedia('(prefers-reduced-motion: reduce)');
-    let W = 0, H = 0, raf = 0, last = 0, destroyed = false, lost = false;
+    let W = 0, H = 0, raf = 0, last = 0, lost = false;
     let strength = clamp(opts.strength == null ? 1 : opts.strength, .2, 1);
     let dark = pageIsDark();
     let tone = null;
 
-    // Current values ease toward the targets over a few seconds, so a change in the weather never pops.
-    const S = { cover: .1, gloom: 0, rain: 0, snow: 0, fog: 0, leaves: 0, kind: 0, wind: .25, windX: .5, windY: 0, light: 0, lightX: .5, tint: [1, 1, 1] };
-    let tg = AM.WEATHER.targetsFor('clear', 'summer');
-    let cur = { tod: 12, rise: 6.3, set: 18.4, fixedTod: false, t0: performance.now(), weather: 'clear', season: 'summer', wind: .25, windX: .5, windY: 0 };
-    let boltNext = 3, first = true, shX = 0, shY = 0;
+    // The palette (CPU side) turns hour x season x weather into final colours and amounts; every value eases toward its
+    // target over a second or two, so a change in the weather or the hour never pops.
+    const PAL = AM.SKYPAL;
+    let sky = { season: 'summer', weather: 'clear', hour: 12, rise: 6.3, set: 18.4, live: true, seasonForced: false, t0: performance.now(), wind: [.5, 0] };
+    let curU = null, simT = 0, shX = 0, shY = 0;
+    let flashT0 = -10, flashNext = 2.5, flashX = .85, boltOn = false;
+    // one peak per strike: a single exponential decay (no flicker train, WCAG 2.3.1)
+    const flashAt = (t) => { const d = t - flashT0; return d < 0 || d > 1.2 ? 0 : Math.exp(-d * 9); };
 
-    const resize = () => {
-      // drawn at up to 1440 px wide, so edges (sun, moon, rain) stay crisp; wider screens are stretched a little
-      const k = Math.min(1, 1440 / Math.max(1, win.innerWidth));
+    let quality = 1, slow = 0, seen = 0; // a slow GPU steps the resolution down instead of stuttering
+    let lastRaf = 0, gapSum = 0, gapN = 0; // animation-frame spacing, to step quality back up on a fast GPU
+    const resize = (noDraw) => {
+      // drawn at the screen's real pixels, capped so a big or high-DPI screen stays light on the GPU
+      const dpr = Math.min(1.5, win.devicePixelRatio || 1);
+      const k = Math.max(.45, Math.min(dpr, Math.sqrt(1.5e6 / Math.max(1, win.innerWidth * win.innerHeight))) * quality);
       const w = Math.max(2, Math.round(win.innerWidth * k)), h = Math.max(2, Math.round(win.innerHeight * k));
       if (w === W && h === H) return;
       W = w; H = h; canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H);
+      // changing the size clears the buffer (alpha is off, so it would show black): always draw again at once, and let the
+      // next tick draw too. noDraw: the caller draws right after (the quality step-up at the top of a tick).
+      last = 0;
+      if (!noDraw && !lost && curU) frame(performance.now(), 0);
     };
+    const onWinResize = () => resize();
 
-    let lastOp = -1;
+    // A light page at night gets the real night sky, and the page is flipped to a dark look (the usual invert + hue-rotate
+    // trick, with images, video and canvases flipped back so photos keep their colours). It is only used when the page itself
+    // does not scroll and whose <body> covers the window, because a filter on <body> becomes the containing block of the
+    // fixed parts inside it (they would move with a page that scrolls, or sit in the wrong place in a short body).
+    let pure = false, lastNight = 0, noPure = false;
+    const docScrolls = () => rootEl.scrollHeight > win.innerHeight + 4;
+    const bodyCovers = () => {
+      if (!doc.body) return false;
+      const r = doc.body.getBoundingClientRect();
+      return r.left <= 2 && r.top <= 2 && r.right >= win.innerWidth - 2 && r.bottom >= win.innerHeight - 2;
+    };
+    function setPure(on) {
+      if (on === pure) return;
+      pure = on;
+      if (on) { rootEl.setAttribute('data-hr-night', ''); clearBackdrops(); }
+      else rootEl.removeAttribute('data-hr-night');
+      lastOp = -1; lastFilter = ""; setOpacity(lastNight);
+    }
+    // layout-reading checks are cached (read at mount and every 1.5 s), never per frame
+    let scrolls = docScrolls(), covers = bodyCovers();
+    const keepTimer = win.setInterval(() => {
+      scrolls = docScrolls(); covers = bodyCovers();
+      if (!pure) return;
+      if (scrolls) { noPure = true; setPure(false); }
+      else if (!covers) setPure(false);
+    }, 1500);
+
+    let lastOp = -1, lastFilter = "";
+    // How the canvas is shown. night: 0 (day) .. 1 (night). The canvas itself keeps its natural look (light page by day: full
+    // strength; dark page by day: brightness .92); text contrast comes from the shader's targeted veil (uVeil) in the reading
+    // column only. Veil maths (see frame): Ls = max(luma(uMid), luma(uHor)), linearised relative luminance of the eased sky.
+    // Dark page: +clamp((Ls-.04)/.28,0,1)*(1-night) darkens the column by up to 62%. Light page: -clamp((.9-Ls)/.6,0,1)*(1-night)
+    // lightens it towards white by up to 62%. Night and flipped (pure) pages: 0. At dusk and night a light page still fades.
     function setOpacity(night) {
-      const o = strength * (dark ? .92 : 1 - .45 * night);
-      if (Math.abs(o - lastOp) > .01) { lastOp = o; canvas.style.opacity = String(o); }
+      lastNight = night;
+      if (!dark && (night > .55 && !pure && !noPure && !scrolls && covers || night < .4 && pure)) { setPure(night > .55); return; }
+      const deep = dark || pure;
+      const o = strength * (deep ? .96 : 1 - .68 * night);
+      const f = dark ? 'brightness(' + (.92 + .08 * night).toFixed(2) + ')'
+        : pure ? 'brightness(' + (1 - .14 * (1 - night)).toFixed(2) + ')'
+        : night > .02 ? 'brightness(' + (1 + 2.2 * night).toFixed(2) + ') saturate(.8)' : 'none';
+      if (Math.abs(o - lastOp) > .01 || f !== lastFilter) {
+        lastOp = o; lastFilter = f; canvas.style.opacity = String(o); canvas.style.filter = f;
+      }
     }
     function applyTone() {
       const t = dark ? 'dark' : 'light';
       if (t === tone) return;
       tone = t;
-      // the sky sits behind the page; the page keeps its own text, images and panels on top of it. In the dark it is dimmed, and at night on a light page it is eased down so dark text stays readable.
+      if (dark && pure) setPure(false);
       canvas.style.mixBlendMode = 'normal';
-      canvas.style.filter = dark ? 'brightness(.78)' : 'none';
       lastOp = -1;
-      setOpacity(1);
+      setOpacity(lastNight);
     }
 
-    function setState(st) {
-      tg = AM.WEATHER.targetsFor(st.weather, st.season);
-      cur = { tod: st.tod, rise: st.rise, set: st.set, fixedTod: !st.live, t0: performance.now(), weather: st.weather, season: st.season, wind: st.wind, windX: st.windX, windY: st.windY };
-      if (first) { // the very first state is shown at once; later ones ease in
-        first = false;
-        for (const k of ['cover', 'gloom', 'rain', 'snow', 'fog', 'leaves']) S[k] = tg[k];
-        S.kind = tg.kind; S.tint = tg.tint.slice(); S.wind = st.wind; S.windX = st.windX; S.windY = st.windY;
+    // The page's own theme can change after we mounted (a toggle, late CSS, the system scheme). Read it with our own
+    // overrides lifted for a moment, then put them back; follow the new colour with the forced root background.
+    let mo = null, readT = 0, lastSig = '';
+    // a cheap signature of everything that could flip the page's theme (our own data-hr-* marks left out)
+    const themeSig = () => {
+      const parts = [];
+      for (const el of [rootEl, doc.body]) {
+        if (!el) continue;
+        parts.push(el.className && el.className.baseVal === undefined ? el.className : '');
+        for (const a of el.attributes) if (a.name.indexOf('data-') === 0 && a.name.indexOf('data-hr-') !== 0) parts.push(a.name + '=' + a.value);
       }
+      parts.push(win.getComputedStyle(rootEl).colorScheme || '');
+      return parts.join('|');
+    };
+    lastSig = themeSig();
+    function readDark() {
+      if (destroyed) return;
+      lastSig = themeSig();
+      const pv = rootEl.style.getPropertyValue('background-color'), pp = rootEl.style.getPropertyPriority('background-color');
+      let d = dark, col = null;
+      sheet.disabled = true;
+      rootEl.style.removeProperty('background-color');
+      try { d = pageIsDark(true); col = readPageBg(); }
+      finally {
+        const next = d !== dark ? (col || (d ? '#14141c' : '#ffffff')) : null;
+        if (next) rootEl.style.setProperty('background-color', next, 'important');
+        else if (pv) rootEl.style.setProperty('background-color', pv, pp);
+        sheet.disabled = false;
+        if (mo) mo.takeRecords(); // our own writes are not page changes
+      }
+      if (d !== dark) { dark = d; tone = null; applyTone(); }
+    }
+    const scheduleRead = () => { win.clearTimeout(readT); readT = win.setTimeout(readDark, 300); };
+
+    function setState(st) {
+      sky = { season: st.season, weather: st.weather, hour: st.tod, rise: st.rise, set: st.set, live: !!st.live, seasonForced: !!st.seasonForced, t0: performance.now(), wind: [st.windX * 2.2, st.windY || 0] };
+      if (reduceMq.matches) curU = null; // no easing without motion: show the new state at once
       if (reduceMq.matches || !raf) frame(performance.now(), .05);
     }
     function setStrength(v) { strength = clamp(v, .2, 1); tone = null; applyTone(); }
 
     function frame(now, dt) {
-      const k = 1 - Math.exp(-dt / 5);
-      for (const key of ['cover', 'gloom', 'rain', 'snow', 'fog', 'leaves']) S[key] = lerp(S[key], tg[key], k);
-      S.kind = tg.kind;
-      S.tint = S.tint.map((v, i) => lerp(v, tg.tint[i], k));
-      const wk = 1 - Math.exp(-dt * 2);
-      S.wind = lerp(S.wind, cur.wind, wk); S.windX = lerp(S.windX, cur.windX, wk); S.windY = lerp(S.windY, cur.windY, wk);
-      S.light *= Math.exp(-dt * 8);
-      if (tg.thunder) {
-        boltNext -= dt;
-        if (boltNext <= 0) { S.light = 1; S.lightX = .12 + Math.random() * .76; boltNext = 3 + Math.random() * 6; win.setTimeout(() => { S.light = Math.max(S.light, .75); }, 130); }
+      simT += dt;
+      const hour = sky.live ? (sky.hour + (now - sky.t0) / 3.6e6) % 24 : sky.hour; // the hour moves on in real time
+      const tgt = PAL.uniforms({ season: sky.season, weather: sky.weather, hour, rise: sky.rise, set: sky.set, t: 0, wind: sky.wind, flash: 0, bolt: 0, seasonMood: sky.seasonForced });
+      // a non-finite target (e.g. polar day, rise == set) must never get into the eased values
+      for (const key in tgt) {
+        const v = tgt[key], c = curU && curU[key];
+        if (typeof v === 'number') { if (!Number.isFinite(v)) tgt[key] = typeof c === 'number' && Number.isFinite(c) ? c : 0; }
+        else if (v && v.length) for (let i = 0; i < v.length; i++) if (!Number.isFinite(v[i])) v[i] = c && Number.isFinite(c[i]) ? c[i] : 0;
       }
-      const wx = S.windX * 2.2;
-      shX += wx * dt; shY += S.windY * dt;
-      const tod = cur.fixedTod ? cur.tod : (cur.tod + (now - cur.t0) / 3.6e6) % 24; // the hour moves on in real time
-      const sk = skyAt(tod, cur.rise, cur.set);
-      const f1 = (n, v) => U[n] != null && gl.uniform1f(U[n], v);
-      gl.uniform2f(U.uRes, W, H); f1('uTime', now / 1000);
-      gl.uniform2f(U.uSun, sk.sun[0], sk.sun[1]); gl.uniform2f(U.uMoon, sk.moon[0], sk.moon[1]);
-      setOpacity(sk.night);
-      f1('uDay', sk.day); f1('uTwi', sk.twi); f1('uNight', sk.night);
-      f1('uCover', S.cover); f1('uGloom', S.gloom); f1('uRain', S.rain); f1('uSnow', S.snow); f1('uFog', S.fog);
-      f1('uLight', S.light); f1('uLightX', S.lightX); f1('uLeaves', S.leaves); f1('uLeafKind', S.kind);
-      gl.uniform2f(U.uWind, wx, S.windY); gl.uniform2f(U.uShift, shX, shY);
-      gl.uniform3f(U.uSeasonTint, S.tint[0], S.tint[1], S.tint[2]);
+      // thunderstorms flash at random (never with reduced motion); a forced monsoon night flickers far away
+      const stormy = !reduceMq.matches && (sky.weather === 'storm' || (sky.season === 'monsoon' && sky.weather === 'clear' && sky.seasonForced && tgt.uNight > .5));
+      if (stormy && simT > flashNext) {
+        flashT0 = simT; flashNext = simT + 4 + Math.random() * 7;
+        flashX = Math.random() < .5 ? .07 + Math.random() * .13 : .8 + Math.random() * .13;
+        boltOn = sky.weather === 'storm' && Math.random() < .45;
+      }
+      const rawFlash = stormy ? flashAt(simT) * (sky.weather === 'storm' ? .75 : .3) : 0;
+      const fl = Math.min(.18, rawFlash); // a soft brightening, never a hard strobe
+      if (!curU) curU = JSON.parse(JSON.stringify(tgt)); // the very first state is shown at once
+      const kSlow = 1 - Math.exp(-dt / 1.6), kSun = 1 - Math.exp(-dt / .35);
+      for (const key in tgt) {
+        if (key === 'uTime') continue;
+        const k = key === 'uSun' || key === 'uMoon' ? kSun : kSlow;
+        if (typeof tgt[key] === 'number') {
+          if (!Number.isFinite(curU[key])) curU[key] = tgt[key];
+          curU[key] += (tgt[key] - curU[key]) * k;
+        } else {
+          if (!curU[key]) curU[key] = tgt[key].slice();
+          for (let i = 0; i < tgt[key].length; i++) {
+            if (!Number.isFinite(curU[key][i])) curU[key][i] = tgt[key][i];
+            curU[key][i] += (tgt[key][i] - curU[key][i]) * k;
+          }
+        }
+      }
+      // the reading-column veil follows the sky's perceived brightness (maths in the setOpacity comment)
+      const lin = (c) => Math.pow((clamp(c, 0, 1) + .055) / 1.055, 2.4);
+      const rl = (v) => .2126 * lin(v[0]) + .7152 * lin(v[1]) + .0722 * lin(v[2]);
+      const Ls = Math.max(rl(curU.uMid), rl(curU.uHor)), nt = clamp(curU.uNight, 0, 1);
+      const veilT = pure ? 0 : dark ? clamp((Ls - .04) / .28, 0, 1) * (1 - nt) : -clamp((.9 - Ls) / .6, 0, 1) * (1 - nt);
+      if (!Number.isFinite(curU.uVeil)) curU.uVeil = veilT;
+      curU.uVeil += (veilT - curU.uVeil) * kSlow;
+      // light page by day: the darker the whole sky (mean of zenith, middle, horizon), the more it is eased toward white
+      const Lavg = (rl(curU.uTop) + rl(curU.uMid) + rl(curU.uHor)) / 3;
+      const liftT = pure || dark ? 0 : clamp((.62 - Lavg) / .62, 0, 1) * .55 * (1 - nt);
+      if (!Number.isFinite(curU.uLift)) curU.uLift = liftT;
+      curU.uLift += (liftT - curU.uLift) * kSlow;
+      shX += (curU.uWind[0] + .45) * dt; shY += curU.uWind[1] * dt; // always a gentle drift, more with real wind
+      if (doc.hidden) return; // nothing is drawn while the tab is hidden
+      const set1 = (n, v) => { const l = U[n]; if (l == null) return; if (typeof v === 'number') gl.uniform1f(l, v); else if (v.length === 2) gl.uniform2fv(l, v); else gl.uniform3fv(l, v); };
+      set1('uRes', [W, H]); set1('uTime', 37 + simT);
+      for (const key in curU) set1(key, curU[key]);
+      set1('uShift', [shX, shY]);
+      set1('uFlash', fl); set1('uFlashX', flashX); set1('uBolt', boltOn ? Math.min(.6, rawFlash * 1.6) : 0);
+      setOpacity(curU.uNight);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
 
     function tick(now) {
       raf = 0;
       if (destroyed || lost) return;
+      if (lastRaf) { // quality steps back up when the last ~120 animation frames averaged under 22 ms apart
+        const g = now - lastRaf;
+        if (g < 250) { gapSum += g; gapN++; }
+        if (gapN >= 120) {
+          const avg = gapSum / gapN; gapSum = 0; gapN = 0;
+          if (avg < 22 && quality < 1) { quality = Math.min(1, quality * 1.1); slow = 0; resize(true); }
+        }
+      }
+      lastRaf = now;
       if (now - last >= 33) { // 30 frames a second is plenty for a sky
-        const dt = last ? Math.min(.1, (now - last) / 1000) : .033;
+        const gap = last ? now - last : 33;
+        const dt = last ? Math.min(.1, gap / 1000) : .033;
         last = now;
         frame(now, dt);
+        // frames arriving much slower than 30 a second, for about two seconds: draw fewer pixels (down to about 45%)
+        if (++seen > 20 && quality > .46) { slow = gap > 50 ? slow + 1 : Math.max(0, slow - 1); if (slow > 45) { slow = 0; quality *= .8; resize(); } }
       }
       raf = win.requestAnimationFrame(tick);
     }
     const start = () => { if (!raf && !destroyed && !lost && !doc.hidden && !reduceMq.matches) raf = win.requestAnimationFrame(tick); };
-    const stop = () => { if (raf) { win.cancelAnimationFrame(raf); raf = 0; } };
+    const stop = () => { if (raf) { win.cancelAnimationFrame(raf); raf = 0; } lastRaf = 0; };
 
-    const onVis = () => (doc.hidden ? stop() : start());
-    const onMotion = () => { if (reduceMq.matches) { stop(); frame(performance.now(), .05); } else start(); };
-    const onLost = (e) => { e.preventDefault(); lost = true; stop(); if (opts.onLost) opts.onLost(); };
-    win.addEventListener('resize', clearBackdrops);
-    win.addEventListener('resize', resize);
-    doc.addEventListener('visibilitychange', onVis);
-    reduceMq.addEventListener('change', onMotion);
-    canvas.addEventListener('webglcontextlost', onLost);
-    const toneTimer = win.setInterval(() => { const d = pageIsDark(); if (d !== dark) { dark = d; tone = null; applyTone(); } }, 2000);
-
-    resize();
-    applyTone();
-    clearBackdrops();
-    canvas.style.opacity = '0';
-    win.requestAnimationFrame(() => { lastOp = -1; setOpacity(0); });
-    start();
-
-    return {
+    const onVis = () => {
+      if (doc.hidden) {
+        stop();
+        // uTime grows for days otherwise and the shader loses float precision: start the clock over
+        if (simT > 1e4) { simT = 0; shX = 0; shY = 0; flashT0 = -10; flashNext = 2.5; }
+      } else if (reduceMq.matches) { if (curU && !lost) frame(performance.now(), 0); }
+      else start();
+    };
+    const onMotion = () => { if (reduceMq.matches) { stop(); curU = null; frame(performance.now(), .05); } else start(); };
+    const darkMq = win.matchMedia('(prefers-color-scheme: dark)');
+    let api = null;
+    const onLost = () => { lost = true; if (api) api.destroy(); if (opts.onLost) opts.onLost(); }; // no preventDefault: the context stays gone, the page is put back as it was
+    api = {
       setState, setStrength,
       destroy() {
         if (destroyed) return;
         destroyed = true;
         stop();
-        win.clearInterval(toneTimer);
-        win.clearInterval(maskTimer); win.removeEventListener('resize', clearBackdrops); restoreBackdrops();
-        win.removeEventListener('resize', resize);
+        win.clearInterval(maskTimer); win.clearInterval(keepTimer); win.clearInterval(sigTimer);
+        win.clearTimeout(resizeScanT); win.clearTimeout(readT); win.clearTimeout(firstRead);
+        win.removeEventListener('resize', onResizeScan);
+        restoreBackdrops();
+        if (mo) { mo.disconnect(); mo = null; }
+        darkMq.removeEventListener('change', scheduleRead);
+        win.removeEventListener('resize', onWinResize);
         doc.removeEventListener('visibilitychange', onVis);
         reduceMq.removeEventListener('change', onMotion);
         canvas.removeEventListener('webglcontextlost', onLost);
-        const ext = gl.getExtension('WEBGL_lose_context');
+        let ext = null;
+        try { ext = gl.getExtension('WEBGL_lose_context'); } catch {}
         canvas.remove();
-        if (ext) ext.loseContext();
+        if (ext) { try { ext.loseContext(); } catch {} }
       },
       canvas,
     };
+    win.addEventListener('resize', onResizeScan);
+    win.addEventListener('resize', onWinResize);
+    doc.addEventListener('visibilitychange', onVis);
+    reduceMq.addEventListener('change', onMotion);
+    canvas.addEventListener('webglcontextlost', onLost);
+    darkMq.addEventListener('change', scheduleRead);
+    // every attribute change on <html> and <body> (ours, data-hr-*, are ignored), and stylesheet / meta swaps in <head>
+    mo = new MutationObserver((recs) => { if (recs.some((r) => r.type !== 'attributes' || (r.attributeName || '').indexOf('data-hr-') !== 0)) scheduleRead(); });
+    mo.observe(rootEl, { attributes: true });
+    if (doc.body) mo.observe(doc.body, { attributes: true });
+    if (doc.head) mo.observe(doc.head, { childList: true });
+    // fallback for anything the observer cannot see (media-query flips, late CSS): the expensive read runs only if the signature changed
+    const sigTimer = win.setInterval(() => { if (!destroyed && themeSig() !== lastSig) readDark(); }, 5000);
+    const firstRead = win.setTimeout(readDark, 1500); // site CSS may not have loaded yet at mount
+
+    resize();
+    applyTone();
+    clearBackdrops();
+    canvas.style.opacity = '0';
+    win.requestAnimationFrame(() => { if (destroyed) return; lastOp = -1; setOpacity(lastNight); });
+    start();
+
+    return api;
   }
 
-  AM.WeatherSky = { mount, skyAt, pageIsDark };
+  AM.WeatherSky = { mount, pageIsDark };
 })();

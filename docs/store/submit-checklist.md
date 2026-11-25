@@ -7,7 +7,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 - [ ] **Check that "Headroom" is free for you.** It was chosen as the name; availability has not been checked. Search the Chrome Web Store for an existing "Headroom" extension, your trademark office's database, and the domain and GitHub names you want. If the Web Store title is taken, the store title can stay "Headroom: AI usage limit and weather" only if it is not a copy of another listing.
 
 - [ ] **Confirm the real-number claims you can't see in code.** The listing says Headroom reads real numbers for Perplexity and Kimi (and ChatGPT's Codex usage). Those three have only been checked signed out, not signed in (`README.md`, "Verified live" says no). Either (a) load the unpacked extension in your Chrome, sign in, and check the bar against each site's own usage page, or (b) delete those lines from the long description in `docs/store/listing.md` so the store text only claims what is verified. Claude, Gemini and Grok are verified.
-- [ ] **Try the exact build.** `chrome://extensions` → Developer mode → Load unpacked → pick the `Headroom` project folder (or unzip `release/<date>/headroom-<version>.zip` and load that folder: it is what the store will get). Open a supported site: the bar appears along the bottom, point at it, click it. Open Settings → Weather, use your location or type a city, and check the sky appears on the site and **Turn off weather** in the details panel removes it. Remove the extension and load it again: the welcome page should open once.
+- [ ] **Try the exact build.** `chrome://extensions` → Developer mode → Load unpacked → pick the `Headroom` project folder (or unzip `release/<date>/headroom-<version>.zip` and load that folder: it is what the store will get). Open a supported site: the bar appears along the bottom, point at it, click it, drag it to another edge (top, left, right) and check it stays there, and click the settings gear in the details panel. Open Settings → Weather, use your location or type a city, and check the sky appears on the site and **Turn off weather** in the details panel removes it. Remove the extension and load it again: the welcome page should open once.
 - [ ] **Weather checks you must do yourself.** (a) Press **Use my location** and confirm Chrome shows its location prompt and the place is saved. (b) Read Open-Meteo's terms (open-meteo.com/en/terms): the free API is for non-commercial use; if you ever charge for Headroom, get a plan. (c) **Single purpose:** the listing's single-purpose statement now covers both the meter and the weather. The Chrome Web Store can reject an extension whose features look unrelated; if the reviewer pushes back, the safe route is to publish the weather sky as its own extension.
 - [ ] **Try Export / Import** in Settings: export, change a limit, import the file, check the limit came back.
 
@@ -19,8 +19,8 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 
 ## 2. Upload
 
-- [ ] Build the zip: `npm run store-zip` (writes `release/<date>/headroom-<version>.zip`; it refuses to build if something is wrong).
-- [ ] Dev console → **New item** → upload the zip.
+- [ ] Build the zip: `npm run store-zip` (writes `release/<date>/headroom-<version>.zip`, for 1.4.0 that is `release/2026-11-25/headroom-1.4.0.zip`; it refuses to build if something is wrong).
+- [ ] Dev console → **New item** (or the existing item's **Package** tab) → upload `release/2026-11-25/headroom-1.4.0.zip`.
 
 ## 3. Store listing tab
 
@@ -43,7 +43,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 
 ## 6. After publishing
 
-- [ ] Tag the release in git (`v1.2.7`, or whichever version you uploaded) and add the store link to the README. I will not tag or publish anything without you saying so.
+- [ ] Tag the release in git (`v1.4.0`) and add the store link to the README. I will not tag or publish anything without you saying so.
 - [ ] Keep the "Verified live" column in the README honest as you check the remaining providers.
 
 ## Known small things (not blockers)

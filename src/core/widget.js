@@ -1,4 +1,4 @@
-// The on-page meter: a thin bar along the top or bottom edge of the page, isolated in a shadow root so site CSS can't
+// The on-page meter: a thin bar along any of the four edges of the page (drag it to move it), isolated in a shadow root so site CSS can't
 // touch it. Hover or focus shows the label; click opens the details panel.
 // Look and tokens: the Headroom meter redesign (levels = glyph + colour + bar pattern, source tags = three shapes).
 (() => {
@@ -76,19 +76,44 @@
     .btn { display: inline-flex; align-items: center; gap: 6px; min-height: 28px; padding: 0 12px; border-radius: 999px; border: 1px solid var(--hr-edge);
       background: var(--hr-bg); color: var(--hr-text); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
     .btn:hover { border-color: var(--hr-accent); }
-    .foot { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+    .foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+    .foot .btn { margin-left: auto; }
+    .gear { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border-radius: 999px; border: 1px solid var(--hr-edge);
+      background: transparent; color: var(--hr-muted); cursor: pointer; }
+    .gear:hover { color: var(--hr-accent); border-color: var(--hr-accent); }
+    .gear:focus-visible { outline: 2px solid var(--hr-accent); outline-offset: 2px; }
     .prob { border: 1px solid var(--hr-ban-line); background: var(--hr-prob-bg); border-radius: 10px; padding: 10px 12px; }
     .pt { display: flex; align-items: center; gap: 6px; font-weight: 700; margin: 0 0 2px; }
     .prob p { margin: 0 0 8px; color: var(--hr-muted); font-size: 11.5px; word-break: break-word; }
     .prob .btn { background: var(--hr-surf); }
 
-    /* Bar style: a thin full-width bar along the top or bottom edge; the label chip shows on hover or focus */
+    /* Bar style: a thin bar along any of the four edges (full width on top/bottom, full height on left/right); the label chip shows on hover or focus */
     .wrap.edge { width: 100%; gap: 0; }
     .wrap.edge .pbox { margin: 8px 12px; }
     .wrap.edge.top { flex-direction: column; } /* bar on top: the panel drops down from it */
     .wrap.edge .panel { max-height: calc(100vh - 56px); overflow-y: auto; }
+    .pbox:empty { display: none; }
+    /* Bar on the left or right edge: a thin vertical bar that fills upward, with the panel beside it */
+    .wrap.edge.left, .wrap.edge.right { width: auto; height: 100vh; align-items: center; gap: 0; }
+    .wrap.edge.left { flex-direction: row; } .wrap.edge.right { flex-direction: row-reverse; }
+    .wrap.edge.left .pill.edge, .wrap.edge.right .pill.edge { flex: none; align-self: stretch; width: var(--hr-bar-h); height: auto; transition: width var(--hr-dur-fast); }
+    .wrap.edge.left .pill.edge:hover, .wrap.edge.left .pill.edge:focus-visible,
+    .wrap.edge.right .pill.edge:hover, .wrap.edge.right .pill.edge:focus-visible { width: var(--hr-bar-h-hover); height: auto; }
+    .wrap.edge.left .pill.edge::after, .wrap.edge.right .pill.edge::after { top: 0; bottom: 0; width: var(--hr-bar-h); height: auto; } /* only as thick as the bar; it is thin, but it can still overlap a right-edge scrollbar, so Settings → Position lets you pick another edge */
+    .wrap.edge.left .pill.edge::after { left: 0; right: auto; } .wrap.edge.right .pill.edge::after { right: 0; left: auto; }
+    .wrap.edge.left .pill.edge:focus-visible { box-shadow: 2px 0 0 0 var(--hr-accent); }
+    .wrap.edge.right .pill.edge:focus-visible { box-shadow: -2px 0 0 0 var(--hr-accent); }
+    .wrap.edge.left .pill.edge .fill, .wrap.edge.right .pill.edge .fill { top: auto; bottom: 0; left: 0; right: 0; width: auto; }
+    .wrap.edge.left .pill.edge .f-unk, .wrap.edge.right .pill.edge .f-unk { height: 100% !important; width: auto !important; top: 0; bottom: 0; left: 2px; right: 2px;
+      background: repeating-linear-gradient(0deg, var(--hr-unk) 0 8px, transparent 8px 16px); }
+    .wrap.edge.left .trk.notched, .wrap.edge.right .trk.notched { -webkit-mask-image: linear-gradient(0deg, #000 calc(75% - 1px), transparent calc(75% - 1px), transparent calc(75% + 1px), #000 calc(75% + 1px), #000 calc(90% - 1px), transparent calc(90% - 1px), transparent calc(90% + 1px), #000 calc(90% + 1px));
+      mask-image: linear-gradient(0deg, #000 calc(75% - 1px), transparent calc(75% - 1px), transparent calc(75% + 1px), #000 calc(75% + 1px), #000 calc(90% - 1px), transparent calc(90% - 1px), transparent calc(90% + 1px), #000 calc(90% + 1px)); }
+    .wrap.edge.left .pill.edge .info, .wrap.edge.right .pill.edge .info { top: 50%; bottom: auto; transform: translateY(-50%); margin: 0; }
+    .wrap.edge.left .pill.edge .info { left: 100%; right: auto; margin-left: 10px; }
+    .wrap.edge.right .pill.edge .info { right: 100%; left: auto; margin-right: 10px; }
+    .wrap.edge.dragging .pill.edge { cursor: grabbing; }
     .pill.edge { align-self: stretch; display: block; width: 100%; height: var(--hr-bar-h); padding: 0; border: 0; border-radius: 0; background: transparent;
-      box-shadow: none; cursor: pointer; overflow: visible; transition: height var(--hr-dur-fast); }
+      box-shadow: none; cursor: pointer; overflow: visible; touch-action: none; transition: height var(--hr-dur-fast); }
     .pill.edge::after { content: ""; position: absolute; left: 0; right: 0; height: 12px; }
     .wrap.edge.bottom .pill.edge::after { bottom: 0; } .wrap.edge.top .pill.edge::after { top: 0; }
     .pill.edge:hover, .pill.edge:focus-visible { height: var(--hr-bar-h-hover); }
@@ -112,7 +137,7 @@
   let panelBox = null;
   let pill = null;
   let info = null;
-  let barMode = 'bottom'; // 'top' | 'bottom'
+  let barMode = 'bottom'; // 'top' | 'bottom' | 'left' | 'right'
   let barFill = null;
   let barTrack = null;
   let styleEl = null;
@@ -156,6 +181,9 @@
     node('path', { d: 'M6 3.4V6l1.8 1.2', fill: 'none', stroke: CUR, 'stroke-width': 1.4, 'stroke-linecap': 'round' })]);
   const tick = () => svgOf(null, 9, 9, '0 0 10 10', [node('path', { d: 'M1.5 5.2 4 7.6 8.6 2.6', fill: 'none', stroke: CUR, 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })]);
   const flag = () => svgOf(null, 9, 9, '0 0 10 10', [node('path', { d: 'M2 1v8.4', stroke: CUR, 'stroke-width': 1.4, 'stroke-linecap': 'round' }), node('path', { d: 'M2.6 1.2h5.6L6.9 3.3l1.3 2.1H2.6z', fill: CUR })]);
+  const gearIcon = () => svgOf(null, 16, 16, '0 0 24 24', [
+    node('circle', { cx: 12, cy: 12, r: 3, fill: 'none', stroke: CUR, 'stroke-width': 1.8 }),
+    node('path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z', fill: 'none', stroke: CUR, 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })]);
   const glyphBox = (kind, level) => {
     const b = el('span', 'glyph lv-' + (level || 'unk'));
     b.setAttribute('aria-hidden', 'true');
@@ -179,14 +207,11 @@
     if (host || !document.body) return;
     host = document.createElement('div');
     host.setAttribute('data-headroom', '');
-    barMode = lastSettings.meterStyle === 'bar-top' ? 'top' : 'bottom';
-    // Fixed to the screen edge, and hung off <html> (not <body>) so a page that shifts or transforms its body cannot offset the bar.
-    host.style.cssText = `position:fixed;left:0;right:0;${barMode === 'top' ? 'top:0;bottom:auto' : 'bottom:0;top:auto'};margin:0;padding:0;transform:none;z-index:2147483646;`;
     root = host.attachShadow({ mode: 'open' });
     const style = el('style');
     style.textContent = CSS;
     styleEl = style;
-    wrap = el('div', 'wrap edge ' + barMode);
+    wrap = el('div', 'wrap edge');
     panelBox = el('div', 'pbox');
     pill = el('div', 'pill edge');
     pill.title = 'Headroom — click for details';
@@ -200,10 +225,71 @@
     pill.append(info);
     attachClick(pill);
     attachKeys(pill);
+    attachDrag(pill);
+    attachEscape(wrap);
     wrap.append(pill, panelBox);
     root.append(style, wrap);
+    applyEdge(edgeOfStyle(lastSettings.meterStyle));
     document.documentElement.appendChild(host);
     ticker = setInterval(render, 30000);
+  }
+
+  const edgeOfStyle = (s) => { const m = /^bar-(top|left|right)$/.exec(s || ''); return m ? m[1] : 'bottom'; };
+  const isVertical = () => barMode === 'left' || barMode === 'right';
+  // Fixed to a screen edge, and hung off <html> (not <body>) so a page that shifts or transforms its body cannot offset the bar.
+  function applyEdge(mode) {
+    barMode = mode;
+    const pos = { top: 'left:0;right:0;top:0;bottom:auto', bottom: 'left:0;right:0;bottom:0;top:auto', left: 'top:0;bottom:0;left:0;right:auto', right: 'top:0;bottom:0;right:0;left:auto' }[mode];
+    host.style.cssText = `position:fixed;${pos};margin:0;padding:0;transform:none;z-index:2147483646;`;
+    wrap.className = 'wrap edge ' + mode + (dragging ? ' dragging' : '');
+  }
+
+  // Drag the bar to any screen edge: it snaps to the nearest one while you drag, and the choice is saved.
+  let dragging = false, dragMoved = false;
+  const nearestEdge = (x, y) => {
+    const d = { left: x, right: window.innerWidth - x, top: y, bottom: window.innerHeight - y };
+    return Object.keys(d).reduce((a, b) => (d[b] < d[a] ? b : a));
+  };
+  function attachDrag(target) {
+    target.addEventListener('pointerdown', (e) => {
+      if (e.button !== 0) return;
+      const sx = e.clientX, sy = e.clientY;
+      try { target.setPointerCapture(e.pointerId); } catch {}
+      let ended = false;
+      const move = (m) => {
+        if (m.pointerId !== e.pointerId) return;
+        if (!host) { up(); return; } // the widget was removed mid-drag
+        if (m.buttons === 0) { up(); return; } // the button was released somewhere we never heard about
+        if (!dragging) {
+          if (Math.hypot(m.clientX - sx, m.clientY - sy) < 8) return;
+          dragging = true; dragMoved = true; expanded = false;
+          applyEdge(barMode); render();
+        }
+        m.preventDefault();
+        const edge = nearestEdge(m.clientX, m.clientY);
+        if (edge !== barMode) { applyEdge(edge); render(); }
+      };
+      const up = () => {
+        if (ended) return;
+        ended = true;
+        window.removeEventListener('pointermove', move, true);
+        window.removeEventListener('pointerup', up, true);
+        window.removeEventListener('pointercancel', up, true);
+        target.removeEventListener('lostpointercapture', up);
+        try { target.releasePointerCapture(e.pointerId); } catch {}
+        if (!dragging) return;
+        dragging = false;
+        if (host) applyEdge(barMode);
+        const s = 'bar-' + barMode;
+        lastSettings = { ...lastSettings, meterStyle: s };
+        if (AM.setSetting) Promise.resolve(AM.setSetting('meterStyle', s)).catch(() => {});
+        setTimeout(() => { dragMoved = false; }, 0); // the click that follows a drag must not open the panel
+      };
+      window.addEventListener('pointermove', move, true);
+      window.addEventListener('pointerup', up, true);
+      window.addEventListener('pointercancel', up, true);
+      target.addEventListener('lostpointercapture', up);
+    });
   }
 
   function unmount() {
@@ -213,7 +299,7 @@
   }
 
   function attachClick(target) {
-    target.addEventListener('click', () => { expanded = !expanded; render(); });
+    target.addEventListener('click', () => { if (dragMoved) return; expanded = !expanded; render(); });
   }
 
   function attachKeys(target) {
@@ -223,11 +309,19 @@
         e.preventDefault();
         expanded = !expanded;
         render();
-      } else if (e.key === 'Escape' && expanded) {
-        e.preventDefault();
-        expanded = false;
-        render();
       }
+    });
+  }
+
+  // Escape closes the panel from anywhere inside it (the gear, the weather button), and puts focus back on the bar.
+  function attachEscape(target) {
+    target.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !expanded) return;
+      e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation(); // the site's own Escape handler must not also fire
+      expanded = false;
+      render();
+      try { if (pill) pill.focus(); } catch {}
     });
   }
 
@@ -341,17 +435,24 @@
     else if (!meters.length) panel.append(el('div', 'empty', 'No usage data yet. Send a message or open usage settings.'));
     for (const m of meters) panel.append(limitRow(m, now));
     // One click to turn the weather background off (or back on), without a trip to Settings.
+    panel.append(el('div', 'rule'));
+    const foot = el('div', 'foot');
+    const gear = el('button', 'gear');
+    gear.type = 'button';
+    gear.title = 'Open Headroom settings';
+    gear.setAttribute('aria-label', 'Open Headroom settings');
+    gear.append(gearIcon());
+    gear.addEventListener('click', () => { try { chrome.runtime.sendMessage({ type: 'headroom:openSettings' }); } catch {} });
+    foot.append(gear);
     if (AM.setSetting && lastSettings.weatherPlace) {
       const on = lastSettings.weather !== false;
-      panel.append(el('div', 'rule'));
-      const foot = el('div', 'foot');
       const wb = el('button', 'btn weather-btn', on ? 'Turn off weather' : 'Turn on weather');
       wb.type = 'button';
       wb.title = on ? 'Hide the weather background on the page' : 'Show the weather background on the page';
       wb.addEventListener('click', () => AM.setSetting('weather', !on));
       foot.append(wb);
-      panel.append(foot);
     }
+    panel.append(foot);
     panelBox.append(panel);
   }
 
@@ -386,7 +487,8 @@
     if (barFill) {
       const unk = topPct == null;
       barFill.className = 'fill f-' + (unk ? 'unk' : level);
-      barFill.style.width = (unk ? 100 : topPct) + '%';
+      const amount = (unk ? 100 : topPct) + '%';
+      if (isVertical()) { barFill.style.height = amount; barFill.style.width = ''; } else { barFill.style.width = amount; barFill.style.height = ''; }
       barTrack.className = !unk && level !== 'empty' ? 'trk notched' : 'trk';
     }
 
@@ -422,9 +524,8 @@
       if (AM.dead) return;
       last = { name, meters, chat: chat || null, problem: problem || null };
       if (!settings.widget) return unmount();
-      const wanted = settings.meterStyle === 'bar-top' ? 'bar-top' : 'bar-bottom';
-      if (host && lastSettings.meterStyle !== undefined && wanted !== (lastSettings.meterStyle === 'bar-top' ? 'bar-top' : 'bar-bottom')) unmount();
       lastSettings = settings;
+      if (host && !dragging && edgeOfStyle(settings.meterStyle) !== barMode) { applyEdge(edgeOfStyle(settings.meterStyle)); expanded = false; }
       if (!host) {
         if (!document.body) {
           document.addEventListener('DOMContentLoaded', () => AM.widget.update(name, last.meters, settings, last.chat, last.problem), { once: true });
