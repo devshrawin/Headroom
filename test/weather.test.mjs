@@ -161,7 +161,7 @@ test('background: loadWeather is refused without a sender tab, and injects only 
   await bg.settle();
   assert.equal(replies[1].ok, true);
   assert.equal(bg.executed.length, 1);
-  assert.equal(JSON.stringify(bg.executed[0].files), JSON.stringify(['src/core/weather-sky.js']));
+  assert.equal(JSON.stringify(bg.executed[0].files), JSON.stringify(['src/core/sky-palette.js', 'src/core/weather-sky.js']));
 });
 
 test('background: a 20-minute alarm is created when a place is saved, and the weather is fetched at once', async () => {
@@ -176,11 +176,24 @@ test('background: a 20-minute alarm is created when a place is saved, and the we
   assert.equal(called, 1);
 });
 
-test('every uniform the sky script sets exists in its shader', async () => {
+test('the sky palette and the shader agree on every uniform', async () => {
   const { readFileSync } = await import('node:fs');
   const src = readFileSync(new URL('../src/core/weather-sky.js', import.meta.url), 'utf8');
   const frag = src.slice(src.indexOf('const FRAG = `'), src.indexOf('`;', src.indexOf('const FRAG = `')));
-  const used = new Set([...src.matchAll(/U\.(u[A-Z]\w+)/g)].map((m) => m[1]).concat([...src.matchAll(/f1\('(u\w+)'/g)].map((m) => m[1])));
-  for (const u of used) assert.ok(new RegExp('uniform[^;]*[ ,]' + u + '[;, ]').test(frag), 'missing uniform ' + u);
-  assert.ok(used.has('uShift'));
+  const g = { Headroom: {} }; g.globalThis = g;
+  vm.runInNewContext(readFileSync(new URL('../src/core/sky-palette.js', import.meta.url), 'utf8'), g);
+  const PAL = g.Headroom.SKYPAL;
+  assert.ok(PAL && PAL.uniforms);
+  const declared = new Set([...frag.matchAll(/uniform\s+(?:float|vec2|vec3)\s+([^;]+);/g)].flatMap((m) => m[1].split(',').map((s) => s.trim())));
+  const fromPalette = new Set(Object.keys(PAL.uniforms({ season: 'summer', weather: 'rain', hour: 12 })));
+  // set by the sky script itself
+  const own = ['uRes', 'uTime', 'uShift', 'uFlash', 'uFlashX', 'uBolt'];
+  for (const u of fromPalette) assert.ok(declared.has(u), 'palette sets ' + u + ' but the shader has no such uniform');
+  for (const u of declared) assert.ok(fromPalette.has(u) || own.includes(u), 'the shader needs ' + u + ' but nothing sets it');
+  for (const u of own) assert.ok(src.includes("'" + u + "'") || src.includes('U.' + u), 'weather-sky.js never sets ' + u);
+  // every season x weather x hour gives finite numbers (no NaN reaching the GPU)
+  for (const season of ['spring', 'summer', 'autumn', 'winter', 'monsoon']) for (const weather of ['clear', 'partly', 'overcast', 'drizzle', 'rain', 'storm', 'snow', 'fog']) for (let h = 0; h < 24; h += 1.5) {
+    const u = PAL.uniforms({ season, weather, hour: h, rise: 6.2, set: 18.3 });
+    for (const [k, v] of Object.entries(u)) for (const n of [].concat(v)) assert.ok(Number.isFinite(n), season + ' ' + weather + ' ' + h + ' ' + k + ' = ' + n);
+  }
 });

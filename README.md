@@ -104,6 +104,7 @@ src/
     banner.js          watches for the site's own limit notices
     widget.js          on-page meter bar (shadow DOM)
     weather-data.js    weather codes, seasons, sun times, the look of the sky (pure functions)
+    sky-palette.js     hour x season x weather to sky colours and amounts (pure functions)
     weather-sky.js     the weather sky renderer (WebGL), injected on demand
   adapters/            one file per provider; generic.js = counting sites + user-added sites
   popup/  options/  welcome/   toolbar popup, settings page, first-run guide

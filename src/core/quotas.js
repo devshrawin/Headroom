@@ -40,7 +40,7 @@
   ];
 
   // The weather sky is injected into a tab only when the weather is switched on (see content.js / background.js).
-  AM.WEATHER_FILES = ['src/core/weather-sky.js'];
+  AM.WEATHER_FILES = ['src/core/sky-palette.js', 'src/core/weather-sky.js']; // the palette first: the sky reads it
 
   AM.siteScripts = (host) => {
     const matches = [`https://${host}/*`];
