@@ -20,7 +20,7 @@ Images (docs/store/assets/):
   Marquee 1400x560 (optional): marquee-1400x560.png
 
 Privacy tab, single purpose:
-Headroom makes the AI chat websites you use more informative at a glance. It shows how much of your usage limit remains (a bar along the page edge, a toolbar badge and popup, and optional threshold notifications), and it shows the real weather for a place you choose as a background sky on those same sites.
+Headroom makes the AI chat websites you use more informative at a glance. It shows how much of your usage limit remains (a bar along the page edge, a toolbar badge, and optional threshold notifications), and it shows the real weather for a place you choose as a background sky on those same sites.
 
 Privacy policy URL: https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md
 
@@ -37,7 +37,6 @@ It works on the most popular AI chat sites, and you can add any other site in Se
 
 Also included
 • Toolbar badge with the current percentage
-• A popup with every site in one place
 • Optional desktop notifications at 75, 90 and 100 percent, and when a limit resets
 • Chat length and a rough cost for your next message, where the site allows it
 • A clear message when usage cannot be read, with a one-click copy of the debug details

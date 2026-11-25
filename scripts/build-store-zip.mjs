@@ -33,7 +33,6 @@ const add = (v) => { if (typeof v === 'string' && !v.includes('*')) need.add(v);
 for (const cs of manifest.content_scripts || []) (cs.js || []).forEach(add);
 add(manifest.background && manifest.background.service_worker);
 add(manifest.options_page);
-add(manifest.action && manifest.action.default_popup);
 Object.values(manifest.icons || {}).forEach(add);
 Object.values((manifest.action && manifest.action.default_icon) || {}).forEach(add);
 // files the extension loads by path at run time

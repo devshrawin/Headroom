@@ -11,7 +11,7 @@ Effective 23 November 2026 · Applies to Headroom 1.2.0 and later (earlier versi
 
 ## What Headroom is
 
-Headroom is a Chrome extension that shows how much of your usage limit is left on AI chat sites (Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek, Qwen, Le Chat, Copilot, Meta AI, Poe, and any site you add yourself). It draws a small meter on the page, a toolbar badge and popup, and can show desktop notifications.
+Headroom is a Chrome extension that shows how much of your usage limit is left on AI chat sites (Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek, Qwen, Le Chat, Copilot, Meta AI, Poe, and any site you add yourself). It draws a small meter on the page, a toolbar badge, and can show desktop notifications.
 
 ## What it reads, and why
 

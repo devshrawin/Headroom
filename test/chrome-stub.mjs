@@ -28,15 +28,17 @@ export function loadBackground({ storage = makeStorage(), contains = async () =>
   const badges = [];
   const registeredScripts = [];
   const tabsCreated = [];
-  const listeners = { message: [], alarm: [], installed: [], startup: [], activated: [], storageChanged: [] };
+  const listeners = { message: [], alarm: [], installed: [], startup: [], activated: [], storageChanged: [], actionClicked: [] };
+  let optionsOpened = 0;
   const executed = [];
   const event = (name) => ({ addListener: (fn) => listeners[name].push(fn) });
   const chrome = {
-    runtime: { getURL: (p) => 'chrome-extension://x/' + p, onMessage: event('message'), onInstalled: event('installed'), onStartup: event('startup') },
+    runtime: { getURL: (p) => 'chrome-extension://x/' + p, onMessage: event('message'), onInstalled: event('installed'), onStartup: event('startup'), openOptionsPage: async () => { optionsOpened++; } },
     storage: { local: storage, onChanged: event('storageChanged') },
     notifications: { create: (id, opts) => { notifications.push({ id, ...opts }); } },
     alarms: { create: (name, info) => { alarms.push({ name, ...info }); }, get: async () => undefined, clear: async () => true, onAlarm: event('alarm') },
     action: {
+      onClicked: event('actionClicked'),
       setBadgeText: async (o) => { badges.push({ text: o.text }); },
       setBadgeBackgroundColor: async (o) => { badges.push({ color: o.color }); },
     },
@@ -55,7 +57,7 @@ export function loadBackground({ storage = makeStorage(), contains = async () =>
 
   const settle = () => new Promise((r) => setTimeout(r, 10));
   return {
-    AM: ctx.Headroom, notifications, alarms, badges, registeredScripts, tabsCreated, listeners, storage, settle, executed,
+    AM: ctx.Headroom, optionsOpened: () => optionsOpened, notifications, alarms, badges, registeredScripts, tabsCreated, listeners, storage, settle, executed,
     // what content.js sends after each refresh
     async usage(provider, name, meters, problem = null, sender = { tab: { id: 1 } }) {
       listeners.message.forEach((fn) => fn({ type: 'headroom:usage', provider, name, meters, problem }, sender, () => {}));

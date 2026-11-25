@@ -53,6 +53,11 @@
       padding: 14px 14px 12px; font-size: 12.5px; line-height: 1.4; color: var(--hr-text); text-align: left; }
     .ph { display: flex; justify-content: space-between; align-items: center; margin: 0 0 10px; }
     .nm { font-size: 14px; font-weight: 700; }
+    .phr { display: inline-flex; align-items: center; gap: 8px; }
+    .xbtn { display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px; padding: 0; margin: -3px -4px -3px 0; border-radius: 999px; border: 0;
+      background: var(--hr-chip); color: var(--hr-muted); cursor: pointer; }
+    .xbtn:hover { color: var(--hr-text); background: var(--hr-track); }
+    .xbtn:focus-visible { outline: 2px solid var(--hr-accent); outline-offset: 2px; }
     .brand { font-size: 11.5px; font-weight: 700; color: var(--hr-accent); }
     .sec { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--hr-muted); margin: 0 0 4px; }
     .kv { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
@@ -184,6 +189,7 @@
   const gearIcon = () => svgOf(null, 16, 16, '0 0 24 24', [
     node('circle', { cx: 12, cy: 12, r: 3, fill: 'none', stroke: CUR, 'stroke-width': 1.8 }),
     node('path', { d: 'M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09a1.65 1.65 0 0 0-1-1.51 1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09a1.65 1.65 0 0 0 1.51-1 1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33h0a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51h0a1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82v0a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z', fill: 'none', stroke: CUR, 'stroke-width': 1.8, 'stroke-linecap': 'round', 'stroke-linejoin': 'round' })]);
+  const closeIcon = () => svgOf(null, 14, 14, '0 0 24 24', [node('path', { d: 'M6 6l12 12M18 6 6 18', fill: 'none', stroke: CUR, 'stroke-width': 2.2, 'stroke-linecap': 'round' })]);
   const glyphBox = (kind, level) => {
     const b = el('span', 'glyph lv-' + (level || 'unk'));
     b.setAttribute('aria-hidden', 'true');
@@ -428,7 +434,15 @@
     const h = el('div', 'ph');
     h.setAttribute('role', 'heading');
     h.setAttribute('aria-level', '2');
-    h.append(el('span', 'nm', last.name), el('span', 'brand', 'Headroom'));
+    const right = el('span', 'phr');
+    const x = el('button', 'xbtn');
+    x.type = 'button';
+    x.title = 'Close';
+    x.setAttribute('aria-label', 'Close details');
+    x.append(closeIcon());
+    x.addEventListener('click', () => { expanded = false; render(); try { if (pill) pill.focus(); } catch {} });
+    right.append(el('span', 'brand', 'Headroom'), x);
+    h.append(el('span', 'nm', last.name), right);
     panel.append(h);
     if (last.chat) panel.append(chatSection(last.chat, now));
     if (last.problem) panel.append(problemBox(last.problem));

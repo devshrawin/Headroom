@@ -2,7 +2,7 @@
 
 *Formerly AI Meter. Old exported settings files still import and load.*
 
-A Chrome extension with two jobs on the AI sites you use. It shows how much of your usage limit is left on **Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek, Qwen, Le Chat, Copilot, Meta AI, Poe and any other AI chat site you add**, as a thin bar along the edge of the page, a toolbar badge and a popup. And it puts the **real weather behind your chat** as a living sky: the sun, moon and stars at the real hour, clouds moving with the real wind, rain, snow, fog, lightning, falling leaves in autumn.
+A Chrome extension with two jobs on the AI sites you use. It shows how much of your usage limit is left on **Claude, ChatGPT, Gemini, Grok, Perplexity, Kimi, DeepSeek, Qwen, Le Chat, Copilot, Meta AI, Poe and any other AI chat site you add**, as a thin bar along the edge of the page and a toolbar badge. And it puts the **real weather behind your chat** as a living sky: the sun, moon and stars at the real hour, clouds moving with the real wind, rain, snow, fog, lightning, falling leaves in autumn.
 
 ![icon](icons/icon128.png)
 
@@ -107,10 +107,10 @@ src/
     sky-palette.js     hour x season x weather to sky colours and amounts (pure functions)
     weather-sky.js     the weather sky renderer (WebGL), injected on demand
   adapters/            one file per provider; generic.js = counting sites + user-added sites
-  popup/  options/  welcome/   toolbar popup, settings page, first-run guide
+  options/  welcome/          settings page, first-run guide
   (no images: the weather sky is drawn by one shader)
 scripts/build-store-zip.mjs   builds the Web Store zip into release/<date>/ (npm run store-zip)
-tools/                        preview pages for the popup and the weather, and the site smoke test
+tools/                        preview pages for the weather, and the site smoke test
 test/                         node:test suites (settings, background worker and weather fetch, weather data, widget, content, hooks, parsers)
 docs/                         privacy policy, store listing and checklist, security and accessibility reviews
 ```

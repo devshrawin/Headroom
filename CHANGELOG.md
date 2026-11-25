@@ -2,6 +2,15 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.4.1 — 2026-11-25
+
+### Changed
+- The welcome page is now a short visual walkthrough (five picture cards: the bar, click for details, drag to any edge, the live sky, what real / estimate / banner mean) instead of paragraphs of text.
+- The toolbar popup is removed. The toolbar icon still shows the usage percentage as a badge, and clicking it opens Settings; everything else lives on the page bar and its details panel.
+
+### Added
+- The on-page details panel has a close (✕) button in its header, next to Escape and clicking the bar.
+
 ## 1.4.0 — 2026-11-25
 
 ### Changed

@@ -156,6 +156,9 @@ chrome.runtime.onInstalled.addListener((details) => {
 });
 chrome.runtime.onStartup.addListener(() => { syncSites().catch(() => {}); syncWeatherAlarm().catch(() => {}); refreshWeather().catch(() => {}); });
 
+// No popup: the toolbar icon only carries the percentage badge; clicking it opens Settings.
+chrome.action.onClicked.addListener(() => { chrome.runtime.openOptionsPage().catch(() => {}); });
+
 chrome.tabs.onActivated.addListener(async ({ tabId }) => {
   try {
     const tab = await chrome.tabs.get(tabId);

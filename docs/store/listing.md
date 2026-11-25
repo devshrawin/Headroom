@@ -9,7 +9,7 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 | Name | Headroom: AI usage limit and weather |
 | Category | Productivity |
 | Language | English |
-| Package version | 1.4.0 |
+| Package version | 1.4.1 |
 | Privacy policy URL | `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md` (no GitHub Pages needed: the repo is public, so GitHub shows `docs/privacy.md` as a page. It must be merged to `main` first, or it shows the old policy. Open it in a private window to check it loads without signing in) |
 | Support URL | `https://github.com/devshrawin/Headroom/issues` |
 | Homepage URL | `https://github.com/devshrawin/Headroom` |
@@ -36,7 +36,6 @@ No lists of product or company names (the store rejected version 1.2.6 for that)
 >
 > Also included
 > • Toolbar badge with the current percentage
-> • A popup with every site in one place
 > • Optional desktop notifications at 75, 90 and 100 percent, and when a limit resets
 > • Chat length and a rough cost for your next message, where the site allows it
 > • A clear message when usage cannot be read, with a one-click copy of the debug details
@@ -51,7 +50,7 @@ No lists of product or company names (the store rejected version 1.2.6 for that)
 
 ## Single-purpose statement
 
-> Headroom makes the AI chat websites you use more informative at a glance. It shows how much of your usage limit remains (a bar along the page edge, a toolbar badge and popup, and optional threshold notifications), and it shows the real weather for a place you choose as a background sky on those same sites.
+> Headroom makes the AI chat websites you use more informative at a glance. It shows how much of your usage limit remains (a bar along the page edge, a toolbar badge, and optional threshold notifications), and it shows the real weather for a place you choose as a background sky on those same sites.
 
 ## Permission justifications
 
@@ -137,8 +136,8 @@ The store description keeps only the short line at its end. The full list of com
 
 ## Before you submit
 
-- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.4.0)
-- [ ] Zip built with `npm run store-zip`, upload `release/2026-11-25/headroom-1.4.0.zip`; tag the release `v1.4.0` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
+- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.4.1)
+- [ ] Zip built with `npm run store-zip`, upload `release/2026-11-25/headroom-1.4.1.zip`; tag the release `v1.4.1` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
 - [ ] Privacy policy URL is live and loads without sign-in
 - [ ] Single-purpose statement and every permission justification pasted
 - [ ] Images uploaded from `docs/store/assets/` (5 screenshots, small tile, optional marquee)

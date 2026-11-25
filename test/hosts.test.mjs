@@ -29,9 +29,9 @@ test('Copilot is matched on its current address (copilot.microsoft.com now redir
   assert.equal(AM.providerForHost('copilot.microsoft.com').id, 'copilot');
 });
 
-test('every file the manifest points at exists (icons, popup, options, background, content scripts)', () => {
+test('every file the manifest points at exists (icons, options, background, content scripts)', () => {
   const files = new Set([
-    manifest.background.service_worker, manifest.action.default_popup, manifest.options_page,
+    manifest.background.service_worker, manifest.options_page,
     ...Object.values(manifest.icons), ...Object.values(manifest.action.default_icon),
     ...manifest.content_scripts.flatMap((c) => c.js),
   ]);

@@ -268,6 +268,21 @@ test('the panel has a gear button that asks the extension to open Settings', () 
   assert.equal(JSON.stringify(sent), JSON.stringify([{ type: 'headroom:openSettings' }]));
 });
 
+test('the panel has a close button that closes it and returns focus to the bar', () => {
+  const w = loadWidget();
+  w.update('Claude', [real(10)]);
+  let focused = 0;
+  w.pill().focus = () => { focused++; };
+  w.click();
+  const x = w.root.byClass('xbtn')[0];
+  assert.ok(x, 'the close button is in the panel');
+  assert.equal(x.tagName, 'BUTTON');
+  assert.equal(x.attrs['aria-label'], 'Close details');
+  x.fire('click');
+  assert.equal(w.panelText(), null, 'panel closed');
+  assert.equal(focused, 1);
+});
+
 test('a11y: Escape pressed inside the panel closes it and returns focus to the bar', () => {
   const w = loadWidget();
   w.update('Claude', [real(10)]);

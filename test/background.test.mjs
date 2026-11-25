@@ -140,3 +140,13 @@ test('custom sites: content scripts are re-registered only where permission is s
   assert.ok(bg.registeredScripts.every((s) => s.matches.every((m) => m.includes('a.test'))));
 });
 
+
+test('there is no popup: clicking the toolbar icon opens Settings', async () => {
+  const manifest = JSON.parse((await import('node:fs')).readFileSync(new URL('../manifest.json', import.meta.url), 'utf8'));
+  assert.equal(manifest.action.default_popup, undefined, 'a popup would swallow the click');
+  const bg = loadBackground();
+  assert.equal(bg.listeners.actionClicked.length, 1);
+  bg.listeners.actionClicked[0]({});
+  await bg.settle();
+  assert.equal(bg.optionsOpened(), 1);
+});
