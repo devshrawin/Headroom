@@ -31,7 +31,7 @@ const PAGES = [
 ];
 const INDEX = [
   ['Show the weather', 'weather'], ['Your place and location', 'weather'], ['City search', 'weather'], ['Temperature units', 'weather'], ['Sky strength', 'weather'],
-  ['Try a look: weather, season, time of day', 'weather'], ['Show the meter', 'meter'], ['Meter position: top or bottom', 'meter'], ['Chat length and cache details', 'meter'],
+  ['Try a look: weather, season, time of day', 'weather'], ['Show the meter', 'meter'], ['Meter position: top, bottom, left or right', 'meter'], ['Chat length and cache details', 'meter'],
   ['Estimate limits and rules', 'limits'], ['Notification thresholds', 'alerts'], ['Desktop notifications', 'alerts'], ['Add a site', 'sites'],
   ['Export settings', 'data'], ['Import settings', 'data'], ['Restore defaults', 'data'], ['Clear usage data', 'data'], ['Debug log', 'help'], ['Privacy policy', 'help'],
 ];
@@ -62,7 +62,7 @@ async function saveNow() {
 // ---------- row helpers ----------
 const row = (title, desc, control) => `<div class="set-row"><div class="set-l"><div class="set-t">${title}</div>${desc ? `<div class="set-d">${desc}</div>` : ''}</div><div class="set-c">${control}</div></div>`;
 const sw = (k, label, on) => `<label class="sw"><input type="checkbox" data-k="${k}" ${on ? 'checked' : ''}><span class="tr"></span><span>${esc(label)}</span></label>`;
-const seg = (k, opts, cur) => `<div class="seg" role="radiogroup">${opts.map(([v, l]) => `<label><input type="radio" name="${k}" data-k="${k}" value="${esc(v)}" ${v === cur ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div>`;
+const seg = (k, opts, cur, label) => `<div class="seg" role="radiogroup"${label ? ` aria-label="${esc(label)}"` : ''}>${opts.map(([v, l]) => `<label><input type="radio" name="${k}" data-k="${k}" value="${esc(v)}" ${v === cur ? 'checked' : ''}><span>${esc(l)}</span></label>`).join('')}</div>`;
 const sel = (id, opts, cur) => `<select id="${id}">${opts.map(([v, l]) => `<option value="${esc(v)}" ${String(v) === String(cur) ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>`;
 
 // ---------- weather ----------
@@ -95,7 +95,7 @@ async function weatherPage() {
       <div id="found" class="results" hidden></div>
       <div id="wmsg" class="muted" role="status"></div>`)}
     ${row('Right now', 'Refreshed every 20 minutes in the background.', `${now}${err ? `<div class="note warn">Could not reach the weather service: ${esc(err.error)}</div>` : ''}<div class="row"><button class="btn sm" type="button" data-act="refresh" ${place ? '' : 'disabled'}>Refresh now</button></div>`)}
-    ${row('Units', '', seg('weatherUnits', [['c', '°C'], ['f', '°F']], S.weatherUnits))}
+    ${row('Units', '', seg('weatherUnits', [['c', '°C'], ['f', '°F']], S.weatherUnits, 'Temperature units'))}
     ${row('Sky strength', 'How strongly the sky shows through the page. Lower it if text is hard to read.', `<input type="range" min="20" max="100" step="5" value="${Math.round(S.weatherStrength * 100)}" data-k="weatherStrength" data-div="100" aria-label="Sky strength"><div class="muted" id="strv">${Math.round(S.weatherStrength * 100)}%</div>`)}
   </section>
   <section class="card">
@@ -105,7 +105,7 @@ async function weatherPage() {
       <div class="row"><button class="btn sm" type="button" data-act="live">Back to live</button></div>`)}
   </section>
   <section class="card">
-    ${row('What leaves your computer', '', `<div class="note">Only the <b>rounded coordinates</b> of the place you choose (about 1&nbsp;km) go to <b>open-meteo.com</b>, a free weather service, to ask for the forecast. Your location is never sent anywhere else, never tied to who you are, and the place is not part of exported settings. Turn the weather off and nothing is sent.</div>`)}
+    ${row('What leaves your computer', '', `<div class="note">Only the <b>rounded coordinates</b> of the place you choose (about 1&nbsp;km) go to <b>open-meteo.com</b>, a free weather service, to ask for the forecast. Your location is never sent anywhere else, never tied to who you are, and the place is not part of exported settings. If you type a city name, that text is sent to Open-Meteo's free geocoding service to find the place. Turn the weather off and nothing is sent.</div>`)}
   </section>`;
 }
 
@@ -161,7 +161,7 @@ function meterPage() {
   return `<h1 class="page-h">Meter</h1><p class="page-d">${PAGES[1].desc}</p>
   <section class="card">
     ${row('Show the meter', 'Point at the bar for the percentage and when it resets, click it for the details.', sw('widget', 'On', S.widget))}
-    ${row('Position', 'Which edge of the page the bar sits on. You can also drag the bar to another edge.', seg('meterStyle', [['bar-bottom', 'Bottom'], ['bar-top', 'Top'], ['bar-left', 'Left'], ['bar-right', 'Right']], S.meterStyle))}
+    ${row('Position', 'Which edge of the page the bar sits on. You can also drag the bar to another edge.', seg('meterStyle', [['bar-bottom', 'Bottom'], ['bar-top', 'Top'], ['bar-left', 'Left'], ['bar-right', 'Right']], S.meterStyle, 'Bar position'))}
     ${row('Chat details', 'Show the length of the open chat, the cache timer and the cost of your next message in the details panel (Claude, ChatGPT, Gemini).', sw('chatStats', 'On', S.chatStats))}
   </section>`;
 }

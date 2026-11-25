@@ -9,6 +9,27 @@ All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow 
 - Clouds now drift about five times faster (always a gentle drift, more in real wind) and their edges slowly change shape, so the sky is alive rather than a still picture. Cirrus and the overcast deck drift too.
 - The sky is drawn at up to 1.5x pixel density, and steps its resolution down by itself on a slow graphics card.
 
+### Fixed
+- Pale strips behind composers are cleared only when they are fixed or sticky strips stuck to the top or bottom edge with square corners (and never inside dialogs, menus or tooltips); wide in-flow content that merely scrolls past the edge is left alone.
+- Hidden tabs wait until shown before creating the sky.
+- Text over the sky stays readable by gently veiling only the middle reading column of the sky (the edges keep their full colour).
+- Resizing the window no longer flashes a black frame, and detached page parts no longer stay transparent.
+- Theme detection updates when the site changes theme.
+- When the graphics context is lost, the page is restored and the sky is retried up to 3 times, 5 seconds apart.
+- A settings change at noon no longer flips the page dark.
+- Resizing and state changes with reduced motion on now redraw at once.
+- Picture images are no longer inverted three times at night.
+- Scan work is spread out and no longer stops after 6000 elements.
+- Polar day and polar night no longer break the sky.
+- Tropical clear days no longer show rain unless a season is forced in Settings (picking only a weather or an hour does not trigger it).
+- The bar drag is captured, so it works over frames and with touch.
+- Escape closes the panel from anywhere in it.
+- Lightning is a single, softer flash.
+- The day-time sky is dimmed and veiled so text stays readable.
+
+### Removed
+- Unused weather target code.
+
 ## 1.3.0 — 2026-11-24
 
 ### Fixed

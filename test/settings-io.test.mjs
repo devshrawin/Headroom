@@ -143,3 +143,17 @@ test('a settings backup never carries the place; an import keeps weather options
   assert.equal(bad.settings.weatherUnits, undefined);
   assert.equal(bad.settings.weatherStrength, undefined);
 });
+
+test('meterStyle: all four edges are accepted by merge and import; anything else falls back to bar-bottom', () => {
+  for (const s of ['bar-top', 'bar-bottom', 'bar-left', 'bar-right']) {
+    assert.equal(AM.mergeSettings({ meterStyle: s }).meterStyle, s, 'merge ' + s);
+    const r = AM.parseImport(wrap({ meterStyle: s }));
+    assert.equal(r.settings.meterStyle, s, 'import ' + s);
+  }
+  for (const bad of ['pill', 'bar', 'bar-middle', 'BAR-TOP', '', null, 5, {}, undefined]) {
+    assert.equal(AM.mergeSettings({ meterStyle: bad }).meterStyle, 'bar-bottom', 'merge ' + String(bad));
+    assert.equal('meterStyle' in AM.parseImport(wrap({ meterStyle: bad })).settings, false, 'import drops ' + String(bad));
+    assert.equal(AM.mergeSettings(AM.parseImport(wrap({ meterStyle: bad })).settings).meterStyle, 'bar-bottom');
+  }
+  assert.equal(AM.mergeSettings(null).meterStyle, 'bar-bottom');
+});

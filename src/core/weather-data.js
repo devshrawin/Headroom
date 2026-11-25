@@ -4,24 +4,24 @@
 (() => {
   const AM = (globalThis.Headroom = globalThis.Headroom || { adapters: [] });
 
-  // Every condition the sky can show. cover = cloud cover, gloom = how dark and grey, then rain, snow, fog (all 0..1).
+  // Every condition the sky can show (the look of each lives in sky-palette.js).
   const WEATHERS = {
-    clear:    { label: 'Clear',         cover: .10, gloom: 0,   rain: 0,   snow: 0,   fog: 0 },
-    partly:   { label: 'Partly cloudy', cover: .52, gloom: 0,   rain: 0,   snow: 0,   fog: 0 },
-    overcast: { label: 'Overcast',      cover: .96, gloom: .35, rain: 0,   snow: 0,   fog: .1 },
-    drizzle:  { label: 'Drizzle',       cover: .92, gloom: .45, rain: .22, snow: 0,   fog: .15 },
-    rain:     { label: 'Rain',          cover: 1,   gloom: .62, rain: .7,  snow: 0,   fog: .15 },
-    storm:    { label: 'Thunderstorm',  cover: 1,   gloom: .94, rain: 1,   snow: 0,   fog: .1, thunder: true },
-    snow:     { label: 'Snow',          cover: .88, gloom: .25, rain: 0,   snow: .85, fog: .2 },
-    fog:      { label: 'Fog',           cover: .45, gloom: .1,  rain: 0,   snow: 0,   fog: .92 },
+    clear:    { label: 'Clear' },
+    partly:   { label: 'Partly cloudy' },
+    overcast: { label: 'Overcast' },
+    drizzle:  { label: 'Drizzle' },
+    rain:     { label: 'Rain' },
+    storm:    { label: 'Thunderstorm' },
+    snow:     { label: 'Snow' },
+    fog:      { label: 'Fog' },
   };
-  // Seasons only colour the light and bring falling leaves or petals.
+  // The seasons (their colours and falling leaves or petals live in sky-palette.js).
   const SEASONS = {
-    spring:  { label: 'Spring',  leaves: .5, kind: 1, tint: [1.0, 1.02, 1.0] },
-    summer:  { label: 'Summer',  leaves: 0,  kind: 0, tint: [1.03, 1.0, .96] },
-    autumn:  { label: 'Autumn',  leaves: .7, kind: 0, tint: [1.07, .97, .86] },
-    winter:  { label: 'Winter',  leaves: 0,  kind: 0, tint: [.95, .98, 1.07] },
-    monsoon: { label: 'Monsoon', leaves: 0,  kind: 0, tint: [.94, 1.0, .98] },
+    spring:  { label: 'Spring' },
+    summer:  { label: 'Summer' },
+    autumn:  { label: 'Autumn' },
+    winter:  { label: 'Winter' },
+    monsoon: { label: 'Monsoon' },
   };
 
   // WMO weather codes (what Open-Meteo returns) to a condition.
@@ -88,8 +88,15 @@
       code, cloud: num(c.cloud_cover, 0, 100, null),
       windKmh: num(c.wind_speed_10m, 0, 400, 0), windDir: num(c.wind_direction_10m, 0, 360, 270),
       precip: num(c.precipitation, 0, 500, 0),
-      rise: rise == null ? 6.3 : rise, set: set == null ? 18.4 : set,
+      ...sunTimes(rise, set),
     };
+  }
+
+  // Sunrise and sunset, or both null when they are missing or unusable (polar day or night gives the same time twice):
+  // the sky then falls back to the season's typical ones.
+  function sunTimes(rise, set) {
+    const ok = typeof rise === 'number' && typeof set === 'number' && Number.isFinite(rise) && Number.isFinite(set) && set - rise >= 0.25 && set - rise <= 23.75;
+    return ok ? { rise, set } : { rise: null, set: null };
   }
 
   // Everything the sky needs, from the stored data (or a preview override), at a moment in time.
@@ -109,20 +116,10 @@
     const rad = ((data ? data.windDir : 270) * Math.PI) / 180;
     return {
       weather, season, tod, live: !f.weather && !f.season && typeof f.tod !== 'number',
-      rise: data ? data.rise : 6.3, set: data ? data.set : 18.4,
+      seasonForced: !!SEASONS[f.season],
+      ...(data ? sunTimes(data.rise, data.set) : { rise: 6.3, set: 18.4 }),
       wind: strength, windX: -Math.sin(rad) * strength, windY: -Math.cos(rad) * strength * .3,
       temp: data ? data.temp : null,
-    };
-  }
-
-  // The values the sky eases toward for a condition and a season.
-  function targetsFor(weather, season) {
-    const w = WEATHERS[weather] || WEATHERS.clear, s = SEASONS[season] || SEASONS.summer;
-    const wet = season === 'monsoon' && weather === 'clear' ? WEATHERS.rain : w; // a clear monsoon day still has weather
-    return {
-      cover: wet.cover, gloom: wet.gloom, rain: wet.rain, snow: weather === 'snow' ? w.snow : 0, fog: wet.fog,
-      leaves: weather === 'rain' || weather === 'storm' ? s.leaves * .4 : weather === 'fog' ? s.leaves * .3 : weather === 'snow' ? 0 : s.leaves,
-      kind: s.kind, tint: s.tint, thunder: !!w.thunder,
     };
   }
 
@@ -134,5 +131,5 @@
     return { temp: t, label: WEATHERS[st.weather].label, season: SEASONS[st.season].label, wind: Math.round(data.windKmh), tod: st.tod };
   }
 
-  AM.WEATHER = { WEATHERS, SEASONS, wmoToWeather, seasonFor, parseForecast, skyState, targetsFor, describe };
+  AM.WEATHER = { WEATHERS, SEASONS, wmoToWeather, seasonFor, parseForecast, skyState, describe };
 })();

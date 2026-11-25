@@ -6,8 +6,6 @@
 (() => {
   const AM = globalThis.Headroom;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
-  const lerp = (a, b, k) => a + (b - a) * k;
-  const sstep = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t); };
 
   const VERT = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
   const FRAG = `
@@ -21,6 +19,7 @@ uniform vec2 uSun,uMoon;
 uniform float uSunVis,uMoonVis,uMoonPhase,uTwi,uNight,uDay;
 uniform float uCover,uGloom,uTower,uCirrus,uRain,uSnow,uFog,uHaze,uHalo,uSparkle;
 uniform float uStars,uMilky,uPetals,uLeaves,uFlash,uFlashX,uBolt,uCalm;
+uniform float uVeil; // reading-column veil, -1..1: >0 darkens (white text on a bright sky), <0 lightens (dark text on a deep sky)
 uniform vec2 uWind,uSeed,uShift; // uShift: how far the wind has carried things in all (so a change in wind never makes clouds jump)
 
 float h21(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
@@ -209,8 +208,10 @@ void main(){
   // moon: soft atmosphere, a faint 22-degree ice halo in cold, hazy air, then the disc
   float lm=length((uv-uMoon)*vec2(asp,1.));
   col+=vec3(.78,.84,.95)*(exp(-lm*5.)*.08+exp(-lm*18.)*.18+exp(-lm*60.)*.3)*uMoonVis;
-  float ring=exp(-pow((lm-.20)/.022,2.))*(.6+.4*fbm(uv*vec2(asp,1.)*6.,3));
-  col+=(vec3(.72,.78,.92)*ring+vec3(.06,.03,.01)*exp(-pow((lm-.182)/.012,2.)))*.035*uHalo*uMoonVis;
+  if(uHalo>.001&&uMoonVis>.001){
+    float ring=exp(-pow((lm-.20)/.022,2.))*(.6+.4*fbm(uv*vec2(asp,1.)*6.,3));
+    col+=(vec3(.72,.78,.92)*ring+vec3(.06,.03,.01)*exp(-pow((lm-.182)/.012,2.)))*.035*uHalo*uMoonVis;
+  }
   vec4 mo=moonDisc(uv,asp);
   col=mix(col,mo.rgb,mo.a*uMoonVis);
 
@@ -310,6 +311,10 @@ void main(){
 
   // the reading column: pull mid-tones gently back towards the open sky
   col=mix(col,base+(col-base)*.6,calm*.5);
+  // targeted veil under the text: the sky stays vivid at the edges, only the reading column is pushed away from the text colour
+  float cv=calm;
+  if(uVeil>0.)col=mix(col,col*(1.-.30*uVeil),cv*cv);
+  else if(uVeil<0.)col=mix(col,mix(col,vec3(1.),.32),cv*cv*-uVeil);
   // soft shoulder so glows never clip into flat white
   col=vec3(col.r<.82?col.r:.82+.18*(1.-exp(-(col.r-.82)/.18)),
            col.g<.82?col.g:.82+.18*(1.-exp(-(col.g-.82)/.18)),
@@ -321,23 +326,9 @@ void main(){
 }
 `;
 
-  // Sun and moon on the screen, and how much day, twilight and night there is, for a time at the place.
-  function skyAt(tod, rise, set) {
-    const L = set - rise, f = (tod - rise) / L;
-    let e, sun;
-    if (f >= 0 && f <= 1) { e = Math.sin(Math.PI * f); sun = [lerp(.1, .9, f), .14 + .62 * Math.sin(Math.PI * f)]; }
-    else {
-      const nl = 24 - L, nf = (((tod - set) + 24) % 24) / nl;
-      e = -Math.sin(Math.PI * Math.min(1, nf)) * .6;
-      sun = [lerp(.1, .9, f > 1 ? 1 + (f - 1) * .2 : f), -.2];
-    }
-    const nf = f > 1 ? (tod - set) / (24 - L) : f < 0 ? (tod + 24 - set) / (24 - L) : -1;
-    const moon = nf >= 0 && nf <= 1 ? [lerp(.12, .88, nf), .16 + .58 * Math.sin(Math.PI * nf)] : [.5, -.3];
-    return { sun, moon, day: sstep(-.12, .3, e), twi: Math.exp(-Math.pow(e / .2, 2)), night: 1 - sstep(-.2, .06, e) };
-  }
-
   // Is the page itself dark? Read its own background, fall back to the browser preference.
-  function pageIsDark() {
+  // ignoreNight: skip the "our night flip is on" short-circuit (used when re-reading the page's real theme).
+  function pageIsDark(ignoreNight) {
     const lum = (css) => {
       const m = /rgba?\((\d+)[ ,]+(\d+)[ ,]+(\d+)(?:[ ,/]+([\d.]+))?/.exec(css || '');
       if (!m) return null;
@@ -351,7 +342,7 @@ void main(){
     }
     // No opaque page colour to read (the page paints it on an inner element, or ours was cleared): ask the page's own theme.
     const root = document.documentElement;
-    if (root.hasAttribute('data-hr-night')) return false; // our own light-text rule is on: the page underneath is light
+    if (!ignoreNight && root.hasAttribute('data-hr-night')) return false; // our own light-text rule is on: the page underneath is light
     const cs = getComputedStyle(root).colorScheme || '';
     if (/\bdark\b/.test(cs) && !/\blight\b/.test(cs)) return true;
     if (/(^|\s)dark(\s|$)/.test(root.className || '') || /dark/i.test(root.getAttribute('data-theme') || root.getAttribute('data-color-mode') || '')) return true;
@@ -362,7 +353,7 @@ void main(){
     return window.matchMedia('(prefers-color-scheme: dark)').matches;
   }
 
-  // opts: { strength: 0.3..1, onLost() }. Returns null when WebGL is not available.
+  // opts: { strength: 0.2..1, onLost() }. Returns null when WebGL is not available.
   function mount(opts = {}) {
     const doc = document, win = window;
     const canvas = doc.createElement('canvas');
@@ -392,8 +383,11 @@ void main(){
     // when it is turned off. Text, images and panels stay exactly as they are, on top of the sky.
     const rootEl = doc.documentElement;
     const alphaOf = (css) => { const n = (css || '').slice(css.indexOf('(') + 1, css.lastIndexOf(')')).split(/[ ,/]+/).filter(Boolean); return n.length > 3 ? +n[3] : 1; };
-    let pageBg = null;
-    for (const el of [doc.body, rootEl]) { if (!el) continue; const c = win.getComputedStyle(el).backgroundColor; if (c && alphaOf(c) >= .5) { pageBg = c; break; } }
+    const readPageBg = () => {
+      for (const el of [doc.body, rootEl]) { if (!el) continue; const c = win.getComputedStyle(el).backgroundColor; if (c && alphaOf(c) >= .5) return c; }
+      return null;
+    };
+    const pageBg = readPageBg();
     const rootPrev = [rootEl.style.getPropertyValue('background-color'), rootEl.style.getPropertyPriority('background-color')];
     rootEl.style.setProperty('background-color', pageBg || (pageIsDark() ? '#14141c' : '#ffffff'), 'important');
     // Marked elements lose their background (and any fade drawn by ::before / ::after) through one
@@ -405,41 +399,103 @@ void main(){
       + ':root [' + MARK + '][' + MARK + ']::before,:root [' + MARK + '][' + MARK + ']::after{background:none !important}'
       // night on a light page: flip the page dark; media is flipped back so it keeps its real colours
       + ':root[data-hr-night] body{filter:invert(1) hue-rotate(180deg)}'
-      + ':root[data-hr-night] body img,:root[data-hr-night] body video,:root[data-hr-night] body picture,:root[data-hr-night] body canvas,:root[data-hr-night] body [style*="background-image"]{filter:invert(1) hue-rotate(180deg)}';
+      // only the outermost media element is flipped back (a <picture><img> would otherwise be inverted three times)
+      + ':root[data-hr-night] body :is(img,video,canvas,picture,[style*="background-image"]):not(:is(picture,video,[style*="background-image"]) *){filter:invert(1) hue-rotate(180deg)}';
     (doc.head || rootEl).appendChild(sheet);
-    const marked = new Set();
+    let destroyed = false;
+    const marked = new Set();     // full-screen / bar backdrops: marked once
+    const bandMarked = new Set(); // edge bands: re-validated on every scan, unmarked when they stop qualifying
     const isBacking = (cs) => alphaOf(cs.backgroundColor) >= .9 || (cs.backgroundImage || '').indexOf('gradient') >= 0;
-    function clearBackdrops() {
-      if (destroyed || !doc.body) return;
-      const vw = win.innerWidth, vh = win.innerHeight;
-      const all = doc.body.querySelectorAll('*');
-      const n = Math.min(all.length, 6000);
-      for (let i = -1; i < n; i++) {
-        const el = i < 0 ? doc.body : all[i]; // the body itself is often what paints the page colour
-        if (marked.has(el) || el === canvas || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') continue;
-        const r = el.getBoundingClientRect();
-        if (r.width < 8 || r.height < 8) continue;
-        // a page backdrop: most of the screen, or a bar across it (header, sidebar, the strip round the composer)
-        if (!(r.width * r.height >= vw * vh * .5 || r.width >= vw * .85 || r.height >= vh * .85)) continue;
-        const cs = win.getComputedStyle(el);
-        if (cs.display === 'none') continue;
-        if (isBacking(cs) || isBacking(win.getComputedStyle(el, '::before')) || isBacking(win.getComputedStyle(el, '::after'))) {
-          marked.add(el); el.setAttribute(MARK, '');
-        }
+    const XHTML = 'http://www.w3.org/1999/xhtml';
+    const OVERLAY_SEL = '[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[role=tooltip],[role=status],[role=alert],dialog,[popover],[aria-modal=true]';
+    // A square-cornered band stuck to the top or bottom edge (the strip behind a composer): a fixed or sticky element that sits
+    // fully inside the viewport. In-flow things that merely cross the edge while scrolling, rounded cards and overlays do not count.
+    function bandShape(el, r, vw, vh) {
+      if (r.width < vw * .4 || r.height < 20 || r.height > vh * .4) return false;
+      if (!((r.top >= -1 && r.top <= 3) || (r.bottom <= vh + 1 && r.bottom >= vh - 3))) return false;
+      const cs = win.getComputedStyle(el);
+      if (cs.display === 'none') return false;
+      if (parseFloat(cs.borderTopLeftRadius) > 0 || parseFloat(cs.borderTopRightRadius) > 0 || parseFloat(cs.borderBottomLeftRadius) > 0 || parseFloat(cs.borderBottomRightRadius) > 0) return false;
+      // pinned: the element itself is fixed or sticky, or an ancestor (up to 3 up) is AND shares the element's edge on the
+      // band's side (within 3 px): an in-flow child of a fixed app shell that merely crosses the edge does not qualify
+      const topBand = r.top >= -1 && r.top <= 3;
+      let pinned = cs.position === 'fixed' || cs.position === 'sticky';
+      for (let a = el.parentElement, i = 0; !pinned && a && i < 3; a = a.parentElement, i++) {
+        const p = win.getComputedStyle(a).position;
+        if (p !== 'fixed' && p !== 'sticky') continue;
+        const ar = a.getBoundingClientRect();
+        if (Math.abs((topBand ? ar.top - r.top : ar.bottom - r.bottom)) <= 3) pinned = true;
+        break;
+      }
+      if (!pinned) return false;
+      return !el.closest(OVERLAY_SEL);
+    }
+    function visit(el, vw, vh) {
+      if (marked.has(el) || bandMarked.has(el) || el === canvas || el.namespaceURI !== XHTML) return;
+      if (el.closest(OVERLAY_SEL)) return; // never clear anything inside a dialog, menu, tooltip or alert
+      const r = el.getBoundingClientRect();
+      if (r.width < 8 || r.height < 8) return;
+      // a page backdrop: most of the screen, or as tall as it. Width-only bars (headers, composer strips) go through bandShape.
+      const full = r.width * r.height >= vw * vh * .5 || r.height >= vh * .85;
+      if (!full && !bandShape(el, r, vw, vh)) return;
+      const cs = win.getComputedStyle(el);
+      if (cs.display === 'none') return;
+      if (isBacking(cs) || isBacking(win.getComputedStyle(el, '::before')) || isBacking(win.getComputedStyle(el, '::after'))) {
+        (full ? marked : bandMarked).add(el); el.setAttribute(MARK, '');
       }
     }
+    // The scan runs in ~4 ms slices (idle time when available) and resumes where it stopped: no element cap.
+    let scanNodes = null, scanI = 0, scanHandle = 0, scanIdle = false;
+    const schedule = (fn) => {
+      if (win.requestIdleCallback) { scanIdle = true; scanHandle = win.requestIdleCallback(fn, { timeout: 400 }); }
+      else { scanIdle = false; scanHandle = win.setTimeout(fn, 16); }
+    };
+    const cancelScan = () => {
+      if (scanHandle) { if (scanIdle) win.cancelIdleCallback(scanHandle); else win.clearTimeout(scanHandle); }
+      scanHandle = 0; scanNodes = null;
+    };
+    function scanSlice() {
+      scanHandle = 0;
+      if (destroyed || !scanNodes || !doc.body) { scanNodes = null; return; }
+      const vw = win.innerWidth, vh = win.innerHeight, all = scanNodes, t0 = performance.now();
+      let c = 0;
+      while (scanI < all.length) {
+        const el = scanI < 0 ? doc.body : all[scanI]; // the body itself is often what paints the page colour
+        scanI++;
+        visit(el, vw, vh);
+        if ((++c & 15) === 0 && performance.now() - t0 > 4) break;
+      }
+      if (scanI >= all.length) scanNodes = null; else schedule(scanSlice);
+    }
+    function clearBackdrops() {
+      if (destroyed || !doc.body || doc.hidden || scanNodes) return;
+      // drop detached nodes, and let bands go that stopped qualifying
+      for (const el of marked) if (!el.isConnected) { el.removeAttribute(MARK); marked.delete(el); }
+      const vw = win.innerWidth, vh = win.innerHeight;
+      for (const el of bandMarked) {
+        if (!el.isConnected) { el.removeAttribute(MARK); bandMarked.delete(el); continue; }
+        if (!bandShape(el, el.getBoundingClientRect(), vw, vh)) { el.removeAttribute(MARK); bandMarked.delete(el); }
+      }
+      scanNodes = doc.body.querySelectorAll('*'); scanI = -1;
+      scanSlice();
+    }
     const restoreBackdrops = () => {
+      cancelScan();
       for (const el of marked) el.removeAttribute(MARK);
-      marked.clear();
+      for (const el of bandMarked) el.removeAttribute(MARK);
+      marked.clear(); bandMarked.clear();
+      for (const el of doc.querySelectorAll('[' + MARK + ']')) el.removeAttribute(MARK);
       rootEl.removeAttribute('data-hr-night');
       sheet.remove();
       if (rootPrev[0]) rootEl.style.setProperty('background-color', rootPrev[0], rootPrev[1]); else rootEl.style.removeProperty('background-color');
     };
     const maskTimer = win.setInterval(clearBackdrops, 1500);
+    let resizeScanT = 0;
+    const onResizeScan = () => { win.clearTimeout(resizeScanT); resizeScanT = win.setTimeout(clearBackdrops, 250); };
     (doc.documentElement).appendChild(canvas);
 
     const reduceMq = win.matchMedia('(prefers-reduced-motion: reduce)');
-    let W = 0, H = 0, raf = 0, last = 0, destroyed = false, lost = false;
+    let W = 0, H = 0, raf = 0, last = 0, lost = false;
     let strength = clamp(opts.strength == null ? 1 : opts.strength, .2, 1);
     let dark = pageIsDark();
     let tone = null;
@@ -447,26 +503,39 @@ void main(){
     // The palette (CPU side) turns hour x season x weather into final colours and amounts; every value eases toward its
     // target over a second or two, so a change in the weather or the hour never pops.
     const PAL = AM.SKYPAL;
-    let sky = { season: 'summer', weather: 'clear', hour: 12, rise: 6.3, set: 18.4, live: true, t0: performance.now(), wind: [.5, 0] };
+    let sky = { season: 'summer', weather: 'clear', hour: 12, rise: 6.3, set: 18.4, live: true, seasonForced: false, t0: performance.now(), wind: [.5, 0] };
     let curU = null, simT = 0, shX = 0, shY = 0;
     let flashT0 = -10, flashNext = 2.5, flashX = .85, boltOn = false;
-    const flashAt = (t) => { const d = t - flashT0; return d < 0 || d > 1.2 ? 0 : Math.exp(-d * 9) + .7 * Math.exp(-Math.abs(d - .16) * 22) + .45 * Math.exp(-Math.abs(d - .38) * 16); };
+    // one peak per strike: a single exponential decay (no flicker train, WCAG 2.3.1)
+    const flashAt = (t) => { const d = t - flashT0; return d < 0 || d > 1.2 ? 0 : Math.exp(-d * 9); };
 
     let quality = 1, slow = 0, seen = 0; // a slow GPU steps the resolution down instead of stuttering
-    const resize = () => {
+    let lastRaf = 0, gapSum = 0, gapN = 0; // animation-frame spacing, to step quality back up on a fast GPU
+    const resize = (noDraw) => {
       // drawn at the screen's real pixels, capped so a big or high-DPI screen stays light on the GPU
       const dpr = Math.min(1.5, win.devicePixelRatio || 1);
-      const k = Math.max(.45, Math.min(dpr, Math.sqrt(2.4e6 / Math.max(1, win.innerWidth * win.innerHeight))) * quality);
+      const k = Math.max(.45, Math.min(dpr, Math.sqrt(1.5e6 / Math.max(1, win.innerWidth * win.innerHeight))) * quality);
       const w = Math.max(2, Math.round(win.innerWidth * k)), h = Math.max(2, Math.round(win.innerHeight * k));
       if (w === W && h === H) return;
       W = w; H = h; canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H);
+      // changing the size clears the buffer (alpha is off, so it would show black): always draw again at once, and let the
+      // next tick draw too. noDraw: the caller draws right after (the quality step-up at the top of a tick).
+      last = 0;
+      if (!noDraw && !lost && curU) frame(performance.now(), 0);
     };
+    const onWinResize = () => resize();
 
     // A light page at night gets the real night sky, and the page is flipped to a dark look (the usual invert + hue-rotate
     // trick, with images, video and canvases flipped back so photos keep their colours). It is only used when the page itself
-    // does not scroll, because a filter on <body> would move the fixed parts of a page that scrolls as a whole.
+    // does not scroll and whose <body> covers the window, because a filter on <body> becomes the containing block of the
+    // fixed parts inside it (they would move with a page that scrolls, or sit in the wrong place in a short body).
     let pure = false, lastNight = 0, noPure = false;
     const docScrolls = () => rootEl.scrollHeight > win.innerHeight + 4;
+    const bodyCovers = () => {
+      if (!doc.body) return false;
+      const r = doc.body.getBoundingClientRect();
+      return r.left <= 2 && r.top <= 2 && r.right >= win.innerWidth - 2 && r.bottom >= win.innerHeight - 2;
+    };
     function setPure(on) {
       if (on === pure) return;
       pure = on;
@@ -474,16 +543,29 @@ void main(){
       else rootEl.removeAttribute('data-hr-night');
       lastOp = -1; lastFilter = ""; setOpacity(lastNight);
     }
-    const keepTimer = win.setInterval(() => { if (pure && docScrolls()) { noPure = true; setPure(false); } }, 1500);
+    // layout-reading checks are cached (read at mount and every 1.5 s), never per frame
+    let scrolls = docScrolls(), covers = bodyCovers();
+    const keepTimer = win.setInterval(() => {
+      scrolls = docScrolls(); covers = bodyCovers();
+      if (!pure) return;
+      if (scrolls) { noPure = true; setPure(false); }
+      else if (!covers) setPure(false);
+    }, 1500);
 
     let lastOp = -1, lastFilter = "";
+    // How the canvas is shown. night: 0 (day) .. 1 (night). The canvas itself keeps its natural look (light page by day: full
+    // strength; dark page by day: brightness .92); text contrast comes from the shader's targeted veil (uVeil) in the reading
+    // column only. Veil maths (see frame): Ls = max(luma(uMid), luma(uHor)), linearised relative luminance of the eased sky.
+    // Dark page: +clamp((Ls-.04)/.28,0,1)*(1-night) darkens the column by up to 62%. Light page: -clamp((.9-Ls)/.6,0,1)*(1-night)
+    // lightens it towards white by up to 62%. Night and flipped (pure) pages: 0. At dusk and night a light page still fades.
     function setOpacity(night) {
       lastNight = night;
-      if (!dark && (night > .55 && !pure && !noPure && !docScrolls() || night < .4 && pure)) { setPure(night > .55); return; }
+      if (!dark && (night > .55 && !pure && !noPure && !scrolls && covers || night < .4 && pure)) { setPure(night > .55); return; }
       const deep = dark || pure;
       const o = strength * (deep ? .96 : 1 - .68 * night);
-      // a dark page's white text sits on a daytime sky a little dimmed; a light page at dusk gets the sky lifted to a soft tone so dark text stays readable
-      const f = deep ? 'brightness(' + (1 - .14 * (1 - night)).toFixed(2) + ')' : night > .02 ? 'brightness(' + (1 + 2.2 * night).toFixed(2) + ') saturate(.8)' : 'none';
+      const f = dark ? 'brightness(' + (.92 + .08 * night).toFixed(2) + ')'
+        : pure ? 'brightness(' + (1 - .14 * (1 - night)).toFixed(2) + ')'
+        : night > .02 ? 'brightness(' + (1 + 2.2 * night).toFixed(2) + ') saturate(.8)' : 'none';
       if (Math.abs(o - lastOp) > .01 || f !== lastFilter) {
         lastOp = o; lastFilter = f; canvas.style.opacity = String(o); canvas.style.filter = f;
       }
@@ -495,11 +577,46 @@ void main(){
       if (dark && pure) setPure(false);
       canvas.style.mixBlendMode = 'normal';
       lastOp = -1;
-      setOpacity(lastNight || 1);
+      setOpacity(lastNight);
     }
 
+    // The page's own theme can change after we mounted (a toggle, late CSS, the system scheme). Read it with our own
+    // overrides lifted for a moment, then put them back; follow the new colour with the forced root background.
+    let mo = null, readT = 0, lastSig = '';
+    // a cheap signature of everything that could flip the page's theme (our own data-hr-* marks left out)
+    const themeSig = () => {
+      const parts = [];
+      for (const el of [rootEl, doc.body]) {
+        if (!el) continue;
+        parts.push(el.className && el.className.baseVal === undefined ? el.className : '');
+        for (const a of el.attributes) if (a.name.indexOf('data-') === 0 && a.name.indexOf('data-hr-') !== 0) parts.push(a.name + '=' + a.value);
+      }
+      parts.push(win.getComputedStyle(rootEl).colorScheme || '');
+      return parts.join('|');
+    };
+    lastSig = themeSig();
+    function readDark() {
+      if (destroyed) return;
+      lastSig = themeSig();
+      const pv = rootEl.style.getPropertyValue('background-color'), pp = rootEl.style.getPropertyPriority('background-color');
+      let d = dark, col = null;
+      sheet.disabled = true;
+      rootEl.style.removeProperty('background-color');
+      try { d = pageIsDark(true); col = readPageBg(); }
+      finally {
+        const next = d !== dark ? (col || (d ? '#14141c' : '#ffffff')) : null;
+        if (next) rootEl.style.setProperty('background-color', next, 'important');
+        else if (pv) rootEl.style.setProperty('background-color', pv, pp);
+        sheet.disabled = false;
+        if (mo) mo.takeRecords(); // our own writes are not page changes
+      }
+      if (d !== dark) { dark = d; tone = null; applyTone(); }
+    }
+    const scheduleRead = () => { win.clearTimeout(readT); readT = win.setTimeout(readDark, 300); };
+
     function setState(st) {
-      sky = { season: st.season, weather: st.weather, hour: st.tod, rise: st.rise, set: st.set, live: !!st.live, t0: performance.now(), wind: [st.windX * 2.2, st.windY || 0] };
+      sky = { season: st.season, weather: st.weather, hour: st.tod, rise: st.rise, set: st.set, live: !!st.live, seasonForced: !!st.seasonForced, t0: performance.now(), wind: [st.windX * 2.2, st.windY || 0] };
+      if (reduceMq.matches) curU = null; // no easing without motion: show the new state at once
       if (reduceMq.matches || !raf) frame(performance.now(), .05);
     }
     function setStrength(v) { strength = clamp(v, .2, 1); tone = null; applyTone(); }
@@ -507,29 +624,52 @@ void main(){
     function frame(now, dt) {
       simT += dt;
       const hour = sky.live ? (sky.hour + (now - sky.t0) / 3.6e6) % 24 : sky.hour; // the hour moves on in real time
-      const tgt = PAL.uniforms({ season: sky.season, weather: sky.weather, hour, rise: sky.rise, set: sky.set, t: 0, wind: sky.wind, flash: 0, bolt: 0 });
-      // thunderstorms flash at random; a monsoon night flickers far away
-      const stormy = sky.weather === 'storm' || (sky.season === 'monsoon' && sky.weather === 'clear' && tgt.uNight > .5);
+      const tgt = PAL.uniforms({ season: sky.season, weather: sky.weather, hour, rise: sky.rise, set: sky.set, t: 0, wind: sky.wind, flash: 0, bolt: 0, seasonMood: sky.seasonForced });
+      // a non-finite target (e.g. polar day, rise == set) must never get into the eased values
+      for (const key in tgt) {
+        const v = tgt[key], c = curU && curU[key];
+        if (typeof v === 'number') { if (!Number.isFinite(v)) tgt[key] = typeof c === 'number' && Number.isFinite(c) ? c : 0; }
+        else if (v && v.length) for (let i = 0; i < v.length; i++) if (!Number.isFinite(v[i])) v[i] = c && Number.isFinite(c[i]) ? c[i] : 0;
+      }
+      // thunderstorms flash at random (never with reduced motion); a forced monsoon night flickers far away
+      const stormy = !reduceMq.matches && (sky.weather === 'storm' || (sky.season === 'monsoon' && sky.weather === 'clear' && sky.seasonForced && tgt.uNight > .5));
       if (stormy && simT > flashNext) {
         flashT0 = simT; flashNext = simT + 4 + Math.random() * 7;
         flashX = Math.random() < .5 ? .07 + Math.random() * .13 : .8 + Math.random() * .13;
         boltOn = sky.weather === 'storm' && Math.random() < .45;
       }
-      const fl = stormy ? flashAt(simT) * (sky.weather === 'storm' ? .75 : .3) : 0;
+      const rawFlash = stormy ? flashAt(simT) * (sky.weather === 'storm' ? .75 : .3) : 0;
+      const fl = Math.min(.18, rawFlash); // a soft brightening, never a hard strobe
       if (!curU) curU = JSON.parse(JSON.stringify(tgt)); // the very first state is shown at once
       const kSlow = 1 - Math.exp(-dt / 1.6), kSun = 1 - Math.exp(-dt / .35);
       for (const key in tgt) {
         if (key === 'uTime') continue;
         const k = key === 'uSun' || key === 'uMoon' ? kSun : kSlow;
-        if (typeof tgt[key] === 'number') curU[key] += (tgt[key] - curU[key]) * k;
-        else for (let i = 0; i < tgt[key].length; i++) curU[key][i] += (tgt[key][i] - curU[key][i]) * k;
+        if (typeof tgt[key] === 'number') {
+          if (!Number.isFinite(curU[key])) curU[key] = tgt[key];
+          curU[key] += (tgt[key] - curU[key]) * k;
+        } else {
+          if (!curU[key]) curU[key] = tgt[key].slice();
+          for (let i = 0; i < tgt[key].length; i++) {
+            if (!Number.isFinite(curU[key][i])) curU[key][i] = tgt[key][i];
+            curU[key][i] += (tgt[key][i] - curU[key][i]) * k;
+          }
+        }
       }
+      // the reading-column veil follows the sky's perceived brightness (maths in the setOpacity comment)
+      const lin = (c) => Math.pow((clamp(c, 0, 1) + .055) / 1.055, 2.4);
+      const rl = (v) => .2126 * lin(v[0]) + .7152 * lin(v[1]) + .0722 * lin(v[2]);
+      const Ls = Math.max(rl(curU.uMid), rl(curU.uHor)), nt = clamp(curU.uNight, 0, 1);
+      const veilT = pure ? 0 : dark ? clamp((Ls - .04) / .28, 0, 1) * (1 - nt) : -clamp((.9 - Ls) / .6, 0, 1) * (1 - nt);
+      if (!Number.isFinite(curU.uVeil)) curU.uVeil = veilT;
+      curU.uVeil += (veilT - curU.uVeil) * kSlow;
       shX += (curU.uWind[0] + .45) * dt; shY += curU.uWind[1] * dt; // always a gentle drift, more with real wind
+      if (doc.hidden) return; // nothing is drawn while the tab is hidden
       const set1 = (n, v) => { const l = U[n]; if (l == null) return; if (typeof v === 'number') gl.uniform1f(l, v); else if (v.length === 2) gl.uniform2fv(l, v); else gl.uniform3fv(l, v); };
       set1('uRes', [W, H]); set1('uTime', 37 + simT);
       for (const key in curU) set1(key, curU[key]);
       set1('uShift', [shX, shY]);
-      set1('uFlash', fl); set1('uFlashX', flashX); set1('uBolt', boltOn ? Math.min(1, fl * 1.6) : 0);
+      set1('uFlash', fl); set1('uFlashX', flashX); set1('uBolt', boltOn ? Math.min(.6, rawFlash * 1.6) : 0);
       setOpacity(curU.uNight);
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
@@ -537,6 +677,15 @@ void main(){
     function tick(now) {
       raf = 0;
       if (destroyed || lost) return;
+      if (lastRaf) { // quality steps back up when the last ~120 animation frames averaged under 22 ms apart
+        const g = now - lastRaf;
+        if (g < 250) { gapSum += g; gapN++; }
+        if (gapN >= 120) {
+          const avg = gapSum / gapN; gapSum = 0; gapN = 0;
+          if (avg < 22 && quality < 1) { quality = Math.min(1, quality * 1.1); slow = 0; resize(true); }
+        }
+      }
+      lastRaf = now;
       if (now - last >= 33) { // 30 frames a second is plenty for a sky
         const gap = last ? now - last : 33;
         const dt = last ? Math.min(.1, gap / 1000) : .033;
@@ -548,44 +697,67 @@ void main(){
       raf = win.requestAnimationFrame(tick);
     }
     const start = () => { if (!raf && !destroyed && !lost && !doc.hidden && !reduceMq.matches) raf = win.requestAnimationFrame(tick); };
-    const stop = () => { if (raf) { win.cancelAnimationFrame(raf); raf = 0; } };
+    const stop = () => { if (raf) { win.cancelAnimationFrame(raf); raf = 0; } lastRaf = 0; };
 
-    const onVis = () => (doc.hidden ? stop() : start());
-    const onMotion = () => { if (reduceMq.matches) { stop(); frame(performance.now(), .05); } else start(); };
-    const onLost = (e) => { e.preventDefault(); lost = true; stop(); if (opts.onLost) opts.onLost(); };
-    win.addEventListener('resize', clearBackdrops);
-    win.addEventListener('resize', resize);
-    doc.addEventListener('visibilitychange', onVis);
-    reduceMq.addEventListener('change', onMotion);
-    canvas.addEventListener('webglcontextlost', onLost);
-    const toneTimer = win.setInterval(() => { const d = pageIsDark(); if (d !== dark) { dark = d; tone = null; applyTone(); } }, 2000);
-
-    resize();
-    applyTone();
-    clearBackdrops();
-    canvas.style.opacity = '0';
-    win.requestAnimationFrame(() => { lastOp = -1; setOpacity(0); });
-    start();
-
-    return {
+    const onVis = () => {
+      if (doc.hidden) {
+        stop();
+        // uTime grows for days otherwise and the shader loses float precision: start the clock over
+        if (simT > 1e4) { simT = 0; shX = 0; shY = 0; flashT0 = -10; flashNext = 2.5; }
+      } else if (reduceMq.matches) { if (curU && !lost) frame(performance.now(), 0); }
+      else start();
+    };
+    const onMotion = () => { if (reduceMq.matches) { stop(); curU = null; frame(performance.now(), .05); } else start(); };
+    const darkMq = win.matchMedia('(prefers-color-scheme: dark)');
+    let api = null;
+    const onLost = () => { lost = true; if (api) api.destroy(); if (opts.onLost) opts.onLost(); }; // no preventDefault: the context stays gone, the page is put back as it was
+    api = {
       setState, setStrength,
       destroy() {
         if (destroyed) return;
         destroyed = true;
         stop();
-        win.clearInterval(toneTimer);
-        win.clearInterval(maskTimer); win.clearInterval(keepTimer); win.removeEventListener('resize', clearBackdrops); restoreBackdrops();
-        win.removeEventListener('resize', resize);
+        win.clearInterval(maskTimer); win.clearInterval(keepTimer); win.clearInterval(sigTimer);
+        win.clearTimeout(resizeScanT); win.clearTimeout(readT); win.clearTimeout(firstRead);
+        win.removeEventListener('resize', onResizeScan);
+        restoreBackdrops();
+        if (mo) { mo.disconnect(); mo = null; }
+        darkMq.removeEventListener('change', scheduleRead);
+        win.removeEventListener('resize', onWinResize);
         doc.removeEventListener('visibilitychange', onVis);
         reduceMq.removeEventListener('change', onMotion);
         canvas.removeEventListener('webglcontextlost', onLost);
-        const ext = gl.getExtension('WEBGL_lose_context');
+        let ext = null;
+        try { ext = gl.getExtension('WEBGL_lose_context'); } catch {}
         canvas.remove();
-        if (ext) ext.loseContext();
+        if (ext) { try { ext.loseContext(); } catch {} }
       },
       canvas,
     };
+    win.addEventListener('resize', onResizeScan);
+    win.addEventListener('resize', onWinResize);
+    doc.addEventListener('visibilitychange', onVis);
+    reduceMq.addEventListener('change', onMotion);
+    canvas.addEventListener('webglcontextlost', onLost);
+    darkMq.addEventListener('change', scheduleRead);
+    // every attribute change on <html> and <body> (ours, data-hr-*, are ignored), and stylesheet / meta swaps in <head>
+    mo = new MutationObserver((recs) => { if (recs.some((r) => r.type !== 'attributes' || (r.attributeName || '').indexOf('data-hr-') !== 0)) scheduleRead(); });
+    mo.observe(rootEl, { attributes: true });
+    if (doc.body) mo.observe(doc.body, { attributes: true });
+    if (doc.head) mo.observe(doc.head, { childList: true });
+    // fallback for anything the observer cannot see (media-query flips, late CSS): the expensive read runs only if the signature changed
+    const sigTimer = win.setInterval(() => { if (!destroyed && themeSig() !== lastSig) readDark(); }, 5000);
+    const firstRead = win.setTimeout(readDark, 1500); // site CSS may not have loaded yet at mount
+
+    resize();
+    applyTone();
+    clearBackdrops();
+    canvas.style.opacity = '0';
+    win.requestAnimationFrame(() => { if (destroyed) return; lastOp = -1; setOpacity(lastNight); });
+    start();
+
+    return api;
   }
 
-  AM.WeatherSky = { mount, skyAt, pageIsDark };
+  AM.WeatherSky = { mount, pageIsDark };
 })();

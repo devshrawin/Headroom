@@ -1,4 +1,4 @@
-// The on-page meter: a thin bar along the top or bottom edge of the page, isolated in a shadow root so site CSS can't
+// The on-page meter: a thin bar along any of the four edges of the page (drag it to move it), isolated in a shadow root so site CSS can't
 // touch it. Hover or focus shows the label; click opens the details panel.
 // Look and tokens: the Headroom meter redesign (levels = glyph + colour + bar pattern, source tags = three shapes).
 (() => {
@@ -87,7 +87,7 @@
     .prob p { margin: 0 0 8px; color: var(--hr-muted); font-size: 11.5px; word-break: break-word; }
     .prob .btn { background: var(--hr-surf); }
 
-    /* Bar style: a thin full-width bar along the top or bottom edge; the label chip shows on hover or focus */
+    /* Bar style: a thin bar along any of the four edges (full width on top/bottom, full height on left/right); the label chip shows on hover or focus */
     .wrap.edge { width: 100%; gap: 0; }
     .wrap.edge .pbox { margin: 8px 12px; }
     .wrap.edge.top { flex-direction: column; } /* bar on top: the panel drops down from it */
@@ -99,7 +99,7 @@
     .wrap.edge.left .pill.edge, .wrap.edge.right .pill.edge { flex: none; align-self: stretch; width: var(--hr-bar-h); height: auto; transition: width var(--hr-dur-fast); }
     .wrap.edge.left .pill.edge:hover, .wrap.edge.left .pill.edge:focus-visible,
     .wrap.edge.right .pill.edge:hover, .wrap.edge.right .pill.edge:focus-visible { width: var(--hr-bar-h-hover); height: auto; }
-    .wrap.edge.left .pill.edge::after, .wrap.edge.right .pill.edge::after { top: 0; bottom: 0; width: 12px; height: auto; }
+    .wrap.edge.left .pill.edge::after, .wrap.edge.right .pill.edge::after { top: 0; bottom: 0; width: var(--hr-bar-h); height: auto; } /* only as thick as the bar; it is thin, but it can still overlap a right-edge scrollbar, so Settings → Position lets you pick another edge */
     .wrap.edge.left .pill.edge::after { left: 0; right: auto; } .wrap.edge.right .pill.edge::after { right: 0; left: auto; }
     .wrap.edge.left .pill.edge:focus-visible { box-shadow: 2px 0 0 0 var(--hr-accent); }
     .wrap.edge.right .pill.edge:focus-visible { box-shadow: -2px 0 0 0 var(--hr-accent); }
@@ -113,7 +113,7 @@
     .wrap.edge.right .pill.edge .info { right: 100%; left: auto; margin-right: 10px; }
     .wrap.edge.dragging .pill.edge { cursor: grabbing; }
     .pill.edge { align-self: stretch; display: block; width: 100%; height: var(--hr-bar-h); padding: 0; border: 0; border-radius: 0; background: transparent;
-      box-shadow: none; cursor: pointer; overflow: visible; transition: height var(--hr-dur-fast); }
+      box-shadow: none; cursor: pointer; overflow: visible; touch-action: none; transition: height var(--hr-dur-fast); }
     .pill.edge::after { content: ""; position: absolute; left: 0; right: 0; height: 12px; }
     .wrap.edge.bottom .pill.edge::after { bottom: 0; } .wrap.edge.top .pill.edge::after { top: 0; }
     .pill.edge:hover, .pill.edge:focus-visible { height: var(--hr-bar-h-hover); }
@@ -137,7 +137,7 @@
   let panelBox = null;
   let pill = null;
   let info = null;
-  let barMode = 'bottom'; // 'top' | 'bottom'
+  let barMode = 'bottom'; // 'top' | 'bottom' | 'left' | 'right'
   let barFill = null;
   let barTrack = null;
   let styleEl = null;
@@ -226,6 +226,7 @@
     attachClick(pill);
     attachKeys(pill);
     attachDrag(pill);
+    attachEscape(wrap);
     wrap.append(pill, panelBox);
     root.append(style, wrap);
     applyEdge(edgeOfStyle(lastSettings.meterStyle));
@@ -253,7 +254,12 @@
     target.addEventListener('pointerdown', (e) => {
       if (e.button !== 0) return;
       const sx = e.clientX, sy = e.clientY;
+      try { target.setPointerCapture(e.pointerId); } catch {}
+      let ended = false;
       const move = (m) => {
+        if (m.pointerId !== e.pointerId) return;
+        if (!host) { up(); return; } // the widget was removed mid-drag
+        if (m.buttons === 0) { up(); return; } // the button was released somewhere we never heard about
         if (!dragging) {
           if (Math.hypot(m.clientX - sx, m.clientY - sy) < 8) return;
           dragging = true; dragMoved = true; expanded = false;
@@ -264,9 +270,13 @@
         if (edge !== barMode) { applyEdge(edge); render(); }
       };
       const up = () => {
+        if (ended) return;
+        ended = true;
         window.removeEventListener('pointermove', move, true);
         window.removeEventListener('pointerup', up, true);
         window.removeEventListener('pointercancel', up, true);
+        target.removeEventListener('lostpointercapture', up);
+        try { target.releasePointerCapture(e.pointerId); } catch {}
         if (!dragging) return;
         dragging = false;
         if (host) applyEdge(barMode);
@@ -278,6 +288,7 @@
       window.addEventListener('pointermove', move, true);
       window.addEventListener('pointerup', up, true);
       window.addEventListener('pointercancel', up, true);
+      target.addEventListener('lostpointercapture', up);
     });
   }
 
@@ -298,11 +309,19 @@
         e.preventDefault();
         expanded = !expanded;
         render();
-      } else if (e.key === 'Escape' && expanded) {
-        e.preventDefault();
-        expanded = false;
-        render();
       }
+    });
+  }
+
+  // Escape closes the panel from anywhere inside it (the gear, the weather button), and puts focus back on the bar.
+  function attachEscape(target) {
+    target.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !expanded) return;
+      e.preventDefault();
+      if (e.stopPropagation) e.stopPropagation(); // the site's own Escape handler must not also fire
+      expanded = false;
+      render();
+      try { if (pill) pill.focus(); } catch {}
     });
   }
 

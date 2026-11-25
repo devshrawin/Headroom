@@ -85,15 +85,13 @@ test('the sky state: the hour is the hour AT the place, wind blows the clouds th
   assert.equal(none.weather, 'clear');
 });
 
-test('targets: the monsoon makes a clear day wet, snow only falls as snow, storms are flagged', () => {
-  assert.equal(W.targetsFor('clear', 'monsoon').rain, 0.7);
-  assert.equal(W.targetsFor('clear', 'summer').rain, 0);
-  assert.equal(W.targetsFor('snow', 'winter').snow, 0.85);
-  assert.equal(W.targetsFor('rain', 'winter').snow, 0);
-  assert.equal(W.targetsFor('storm', 'summer').thunder, true);
-  assert.equal(W.targetsFor('clear', 'autumn').leaves, 0.7);
-  assert.equal(W.targetsFor('rain', 'autumn').leaves < 0.7, true, 'fewer leaves in the rain');
-  assert.deepEqual(plain(W.targetsFor('nope', 'nope')), plain(W.targetsFor('clear', 'summer')));
+test('skyState seasonForced is true only when a valid season is forced', () => {
+  const at = Date.UTC(2026, 10, 23, 5, 0);
+  assert.equal(W.skyState(null, at, null).seasonForced, false);
+  assert.equal(W.skyState(null, at, { weather: 'clear' }).seasonForced, false);
+  assert.equal(W.skyState(null, at, { tod: 23 }).seasonForced, false);
+  assert.equal(W.skyState(null, at, { season: 'monsoon' }).seasonForced, true);
+  assert.equal(W.skyState(null, at, { season: 'bogus' }).seasonForced, false);
 });
 
 test('describe: a short line for Settings, in the chosen units', () => {
@@ -187,7 +185,7 @@ test('the sky palette and the shader agree on every uniform', async () => {
   const declared = new Set([...frag.matchAll(/uniform\s+(?:float|vec2|vec3)\s+([^;]+);/g)].flatMap((m) => m[1].split(',').map((s) => s.trim())));
   const fromPalette = new Set(Object.keys(PAL.uniforms({ season: 'summer', weather: 'rain', hour: 12 })));
   // set by the sky script itself
-  const own = ['uRes', 'uTime', 'uShift', 'uFlash', 'uFlashX', 'uBolt'];
+  const own = ['uRes', 'uTime', 'uShift', 'uFlash', 'uFlashX', 'uBolt', 'uVeil'];
   for (const u of fromPalette) assert.ok(declared.has(u), 'palette sets ' + u + ' but the shader has no such uniform');
   for (const u of declared) assert.ok(fromPalette.has(u) || own.includes(u), 'the shader needs ' + u + ' but nothing sets it');
   for (const u of own) assert.ok(src.includes("'" + u + "'") || src.includes('U.' + u), 'weather-sky.js never sets ' + u);
@@ -196,4 +194,71 @@ test('the sky palette and the shader agree on every uniform', async () => {
     const u = PAL.uniforms({ season, weather, hour: h, rise: 6.2, set: 18.3 });
     for (const [k, v] of Object.entries(u)) for (const n of [].concat(v)) assert.ok(Number.isFinite(n), season + ' ' + weather + ' ' + h + ' ' + k + ' = ' + n);
   }
+});
+
+// ---- the sky palette: sun path and mood ----
+
+const PAL = (() => {
+  const g = { Headroom: {} }; g.globalThis = g;
+  vm.runInNewContext(read('src/core/sky-palette.js'), g);
+  return g.Headroom.SKYPAL;
+})();
+
+test('sky palette: night before sunrise and after sunset, day at solar noon, sun below the horizon at midnight', () => {
+  const rise = 7, set = 17.5; // a winter day: later dawn, earlier dusk than any default
+  assert.ok(PAL.sky('summer', 3, rise, set).wN > 0.9, 'deep night well before sunrise');
+  assert.ok(PAL.sky('summer', 22, rise, set).wN > 0.9, 'night well after sunset');
+  assert.ok(PAL.sky('summer', (rise + set) / 2, rise, set).wD > 0.9, 'day at solar noon');
+  assert.ok(PAL.sky('summer', 0, rise, set).e < 0, 'the sun is below the horizon at midnight');
+  assert.ok(PAL.sky('summer', (rise + set) / 2, rise, set).e > 0.9, 'and high at noon');
+});
+
+test('sky palette: passing the real sunrise and sunset moves dawn compared to the default', () => {
+  const [defRise] = PAL.SUNPATH.summer; // 5.7
+  const hour = 6.5;
+  const byDefault = PAL.sky('summer', hour);
+  const lateRise = PAL.sky('summer', hour, 7.5, 18);
+  assert.ok(byDefault.e > 0 && byDefault.sunUp > 0.5, 'with the default sunrise (' + defRise + ') the sun is already up at 6:30');
+  assert.ok(lateRise.e < 0, 'with a real sunrise at 7:30 it is still below the horizon');
+  assert.ok(lateRise.wN > byDefault.wN, 'so the night weight is higher');
+  assert.deepEqual(plain(PAL.sky('summer', hour, null, null)), plain(byDefault), 'null falls back to the default');
+});
+
+test('sky palette: a storm flashes lightning and pours, clear summer noon is dry, a clear monsoon day keeps the rainy mood', () => {
+  const storm = PAL.uniforms({ season: 'summer', weather: 'storm', hour: 14 });
+  assert.equal(storm.uBolt, 1);
+  assert.ok(storm.uRain > 0.9, 'storm rain ' + storm.uRain);
+  const clear = PAL.uniforms({ season: 'summer', weather: 'clear', hour: 12 });
+  assert.equal(clear.uRain, 0);
+  assert.equal(clear.uSnow, 0);
+  assert.equal(clear.uBolt, 0);
+  const monsoon = PAL.uniforms({ season: 'monsoon', weather: 'clear', hour: 12, seasonMood: true });
+  assert.ok(monsoon.uRain > 0, 'monsoon rain ' + monsoon.uRain);
+  assert.ok(PAL.uniforms({ season: 'monsoon', weather: 'auto', hour: 12 }).uRain > 0, 'auto weather keeps the monsoon mood');
+  const snow = PAL.uniforms({ season: 'winter', weather: 'snow', hour: 12 });
+  assert.ok(snow.uSnow > 0 && snow.uRain === 0, 'snow falls as snow only');
+});
+
+test('sky palette: live clear weather in monsoon season (Nairobi, Singapore) stays clear and dry', () => {
+  const u = PAL.uniforms({ season: 'monsoon', weather: 'clear', hour: 12 });
+  assert.equal(u.uRain, 0);
+  assert.ok(u.uCover < 0.2, 'normal clear cover ' + u.uCover);
+});
+
+test('sky palette: unusable sunrise/sunset (polar day or night, junk) falls back to defaults and stays finite', () => {
+  for (const [rise, set] of [[0, 0], [12, 12], [20, 6], [NaN, 18], [6, Infinity], [0, 24]]) for (const hour of [0, 6, 12, 18, 23.5]) {
+    const u = PAL.uniforms({ season: 'summer', weather: 'clear', hour, rise, set });
+    for (const [k, v] of Object.entries(u)) for (const n of [].concat(v)) assert.ok(Number.isFinite(n), rise + '/' + set + ' h' + hour + ' ' + k + ' = ' + n);
+  }
+  assert.deepEqual(plain(PAL.sky('summer', 9, 12, 12)), plain(PAL.sky('summer', 9)));
+});
+
+test('parseForecast: equal or unusable sunrise and sunset become null so the palette uses its defaults', () => {
+  const polar = { current: { weather_code: 0 }, daily: { sunrise: ['2026-06-21T00:00'], sunset: ['2026-06-21T00:00'] } };
+  const d = W.parseForecast(polar, 78, 15);
+  assert.equal(d.rise, null);
+  assert.equal(d.set, null);
+  const st = W.skyState(d, Date.UTC(2026, 5, 21, 12), null);
+  assert.equal(st.rise, null);
+  assert.equal(st.set, null);
 });

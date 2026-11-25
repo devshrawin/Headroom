@@ -57,7 +57,9 @@
   // rise / set: the real sunrise and sunset (local hours) when known; otherwise the season's typical ones
   function sky(season, hour, realRise, realSet) {
     const [sr, ss0, top] = SUNPATH[season];
-    const rise = realRise != null ? realRise : sr, set = realSet != null ? realSet : ss0;
+    // polar day/night or junk: rise equal to set, not finite, or a day shorter than 15 min / longer than 23h45 -> defaults
+    const okReal = typeof realRise === 'number' && typeof realSet === 'number' && Number.isFinite(realRise) && Number.isFinite(realSet) && realSet - realRise >= 0.25 && realSet - realRise <= 23.75;
+    const rise = okReal ? realRise : sr, set = okReal ? realSet : ss0;
     const L = set - rise, f = (hour - rise) / L;
     let e, sun;
     if (f >= 0 && f <= 1) { e = Math.sin(Math.PI * f); sun = [.1 + .8 * f, .04 + top * Math.sin(Math.PI * f)]; }
@@ -75,8 +77,9 @@
     const se = SEASON[season];
     const hour = st.hour != null ? st.hour : KEYHOUR[season][st.time || 'day'];
     const S = sky(season, hour, st.rise, st.set);
-    // a clear monsoon day still has weather: it keeps the season's own rainy mood
-    const auto = !st.weather || st.weather === 'auto' || (season === 'monsoon' && st.weather === 'clear');
+    // a clear sky in a forced monsoon season (st.seasonMood, set when the user picked the season) keeps the season's own
+    // rainy mood; live clear weather stays clear, even in the tropics
+    const auto = !st.weather || st.weather === 'auto' || (st.seasonMood === true && season === 'monsoon' && st.weather === 'clear');
     const wname = auto ? se.cond : st.weather;
     const c = { ...COND[wname] };
     if (auto) { c.cover = se.cover; if (se.rain != null) c.rain = se.rain; if (se.gloom != null) c.gloom = se.gloom; if (se.tower != null) c.tower = se.tower; if (season !== 'monsoon') c.gloom = 0; }

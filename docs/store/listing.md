@@ -9,7 +9,7 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 | Name | Headroom: AI usage limit and weather |
 | Category | Productivity |
 | Language | English |
-| Package version | 1.2.7 |
+| Package version | 1.4.0 |
 | Privacy policy URL | `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md` (no GitHub Pages needed: the repo is public, so GitHub shows `docs/privacy.md` as a page. It must be merged to `main` first, or it shows the old policy. Open it in a private window to check it loads without signing in) |
 | Support URL | `https://github.com/devshrawin/Headroom/issues` |
 | Homepage URL | `https://github.com/devshrawin/Headroom` |
@@ -26,7 +26,7 @@ No lists of product or company names (the store rejected version 1.2.6 for that)
 
 > Headroom does two things on the AI chat sites you use: it shows how much of your usage limit is left, and it puts the real weather behind your chat.
 >
-> Your limit, as a thin bar. A slim bar runs along the bottom (or top) of the page and fills as you use your limit. Point at it for the percentage and when it resets, click it for the details. Shapes as well as colours show the level, so it reads without colour.
+> Your limit, as a thin bar. A slim bar runs along the edge of the page and fills as you use your limit. Drag it to the top, bottom, left or right edge, wherever it bothers you least. Point at it for the percentage and when it resets, click it for the details. Shapes as well as colours show the level, so it reads without colour.
 >
 > The real weather, behind your chat. Choose where you are (use your location, or type a city) and the page gets a living sky that follows the real weather and the real hour: sun, moon and stars, moving clouds, rain, snow, fog, lightning and falling leaves in autumn. It never blocks the page or your clicks, you can turn it off with one click, and you can lower its strength if text is hard to read.
 >
@@ -45,7 +45,7 @@ No lists of product or company names (the store rejected version 1.2.6 for that)
 > • Keyboard support: Tab to the bar, Enter to open it
 >
 > Private by design
-> Everything stays on your machine. There is no server of ours, no account and no analytics. Usage requests go from your own logged-in tab to the site's own servers, exactly as its settings page would send them. Message text is never stored. The one other request is for the weather, only if you turn it on: the rounded coordinates of the place you choose (about 1 km) go to the free Open-Meteo weather service to ask for the forecast. See the privacy policy for the details.
+> Everything stays on your machine. There is no server of ours, no account and no analytics. Usage requests go from your own logged-in tab to the site's own servers, exactly as its settings page would send them. Message text is never stored. The one other request is for the weather, only if you turn it on: the rounded coordinates of the place you choose (about 1 km) go to the free Open-Meteo weather service to ask for the forecast. If you type a city name to choose the place, that name goes to the free Open-Meteo geocoding service to find it. See the privacy policy for the details.
 >
 > Headroom is an independent project and is not affiliated with, endorsed by or sponsored by any of the AI services it works with. All product names belong to their owners.
 
@@ -61,7 +61,7 @@ Paste each into the matching box on the **Privacy practices** tab.
 Saves your settings (estimate limits, notification thresholds, added sites, the weather options and the place you chose, rounded to about 1 km), the latest usage numbers for each provider, a short list of send timestamps used for message counting, and the opt-in debug log. All in `chrome.storage.local`. Nothing is synced or sent anywhere.
 
 ### `alarms`
-Schedules a single alarm for the moment a limit resets, so Headroom can tell you "your limit has reset" and clear the old warning state. No polling, no background work beyond that.
+Schedules timers for the moment a limit resets, so Headroom can tell you "your limit has reset" and clear the old warning state. When the weather is turned on, it also schedules a refresh of the forecast every 20 minutes. Nothing else runs in the background, and the forecast refresh stops when the weather is turned off.
 
 ### `notifications`
 Shows the optional desktop notifications when a meter crosses 75, 90 or 100 percent, and when a limit resets. Turn off in Settings. Notifications contain only the provider name, the meter name and the percentage.
@@ -137,8 +137,8 @@ The store description keeps only the short line at its end. The full list of com
 
 ## Before you submit
 
-- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.2.7)
-- [ ] Zip built with `npm run store-zip` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
+- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.4.0)
+- [ ] Zip built with `npm run store-zip`, upload `release/2026-11-25/headroom-1.4.0.zip`; tag the release `v1.4.0` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
 - [ ] Privacy policy URL is live and loads without sign-in
 - [ ] Single-purpose statement and every permission justification pasted
 - [ ] Images uploaded from `docs/store/assets/` (5 screenshots, small tile, optional marquee)
