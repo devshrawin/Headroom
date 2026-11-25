@@ -84,10 +84,10 @@ vec3 nightSky(vec2 uv,float asp){
 // ---------- 3. clouds ----------
 // density on a cloud deck seen in perspective: big overhead, small and flat near the horizon
 float cumDensity(vec2 p,float cov,float bias){
-  float shape=fbm(p*.55,4);                               // where the clouds are
+  float shape=fbm(p*.55+vec2(uTime*.004,uTime*.002),4);                               // where the clouds are
   vec2 w=vec2(vn(p*1.3+4.1),vn(p*1.3+9.7))-.5;
-  float detail=fbm(p*2.6+w*.9+shape*1.5,5);              // the puffs inside them
-  float lobes=bill(p*5.2+w,3);                           // small rounded lobes on the edges
+  float detail=fbm(p*2.6+w*.9+shape*1.5+vec2(uTime*.021,-uTime*.014),5);              // the puffs inside them
+  float lobes=bill(p*5.2+w+vec2(-uTime*.034,uTime*.022),3);                           // small rounded lobes on the edges
   float n=shape*.62+detail*.36+lobes*.12+bias;
   float lo=mix(.75,.36,cov);
   return clamp((n-lo)*mix(6.,3.,uGloom),0.,1.);
@@ -95,7 +95,7 @@ float cumDensity(vec2 p,float cov,float bias){
 vec4 cumulus(vec2 uv,float asp,float cov,float bias,float calm,vec2 Lp,float Lvis,float sc){
   float hz=max(uv.y,0.)+.28;                             // distance to the horizon: clouds shrink and flatten towards it
   vec2 p=vec2((uv.x-.5)*asp/pow(hz,.55)*.62,1./hz*.85)*sc+uSeed;
-  p+=uShift*.012;
+  p+=uShift*.06;
   float d=cumDensity(p,cov,bias);
   if(d<.002)return vec4(0.);
   vec2 Ls=(Lp-uv)*vec2(asp,1.);Ls=normalize(Ls+vec2(0.,.4));
@@ -118,7 +118,7 @@ vec4 cumulus(vec2 uv,float asp,float cov,float bias,float calm,vec2 Lp,float Lvi
 float cirrus(vec2 uv,float asp){
   vec2 p=vec2(uv.x*asp,uv.y);
   p=mat2(.94,.34,-.34,.94)*p;
-  p+=uShift*.004;
+  p+=uShift*.022;
   float w=fbm(p*vec2(1.2,3.),3);
   float n=fbm(vec2(p.x*1.6+w*1.5,p.y*11.+w*2.),5);
   return smoothstep(.5,.82,n)*smoothstep(.35,.9,uv.y)*uCirrus;
@@ -221,7 +221,7 @@ void main(){
   // a solid cloud deck under heavy cover: soft, low-contrast texture so grey never reads as flat paint
   if(uCover>.8){
     float hz=max(uv.y,0.)+.3;
-    vec2 sp=vec2((uv.x-.5)*asp/pow(hz,.55)*.5,1./hz*.7)*1.6+uSeed*.7+uShift*.008;
+    vec2 sp=vec2((uv.x-.5)*asp/pow(hz,.55)*.5,1./hz*.7)*1.6+uSeed*.7+uShift*.035;
     float stx=fbm(sp,5);
     vec3 deck=mix(uAmb,mix(uAmb,uLit,.75),smoothstep(.3,.75,stx));
     col=mix(col,mix(deck,base,.35),smoothstep(.8,1.,uCover)*.75*(1.-.3*calm));
@@ -524,7 +524,7 @@ void main(){
         if (typeof tgt[key] === 'number') curU[key] += (tgt[key] - curU[key]) * k;
         else for (let i = 0; i < tgt[key].length; i++) curU[key][i] += (tgt[key][i] - curU[key][i]) * k;
       }
-      shX += curU.uWind[0] * dt; shY += curU.uWind[1] * dt;
+      shX += (curU.uWind[0] + .45) * dt; shY += curU.uWind[1] * dt; // always a gentle drift, more with real wind
       const set1 = (n, v) => { const l = U[n]; if (l == null) return; if (typeof v === 'number') gl.uniform1f(l, v); else if (v.length === 2) gl.uniform2fv(l, v); else gl.uniform3fv(l, v); };
       set1('uRes', [W, H]); set1('uTime', 37 + simT);
       for (const key in curU) set1(key, curU[key]);

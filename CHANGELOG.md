@@ -6,6 +6,7 @@ All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow 
 
 ### Changed
 - The sky is redesigned: a colour-rich sky dome with real dusk and dawn gradients, a Milky Way with layered stars, a phased moon with a halo, sculpted clouds lit from the sun's side, high cirrus, a heavier overcast deck, layered rain, snow and fog, lightning, diamond dust in winter, and petals and leaves by season. A calm reading area in the middle of the window keeps text readable. Colours are decided by a new `sky-palette.js` from the real hour, sunrise and sunset, weather and season; the shader only draws.
+- Clouds now drift about five times faster (always a gentle drift, more in real wind) and their edges slowly change shape, so the sky is alive rather than a still picture. Cirrus and the overcast deck drift too.
 - The sky is drawn at up to 1.5x pixel density, and steps its resolution down by itself on a slow graphics card.
 
 ## 1.3.0 — 2026-11-24
