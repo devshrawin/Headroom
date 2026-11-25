@@ -14,7 +14,10 @@ const H = 3600e3;
 test('resetText: a reset time in the past reads "reset due" / "frees up now", never "in now"', () => {
   assert.equal(AM.resetText({ resetAt: now - 1, source: 'real' }, now), 'reset due');
   assert.equal(AM.resetText({ resetAt: now - 1, source: 'estimate' }, now), 'frees up now');
-  assert.equal(AM.resetText({ resetAt: now + 13 * H, source: 'real' }, now), 'resets in 13h 0m');
+  assert.match(AM.resetText({ resetAt: now + 13 * H, source: 'real' }, now), /^resets at (tomorrow )?\d{1,2}:\d{2}/);
+  assert.match(AM.resetText({ resetAt: now + 13 * H, source: 'estimate' }, now), /^next frees at /);
+  assert.match(AM.resetText({ resetAt: now + 3 * 86400e3, source: 'real' }, now), /^resets at \w{3} \d{1,2}:\d{2}/);
+  assert.match(AM.formatClock(now + 20 * 86400e3, now), /^\S+ ?\S*$/, 'far-off resets show a date');
   assert.equal(AM.resetText({ source: 'real' }, now), '');
 });
 

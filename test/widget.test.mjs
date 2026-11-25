@@ -8,14 +8,14 @@ const real = (pct, extra = {}) => ({ id: 'five_hour', label: 'Session (5h)', pct
 test('ok: the label shows the name, the percentage and when it resets; the level glyph is "ok"', () => {
   const w = loadWidget();
   w.update('Claude', [real(32, { resetAt: Date.now() + 13 * hour + 5 * 60e3 })]);
-  assert.match(w.pillText(), /^Claude32%· resets in 13h 5m/);
+  assert.match(w.pillText(), /^Claude32%· resets at /);
   assert.equal(w.dotClass(), 'glyph lv-ok');
 });
 
 test('the reset time is on the label at every level', () => {
   const w = loadWidget();
   w.update('Claude', [real(80, { resetAt: Date.now() + 13 * hour + 5 * 60e3 })]);
-  assert.match(w.pillText(), /^Claude80%· resets in 13h 5m/);
+  assert.match(w.pillText(), /^Claude80%· resets at /);
 });
 
 test('level glyph follows usage: close from 75, critical from 90, empty at 100 or a banner, unknown without a percentage', () => {
@@ -42,7 +42,7 @@ test('estimate: the panel row carries the "estimate" tag and the "next frees in"
   const panel = w.panelText();
   assert.match(panel, /Messages/);
   assert.match(panel, /3 \/ 160/);
-  assert.match(panel, /next frees in 2h/);
+  assert.match(panel, /next frees at /);
   assert.match(panel, /estimate/);
 });
 
@@ -157,7 +157,7 @@ test('a11y: the pill is a named, focusable button whose label speaks the numbers
   assert.equal(pill.attrs.role, 'button');
   assert.equal(pill.tabIndex, 0);
   assert.equal(pill.attrs['aria-expanded'], 'false');
-  assert.match(pill.attrs['aria-label'], /^Headroom: Claude 32% used, plenty left, resets in 3h 1\dm\. Open details\.$/);
+  assert.match(pill.attrs['aria-label'], /^Headroom: Claude 32% used, plenty left, resets at \d{1,2}:\d{2}[^.]*\. Open details\.$/i);
   w.click();
   assert.equal(pill.attrs['aria-expanded'], 'true');
   assert.match(pill.attrs['aria-label'], /Close details\.$/);
@@ -191,7 +191,7 @@ test('a11y: panel is a labelled region and each bar is a progressbar with a valu
   assert.equal(bars[0].attrs.role, 'progressbar');
   assert.equal(bars[0].attrs['aria-label'], 'Session (5h)');
   assert.equal(bars[0].attrs['aria-valuenow'], '32');
-  assert.match(bars[0].attrs['aria-valuetext'], /^32%, resets in 2h/);
+  assert.match(bars[0].attrs['aria-valuetext'], /^32%, resets at /);
 });
 
 test('a11y: purely decorative bits are hidden from screen readers; the problem box is a status', () => {

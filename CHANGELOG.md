@@ -2,6 +2,11 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.4.2 — 2026-11-25
+
+### Changed
+- Reset times are shown as a clock time instead of a countdown: "resets at 5:23 PM", "tomorrow 9:00 AM", "Fri 9:00 AM", or a date when it is over a week away. Uses your computer's own time format and time zone.
+
 ## 1.4.1 — 2026-11-25
 
 ### Changed

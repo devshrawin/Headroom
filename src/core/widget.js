@@ -489,8 +489,8 @@
       if (!top) say = desc ? lowerFirst(desc.title) : 'no usage data yet';
       else {
         say = topPct != null ? Math.round(topPct) + '% used' + (LEVEL_WORDS[level] ? ', ' + LEVEL_WORDS[level] : '') : AM.meterValue(top);
-        const left = top.resetAt ? AM.formatDuration(top.resetAt - now) : '';
-        if (left) say += ', resets in ' + left;
+        const left = top.resetAt ? AM.formatClock(top.resetAt, now) : '';
+        if (left) say += ', resets at ' + left;
         if (desc) say += '. ' + desc.title;
       }
       const act = expanded ? 'Close details.' : 'Open details.';
@@ -519,8 +519,8 @@
       info.append(el('span', 'pct', AM.meterValue(top)));
     }
     if (top && topPct != null) {
-      const rt = top.resetAt ? AM.formatDuration(top.resetAt - now) : '';
-      if (rt) info.append(el('span', 'sub', '· resets in ' + rt));
+      const rt = top.resetAt ? AM.formatClock(top.resetAt, now) : '';
+      if (rt) info.append(el('span', 'sub', '· resets at ' + rt));
     }
     if (desc && top) {
       const flagBox = glyphBox('problem', 'unk');

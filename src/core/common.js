@@ -163,11 +163,24 @@
     return '';
   };
 
+  // When a limit frees up, as a clock time people can plan around: "5:23 PM", "tomorrow 9:00 AM", "Fri 9:00 AM", or a date for far-off resets.
+  AM.formatClock = (ts, now = Date.now()) => {
+    if (ts == null || !isFinite(ts)) return '';
+    const t = new Date(ts), n = new Date(now);
+    const clock = t.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+    const dayStart = (d) => new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const days = Math.round((dayStart(t) - dayStart(n)) / 86400e3);
+    if (days <= 0) return clock;
+    if (days === 1) return 'tomorrow ' + clock;
+    if (days < 7) return t.toLocaleDateString([], { weekday: 'short' }) + ' ' + clock;
+    return t.toLocaleDateString([], { day: 'numeric', month: 'short' });
+  };
+
   AM.resetText = (m, now = Date.now()) => {
     if (!m.resetAt) return '';
     if (m.resetAt - now <= 0) return m.source === 'estimate' ? 'frees up now' : 'reset due';
-    const d = AM.formatDuration(m.resetAt - now);
-    return m.source === 'estimate' ? `next frees in ${d}` : `resets in ${d}`;
+    const d = AM.formatClock(m.resetAt, now);
+    return m.source === 'estimate' ? `next frees at ${d}` : `resets at ${d}`;
   };
 
   // Popup layout helpers. Bar meters have a percentage; counters (e.g. "5 left" with no limit) get chips instead.
