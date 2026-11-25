@@ -19,6 +19,7 @@ uniform vec2 uSun,uMoon;
 uniform float uSunVis,uMoonVis,uMoonPhase,uTwi,uNight,uDay;
 uniform float uCover,uGloom,uTower,uCirrus,uRain,uSnow,uFog,uHaze,uHalo,uSparkle;
 uniform float uStars,uMilky,uPetals,uLeaves,uFlash,uFlashX,uBolt,uCalm;
+uniform float uLift; // light page by day: eases the whole sky toward white (0..1) so grey text on the sidebar and header stays readable
 uniform float uVeil; // reading-column veil, -1..1: >0 darkens (white text on a bright sky), <0 lightens (dark text on a deep sky)
 uniform vec2 uWind,uSeed,uShift; // uShift: how far the wind has carried things in all (so a change in wind never makes clouds jump)
 
@@ -315,6 +316,8 @@ void main(){
   float cv=calm;
   if(uVeil>0.)col=mix(col,col*(1.-.30*uVeil),cv*cv);
   else if(uVeil<0.)col=mix(col,mix(col,vec3(1.),.32),cv*cv*-uVeil);
+  // light pages: a dark sky (storm, overcast, deep blue zenith) is eased toward white everywhere, not only in the reading column
+  col=mix(col,vec3(1.),uLift);
   // soft shoulder so glows never clip into flat white
   col=vec3(col.r<.82?col.r:.82+.18*(1.-exp(-(col.r-.82)/.18)),
            col.g<.82?col.g:.82+.18*(1.-exp(-(col.g-.82)/.18)),
@@ -663,6 +666,11 @@ void main(){
       const veilT = pure ? 0 : dark ? clamp((Ls - .04) / .28, 0, 1) * (1 - nt) : -clamp((.9 - Ls) / .6, 0, 1) * (1 - nt);
       if (!Number.isFinite(curU.uVeil)) curU.uVeil = veilT;
       curU.uVeil += (veilT - curU.uVeil) * kSlow;
+      // light page by day: the darker the whole sky (mean of zenith, middle, horizon), the more it is eased toward white
+      const Lavg = (rl(curU.uTop) + rl(curU.uMid) + rl(curU.uHor)) / 3;
+      const liftT = pure || dark ? 0 : clamp((.62 - Lavg) / .62, 0, 1) * .55 * (1 - nt);
+      if (!Number.isFinite(curU.uLift)) curU.uLift = liftT;
+      curU.uLift += (liftT - curU.uLift) * kSlow;
       shX += (curU.uWind[0] + .45) * dt; shY += curU.uWind[1] * dt; // always a gentle drift, more with real wind
       if (doc.hidden) return; // nothing is drawn while the tab is hidden
       const set1 = (n, v) => { const l = U[n]; if (l == null) return; if (typeof v === 'number') gl.uniform1f(l, v); else if (v.length === 2) gl.uniform2fv(l, v); else gl.uniform3fv(l, v); };

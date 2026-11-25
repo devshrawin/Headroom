@@ -12,7 +12,7 @@ All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow 
 ### Fixed
 - Pale strips behind composers are cleared only when they are fixed or sticky strips stuck to the top or bottom edge with square corners (and never inside dialogs, menus or tooltips); wide in-flow content that merely scrolls past the edge is left alone.
 - Hidden tabs wait until shown before creating the sky.
-- Text over the sky stays readable by gently veiling only the middle reading column of the sky (the edges keep their full colour).
+- Text over the sky stays readable by gently veiling only the middle reading column of the sky (the edges keep their full colour); on light pages a dark sky (storm, overcast, deep blue) is also eased toward white across the whole window, so grey sidebar and header text stays readable.
 - Resizing the window no longer flashes a black frame, and detached page parts no longer stay transparent.
 - Theme detection updates when the site changes theme.
 - When the graphics context is lost, the page is restored and the sky is retried up to 3 times, 5 seconds apart.

@@ -185,7 +185,7 @@ test('the sky palette and the shader agree on every uniform', async () => {
   const declared = new Set([...frag.matchAll(/uniform\s+(?:float|vec2|vec3)\s+([^;]+);/g)].flatMap((m) => m[1].split(',').map((s) => s.trim())));
   const fromPalette = new Set(Object.keys(PAL.uniforms({ season: 'summer', weather: 'rain', hour: 12 })));
   // set by the sky script itself
-  const own = ['uRes', 'uTime', 'uShift', 'uFlash', 'uFlashX', 'uBolt', 'uVeil'];
+  const own = ['uRes', 'uTime', 'uShift', 'uFlash', 'uFlashX', 'uBolt', 'uVeil', 'uLift'];
   for (const u of fromPalette) assert.ok(declared.has(u), 'palette sets ' + u + ' but the shader has no such uniform');
   for (const u of declared) assert.ok(fromPalette.has(u) || own.includes(u), 'the shader needs ' + u + ' but nothing sets it');
   for (const u of own) assert.ok(src.includes("'" + u + "'") || src.includes('U.' + u), 'weather-sky.js never sets ' + u);
