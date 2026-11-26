@@ -103,9 +103,9 @@ test('first install opens the welcome page; an update or browser update does not
 
 
 test('meterStyle: the bar at the bottom by default, the top when asked, anything else (including the old pill) falls back to the bottom', () => {
-  assert.equal(AM.mergeSettings(null).meterStyle, 'bar-bottom');
+  assert.equal(AM.mergeSettings(null).meterStyle, 'bar-top');
   assert.equal(AM.mergeSettings({ meterStyle: 'bar-top' }).meterStyle, 'bar-top');
-  assert.equal(AM.mergeSettings({ meterStyle: 'pill' }).meterStyle, 'bar-bottom');
+  assert.equal(AM.mergeSettings({ meterStyle: 'pill' }).meterStyle, 'bar-top');
 });
 
 test('weather settings: on by default but no place; the place is validated and rounded; strength and units are clamped', () => {
@@ -144,16 +144,16 @@ test('a settings backup never carries the place; an import keeps weather options
   assert.equal(bad.settings.weatherStrength, undefined);
 });
 
-test('meterStyle: all four edges are accepted by merge and import; anything else falls back to bar-bottom', () => {
+test('meterStyle: all four edges are accepted by merge and import; anything else falls back to bar-top', () => {
   for (const s of ['bar-top', 'bar-bottom', 'bar-left', 'bar-right']) {
     assert.equal(AM.mergeSettings({ meterStyle: s }).meterStyle, s, 'merge ' + s);
     const r = AM.parseImport(wrap({ meterStyle: s }));
     assert.equal(r.settings.meterStyle, s, 'import ' + s);
   }
   for (const bad of ['pill', 'bar', 'bar-middle', 'BAR-TOP', '', null, 5, {}, undefined]) {
-    assert.equal(AM.mergeSettings({ meterStyle: bad }).meterStyle, 'bar-bottom', 'merge ' + String(bad));
+    assert.equal(AM.mergeSettings({ meterStyle: bad }).meterStyle, 'bar-top', 'merge ' + String(bad));
     assert.equal('meterStyle' in AM.parseImport(wrap({ meterStyle: bad })).settings, false, 'import drops ' + String(bad));
-    assert.equal(AM.mergeSettings(AM.parseImport(wrap({ meterStyle: bad })).settings).meterStyle, 'bar-bottom');
+    assert.equal(AM.mergeSettings(AM.parseImport(wrap({ meterStyle: bad })).settings).meterStyle, 'bar-top');
   }
-  assert.equal(AM.mergeSettings(null).meterStyle, 'bar-bottom');
+  assert.equal(AM.mergeSettings(null).meterStyle, 'bar-top');
 });

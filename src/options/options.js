@@ -118,17 +118,20 @@ async function setPlace(p) {
   status('Place saved');
   render();
 }
-async function useLocation() {
-  // the permission request must be the first await so Chrome still sees the click
-  const ok = await chrome.permissions.request({ permissions: ['geolocation'] });
-  const msg = $('#wmsg');
-  if (!ok) { if (msg) msg.textContent = 'Chrome did not give access. You can type a city instead.'; return; }
-  if (msg) msg.textContent = 'Finding you…';
-  if (!navigator.geolocation) { if (msg) msg.textContent = 'This browser cannot give a location. Type a city instead.'; return; }
-  navigator.geolocation.getCurrentPosition(
-    (pos) => setPlace({ name: 'Your location', lat: pos.coords.latitude, lon: pos.coords.longitude }),
-    (e) => { if (msg) msg.textContent = 'Location was not available (' + (e.message || 'denied') + '). Type a city instead.'; },
-    { timeout: 12000, maximumAge: 600000 });
+function useLocation() {
+  // An extension page asks for the location with Chrome's normal location prompt, so no manifest permission is needed.
+  // (Look #wmsg up again on each update: render() may replace it.)
+  const say = (t) => { const m = $('#wmsg'); if (m) m.textContent = t; };
+  if (!navigator.geolocation) return say('This browser cannot give a location. Type a city instead.');
+  say('Asking Chrome for your location… look for a prompt near the address bar.');
+  try {
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setPlace({ name: 'Your location', lat: pos.coords.latitude, lon: pos.coords.longitude }),
+      (e) => say(e && e.code === 1
+        ? 'Chrome did not give access. Allow location for this page (the icon at the left of the address bar), or type a city instead.'
+        : 'Location was not available (' + ((e && e.message) || 'unknown reason') + '). Check that Windows location is on, or type a city instead.'),
+      { timeout: 20000, maximumAge: 600000 });
+  } catch (e) { say('Location failed (' + ((e && e.message) || e) + '). Type a city instead.'); }
 }
 async function searchCity() {
   const q = ($('#city') && $('#city').value || '').trim();
@@ -161,7 +164,7 @@ function meterPage() {
   return `<h1 class="page-h">Meter</h1><p class="page-d">${PAGES[1].desc}</p>
   <section class="card">
     ${row('Show the meter', 'Point at the bar for the percentage and when it resets, click it for the details.', sw('widget', 'On', S.widget))}
-    ${row('Position', 'Which edge of the page the bar sits on. You can also drag the bar to another edge.', seg('meterStyle', [['bar-bottom', 'Bottom'], ['bar-top', 'Top'], ['bar-left', 'Left'], ['bar-right', 'Right']], S.meterStyle, 'Bar position'))}
+    ${row('Position', 'Which edge of the page the bar sits on. You can also drag the bar to another edge.', seg('meterStyle', [['bar-top', 'Top'], ['bar-bottom', 'Bottom'], ['bar-left', 'Left'], ['bar-right', 'Right']], S.meterStyle, 'Bar position'))}
     ${row('Chat details', 'Show the length of the open chat, the cache timer and the cost of your next message in the details panel (Claude, ChatGPT, Gemini).', sw('chatStats', 'On', S.chatStats))}
   </section>`;
 }

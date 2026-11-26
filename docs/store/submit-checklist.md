@@ -19,8 +19,8 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 
 ## 2. Upload
 
-- [ ] Build the zip: `npm run store-zip` (writes `release/<date>/headroom-<version>.zip`, for 1.4.2 that is `release/2026-11-25/headroom-1.4.2.zip`; it refuses to build if something is wrong).
-- [ ] Dev console → **New item** (or the existing item's **Package** tab) → upload `release/2026-11-25/headroom-1.4.2.zip`.
+- [ ] Build the zip: `npm run store-zip` (writes `release/<date>/headroom-<version>.zip`, for 1.4.3 that is `release/2026-11-25/headroom-1.4.3.zip`; it refuses to build if something is wrong).
+- [ ] Dev console → **New item** (or the existing item's **Package** tab) → upload `release/2026-11-25/headroom-1.4.3.zip`.
 
 ## 3. Store listing tab
 
@@ -31,7 +31,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 ## 4. Privacy practices tab
 
 - [ ] Paste the **single-purpose statement**.
-- [ ] Paste each **permission justification** (`storage`, `alarms`, `notifications`, `scripting`, the host permissions, the optional host permission, the optional `geolocation` permission, remote code = No).
+- [ ] Paste each **permission justification** (`storage`, `alarms`, `notifications`, `scripting`, the host permissions, the optional host permission, remote code = No).
 - [ ] Answer the **data usage** questions using the table in the listing, **checking them against the dashboard's current wording** (the questions change). Tick all three certifications.
 - [ ] Privacy policy URL: `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md`.
 
@@ -43,7 +43,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 
 ## 6. After publishing
 
-- [ ] Tag the release in git (`v1.4.2`) and add the store link to the README. I will not tag or publish anything without you saying so.
+- [ ] Tag the release in git (`v1.4.3`) and add the store link to the README. I will not tag or publish anything without you saying so.
 - [ ] Keep the "Verified live" column in the README honest as you check the remaining providers.
 
 ## Known small things (not blockers)

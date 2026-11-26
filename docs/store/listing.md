@@ -9,7 +9,7 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 | Name | Headroom: AI usage limit and weather |
 | Category | Productivity |
 | Language | English |
-| Package version | 1.4.2 |
+| Package version | 1.4.3 |
 | Privacy policy URL | `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md` (no GitHub Pages needed: the repo is public, so GitHub shows `docs/privacy.md` as a page. It must be merged to `main` first, or it shows the old policy. Open it in a private window to check it loads without signing in) |
 | Support URL | `https://github.com/devshrawin/Headroom/issues` |
 | Homepage URL | `https://github.com/devshrawin/Headroom` |
@@ -91,8 +91,8 @@ The `www.` and bare-domain entries are listed separately because Chrome match pa
 ### Optional host permission `https://*/*`
 Requested only when you click **Add site** in Settings for a specific site you want measured, and Chrome then asks for that one origin (for example `https://example-ai.com/*`). It is never granted up front and the extension does nothing on a site you have not added.
 
-### Optional permission `geolocation`
-Requested only when you press **Use my location** in Settings → Weather, so Headroom can pick the place for the weather without typing a city. Chrome shows its own location prompt. The position is read once, rounded to two decimals (about 1 km) straight away, and only the rounded value is kept. Typing a city never needs this permission, and the weather works without it.
+### Location (no permission in the manifest)
+The **Use my location** button in Settings → Weather uses Chrome's normal location prompt, shown by Chrome itself. The position is read once, rounded to two decimals (about 1 km) straight away, and only the rounded value is kept. Typing a city never needs it, and the weather works without it.
 
 ### Remote code
 **No.** All code ships in the package, including the weather sky (one shader, no images). Nothing is downloaded and executed.
@@ -136,8 +136,8 @@ The store description keeps only the short line at its end. The full list of com
 
 ## Before you submit
 
-- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.4.2)
-- [ ] Zip built with `npm run store-zip`, upload `release/2026-11-25/headroom-1.4.2.zip`; tag the release `v1.4.2` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
+- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.4.3)
+- [ ] Zip built with `npm run store-zip`, upload `release/2026-11-25/headroom-1.4.3.zip`; tag the release `v1.4.3` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
 - [ ] Privacy policy URL is live and loads without sign-in
 - [ ] Single-purpose statement and every permission justification pasted
 - [ ] Images uploaded from `docs/store/assets/` (5 screenshots, small tile, optional marquee)

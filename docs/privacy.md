@@ -59,7 +59,7 @@ Usage requests go from **your tab to the provider's own domain**, the same place
 
 ## Permissions
 
-Each permission, and why the extension asks for it, is listed in the Chrome Web Store listing and in the repository (`docs/store/listing.md`). In short: `storage` for settings and the latest numbers, `alarms` for the reset notification, `notifications` for the optional alerts, `scripting` to register scripts for sites you add and to load the weather sky only when the weather is on, the optional `geolocation` permission only if you press **Use my location**, and host access to the listed provider sites. Access to any other site is optional and asked for one site at a time, when you click **Add site**.
+Each permission, and why the extension asks for it, is listed in the Chrome Web Store listing and in the repository (`docs/store/listing.md`). In short: `storage` for settings and the latest numbers, `alarms` for the reset notification, `notifications` for the optional alerts, `scripting` to register scripts for sites you add and to load the weather sky only when the weather is on, your location only if you press **Use my location** (Chrome asks you each time), and host access to the listed provider sites. Access to any other site is optional and asked for one site at a time, when you click **Add site**.
 
 ## Your control
 

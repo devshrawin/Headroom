@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Headroom",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "See your AI usage limit as a thin bar on the chat sites you use, with the live weather as a sky behind the chat.",
   "permissions": [
     "storage",
@@ -120,8 +120,5 @@
       ],
       "run_at": "document_start"
     }
-  ],
-  "optional_permissions": [
-    "geolocation"
   ]
 }

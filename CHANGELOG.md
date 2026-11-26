@@ -2,6 +2,14 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.4.3 — 2026-11-25
+
+### Changed
+- The bar now starts at the top of the page by default (it is called Headroom, after all). If you already picked an edge, or dragged the bar, nothing changes for you; anyone can still choose any edge in Settings → Meter or by dragging.
+
+### Fixed
+- "Use my location" now works: it no longer asks for an optional `geolocation` permission (Chrome refused it: "Only permissions specified in the manifest may be requested"), it uses Chrome's normal location prompt instead, so the extension declares one fewer permission. It also always says what it is doing: it shows a message straight away, reports a refused or unanswered Chrome permission request (it used to stay silent), and gives the actual reason when the location lookup fails.
+
 ## 1.4.2 — 2026-11-25
 
 ### Changed

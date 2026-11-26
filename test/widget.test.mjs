@@ -205,7 +205,7 @@ test('a11y: purely decorative bits are hidden from screen readers; the problem b
 
 // ---------- bar style ----------
 
-test('bar style: a thin full-width bar along the bottom, filled to the percentage, in the usage colour', () => {
+test('bar style: a thin full-width bar along the bottom (when chosen), filled to the percentage, in the usage colour', () => {
   const w = loadWidget();
   w.update('Claude', [real(32, { resetAt: Date.now() + 3 * hour })], { meterStyle: 'bar-bottom' });
   assert.match(w.host.style.cssText, /left:0;right:0;bottom:0/);
@@ -242,14 +242,14 @@ test('bar style: a click opens the panel, the bar never moves, and Shift+arrows 
   assert.equal(w.host.style.cssText, before);
 });
 
-test('switching the position remounts the meter on the other edge; anything else means the bottom', () => {
+test('switching the position remounts the meter on the other edge; anything else means the top', () => {
   const w = loadWidget();
   w.update('Claude', [real(32)], { meterStyle: 'bar-bottom' });
   assert.match(w.host.style.cssText, /bottom:0/);
   w.update('Claude', [real(32)], { meterStyle: 'bar-top' });
   assert.match(w.host.style.cssText, /top:0/);
   w.update('Claude', [real(32)], { meterStyle: 'pill' }); // the pill is gone: an old setting falls back to the bar
-  assert.match(w.host.style.cssText, /bottom:0/);
+  assert.match(w.host.style.cssText, /top:0/);
 });
 
 

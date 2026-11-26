@@ -240,7 +240,7 @@
     ticker = setInterval(render, 30000);
   }
 
-  const edgeOfStyle = (s) => { const m = /^bar-(top|left|right)$/.exec(s || ''); return m ? m[1] : 'bottom'; };
+  const edgeOfStyle = (s) => { const m = /^bar-(bottom|left|right)$/.exec(s || ''); return m ? m[1] : 'top'; };
   const isVertical = () => barMode === 'left' || barMode === 'right';
   // Fixed to a screen edge, and hung off <html> (not <body>) so a page that shifts or transforms its body cannot offset the bar.
   function applyEdge(mode) {
