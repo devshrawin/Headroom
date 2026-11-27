@@ -34,32 +34,33 @@ h2 { margin: 0 0 2px; font-size: 18px; }
 .win { position: relative; width: 240px; height: 140px; border: 1px solid var(--win-line); border-radius: 10px; background: var(--win); overflow: hidden; }
 .win::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 14px; background: var(--ln); border-bottom: 1px solid var(--win-line);
   background-image: radial-gradient(circle at 8px 7px, #ff6b6b 2.5px, transparent 3px), radial-gradient(circle at 19px 7px, #f5b544 2.5px, transparent 3px), radial-gradient(circle at 30px 7px, #4fd18b 2.5px, transparent 3px); z-index: 3; }
-.chat { position: absolute; left: 30px; right: 30px; top: 28px; display: grid; gap: 8px; }
+.chat { position: absolute; left: 30px; right: 30px; top: 36px; display: grid; gap: 8px; }
 .chat i { display: block; height: 10px; width: 70%; border-radius: 6px; background: var(--ln); }
 .chat i.r { margin-left: auto; width: 55%; background: var(--ln2); }
 .chat i.s { width: 40%; }
 .bar { position: absolute; background: var(--track); border-radius: 3px; overflow: hidden; z-index: 2; }
 .bar b { position: absolute; left: 0; top: 0; bottom: 0; background: var(--ok); border-radius: 3px; }
-.b-bottom { left: 0; right: 0; bottom: 0; height: 6px; border-radius: 0; }
-.mini-panel { position: absolute; right: 12px; bottom: 14px; width: 112px; padding: 8px 9px; border: 1px solid var(--win-line); border-radius: 8px; background: var(--card); box-shadow: var(--shadow); z-index: 2; font-size: 9px; line-height: 1.2; }
+.b-top { left: 0; right: 0; top: 14px; height: 6px; border-radius: 0; } /* the default: the bar sits along the top edge */
+.mini-panel { position: absolute; right: 12px; top: 26px; width: 112px; padding: 8px 9px; border: 1px solid var(--win-line); border-radius: 8px; background: var(--card); box-shadow: var(--shadow); z-index: 2; font-size: 9px; line-height: 1.2; }
 .mini-panel u { text-decoration: none; font-weight: 700; }
 .mini-panel em { float: right; font-style: normal; font-weight: 700; color: var(--ok); }
 .mbar { height: 4px; margin: 6px 0 4px; border-radius: 2px; background: var(--track); overflow: hidden; clear: both; }
 .mbar b { display: block; height: 100%; width: 42%; background: var(--ok); }
 .mini-panel small { color: var(--muted); font-size: 8.5px; }
 .cursor { position: absolute; width: 14px; height: 14px; z-index: 4; background: no-repeat center / contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M4 2l15 9-6.5 1.6L9 19z' fill='%23111' stroke='%23fff' stroke-width='1.6' stroke-linejoin='round'/%3E%3C/svg%3E"); }
-.c2 { left: 100px; bottom: 2px; }
-.c3 { left: 112px; bottom: 6px; }
+.c2 { left: 96px; top: 12px; }
+.c3 { left: 112px; top: 14px; }
 .ghost { position: absolute; border: 1.5px dashed var(--accent-text); opacity: .55; border-radius: 3px; z-index: 1; }
-.g-top { left: 6px; right: 6px; top: 17px; height: 5px; }
+.g-bottom { left: 6px; right: 6px; bottom: 3px; height: 5px; }
 .g-left { left: 3px; top: 26px; bottom: 12px; width: 5px; }
 .g-right { right: 3px; top: 26px; bottom: 12px; width: 5px; }
 .arrow { position: absolute; z-index: 3; font-size: 20px; line-height: 1; font-weight: 700; color: var(--accent-text); }
-.a-up { left: 114px; top: 26px; } .a-l { left: 14px; top: 62px; } .a-r { right: 14px; top: 62px; }
+.a-dn { left: 114px; bottom: 12px; } .a-l { left: 14px; top: 70px; } .a-r { right: 14px; top: 70px; }
 .sky { background: linear-gradient(180deg, #5fa8ef 0%, #a9d3f7 60%, #e7f1fb 100%); border-color: #7fb4e6; }
 @media (prefers-color-scheme: dark) { .sky { background: linear-gradient(180deg, #10172e 0%, #1d2b52 70%, #33406e 100%); border-color: #3c4a7a; } }
 .sky .chat i { background: rgba(255,255,255,.55); } .sky .chat i.r { background: rgba(255,255,255,.8); }
 .sky .bar { background: rgba(255,255,255,.5); }
+.sky .sun { top: 36px; }
 .sun { position: absolute; right: 36px; top: 26px; width: 30px; height: 30px; border-radius: 50%; background: radial-gradient(circle, #fff6c8 0 40%, #ffd86b 70%, rgba(255,216,107,0) 72%); box-shadow: 0 0 26px 10px rgba(255,236,160,.55); }
 .cloud { position: absolute; height: 12px; border-radius: 99px; background: rgba(255,255,255,.9); box-shadow: 10px -6px 0 -1px rgba(255,255,255,.9), 22px 0 0 -2px rgba(255,255,255,.9); }
 .c-a { left: 22px; top: 40px; width: 44px; } .c-b { left: 104px; top: 70px; width: 34px; opacity: .8; }
@@ -80,9 +81,9 @@ h2 { margin: 0 0 2px; font-size: 18px; }
   .cloud { animation: drift 14s linear infinite alternate; }
 }
 @keyframes fill { from { transform: scaleX(.75); transform-origin: left; } to { transform: scaleX(1); transform-origin: left; } }
-@keyframes nudge { 50% { transform: translateY(-3px); opacity: .6; } }
-@keyframes drag { 0%, 15% { transform: translate(0, 0); } 55%, 100% { transform: translate(-92px, -52px); } }
-@keyframes point { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(6px, -8px); } }
+@keyframes nudge { 50% { transform: translateY(3px); opacity: .6; } }
+@keyframes drag { 0%, 15% { transform: translate(0, 0); } 55%, 100% { transform: translate(-92px, 52px); } }
+@keyframes point { 0%, 100% { transform: translate(0, 0); } 50% { transform: translate(6px, 8px); } }
 @keyframes drift { to { transform: translateX(26px); } }
 
 .privacy { margin: 18px 4px 0; color: var(--muted); font-size: 13px; }

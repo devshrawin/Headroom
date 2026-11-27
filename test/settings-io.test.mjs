@@ -22,7 +22,7 @@ test('export holds settings only, with a version and a timestamp', () => {
   assert.deepEqual(file.settings.thresholds, [60, 95]);
   assert.equal('usage' in file.settings, false);
   assert.equal('debug.log' in file.settings, false);
-  assert.deepEqual(Object.keys(file.settings).sort(), ['chatStats', 'customSites', 'debug', 'meterStyle', 'notify', 'quotas', 'thresholds', 'weather', 'weatherStrength', 'weatherUnits', 'widget']);
+  assert.deepEqual(Object.keys(file.settings).sort(), ['chatStats', 'customSites', 'debug', 'frostedStrips', 'meterStyle', 'notify', 'quotas', 'thresholds', 'weather', 'weatherStrength', 'weatherUnits', 'widget']);
 });
 
 test('export then import round-trips the settings', () => {
@@ -156,4 +156,32 @@ test('meterStyle: all four edges are accepted by merge and import; anything else
     assert.equal(AM.mergeSettings(AM.parseImport(wrap({ meterStyle: bad })).settings).meterStyle, 'bar-top');
   }
   assert.equal(AM.mergeSettings(null).meterStyle, 'bar-top');
+});
+
+test('the welcome page draws the bar on the top edge, which is the default position', async () => {
+  const { readFileSync } = await import('node:fs');
+  const html = readFileSync(new URL('../src/welcome/welcome.html', import.meta.url), 'utf8');
+  assert.equal(AM.mergeSettings(null).meterStyle, 'bar-top');
+  assert.ok(html.includes('class="bar b-top"'), 'the art shows the top bar');
+  assert.ok(!html.includes('b-bottom'), 'no bottom bar left in the art');
+});
+
+test('frostedStrips: off by default, only a real boolean true turns it on, and it round-trips through export/import', () => {
+  assert.equal(AM.mergeSettings(null).frostedStrips, false);
+  assert.equal(AM.mergeSettings({ frostedStrips: 'yes' }).frostedStrips, false);
+  assert.equal(AM.mergeSettings({ frostedStrips: 1 }).frostedStrips, false);
+  assert.equal(AM.mergeSettings({ frostedStrips: true }).frostedStrips, true);
+  const file = AM.buildExport(AM.mergeSettings({ frostedStrips: true }), '1.4.5');
+  assert.equal(AM.mergeSettings(AM.parseImport(JSON.stringify(file)).settings).frostedStrips, true);
+});
+
+test('the in-extension privacy links all point at the policy URL that the store listing uses, and not at a Pages site', async () => {
+  const { readFileSync } = await import('node:fs');
+  const read = (f) => readFileSync(new URL('../' + f, import.meta.url), 'utf8');
+  const url = 'https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md';
+  assert.ok(read('docs/store/listing.md').includes(url), 'the listing uses this URL');
+  for (const f of ['src/options/options.js', 'src/welcome/welcome.html']) {
+    assert.ok(read(f).includes(url), f + ' links the policy');
+    assert.ok(!/github\.io/.test(read(f)), f + ' has no github.io link (the Pages site is not published)');
+  }
 });

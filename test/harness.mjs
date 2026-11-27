@@ -21,6 +21,7 @@ export function loadAdapter(adapterFile, { fetch, cookie = '', pathname = '/', h
     vm.runInContext(read(f), ctx, { filename: f });
   }
   const AM = ctx.Headroom;
+  AM.every = () => 0; // store.js (not loaded here) provides the real repeating-timer helper
   AM.register = (a) => { adapter = a; };
   AM.estimator = () => ({ record() {}, refresh() {}, relabelLast() {} });
   AM.watchDomChat = () => {};

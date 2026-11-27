@@ -17,6 +17,7 @@ function load(fetchImpl) {
     vm.runInContext(readFileSync(new URL('../' + f, import.meta.url), 'utf8'), ctx, { filename: f });
   }
   const AM = ctx.Headroom;
+  AM.every = () => 0;
   AM.register = (a) => { adapter = a; };
   AM.estimator = () => ({ record() {}, refresh() {} });
   vm.runInContext(readFileSync(new URL('../src/adapters/grok.js', import.meta.url), 'utf8'), ctx, { filename: 'grok.js' });

@@ -41,7 +41,7 @@
         this.est.record(cfg.model ? cfg.model(AM.safeJSON(d.body)) : '');
       });
       this.est.refresh();
-      setInterval(() => ctx.visible() && this.est.refresh(), 60000);
+      AM.every(() => ctx.visible() && this.est.refresh(), 60000);
     },
     refresh() { this.est.refresh(); },
   });

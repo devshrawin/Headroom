@@ -45,7 +45,7 @@
       });
       this.est.refresh();
       this.refresh();
-      setInterval(() => ctx.visible() && this.refresh(), 120000);
+      AM.every(() => ctx.visible() && this.refresh(), 120000);
       AM.watchDomChat(ctx, {
         selector: '[data-message-author-role]',
         ratio: 0.25,

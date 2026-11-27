@@ -23,6 +23,7 @@
   AM.CONTENT_BUNDLE = [
     'src/core/quotas.js',
     'src/core/common.js',
+    'src/core/page-tone.js',
     'src/core/parsers.js',
     'src/core/store.js',
     'src/core/banner.js',
@@ -102,6 +103,7 @@
     weatherPlace: null, // { name, lat, lon }: where the weather is for, coordinates rounded to two decimals
     weatherUnits: 'c', // 'c' | 'f'
     weatherStrength: 1, // 0.2 .. 1: how strongly the sky shows through the page
+    frostedStrips: false, // blur the page behind the cleared header and composer strips (off by default)
     weatherForce: null, // Settings → "Try a look": { weather?, season?, tod? } instead of the real thing
     quotas: AM.DEFAULT_QUOTAS,
     customSites: [],
@@ -140,6 +142,7 @@
     weatherPlace: cleanPlace(s && s.weatherPlace),
     weatherUnits: s && s.weatherUnits === 'f' ? 'f' : 'c',
     weatherStrength: typeof (s && s.weatherStrength) === 'number' && isFinite(s.weatherStrength) ? Math.min(1, Math.max(0.2, s.weatherStrength)) : 1,
+    frostedStrips: !!(s && s.frostedStrips === true),
     weatherForce: cleanForce(s && s.weatherForce),
     thresholds: cleanThresholds(s && s.thresholds),
     customSites: cleanSites(s && s.customSites),

@@ -1,0 +1,12 @@
+{
+  "name": "headroom-e2e",
+  "private": true,
+  "type": "module",
+  "description": "End-to-end harness: loads the unpacked extension into Chromium against a mocked claude.ai. Not part of the extension package.",
+  "scripts": {
+    "test": "node run-all.mjs"
+  },
+  "devDependencies": {
+    "playwright": "1.61.0"
+  }
+}

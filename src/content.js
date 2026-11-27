@@ -98,12 +98,21 @@
       .map((m) => ({ ...m, pct: AM.pctOf(m) }));
   }
 
+  // The service worker only hears about real changes: chat-length updates, the cache timer and repeated identical
+  // reports used to make it rewrite storage (and wake every other tab's storage listener) every few seconds.
+  let lastSent = '';
+  let lastSentAt = 0;
   function publish() {
     if (!adapter || !alive()) return;
     const meters = current();
     const shown = AM.problemToShow(problem, meters);
     AM.widget.update(adapter.name, meters, settings, settings.chatStats ? chat : null, shown);
-    send({ type: 'headroom:usage', provider: adapter.id, name: adapter.name, meters, problem: shown });
+    const msg = { type: 'headroom:usage', provider: adapter.id, name: adapter.name, meters, problem: shown };
+    const sig = JSON.stringify([meters, shown && shown.kind, shown && shown.text]);
+    // still re-sent every 5 minutes, so the badge and "updated" time stay fresh
+    if (sig === lastSent && Date.now() - lastSentAt < 300e3) return;
+    lastSent = sig; lastSentAt = Date.now();
+    send(msg);
   }
 
   // Weather (Settings → Weather): the real weather as a living sky behind the page. Its renderer is injected on demand;
@@ -118,6 +127,8 @@
   });
   let sky = null;
   let skyToken = 0;
+  // An orphaned copy (the extension was reloaded or updated) must hand the page back: no sky left running with nobody to turn it off.
+  (AM.onShutdown = AM.onShutdown || []).push(() => { skyToken++; if (sky) { try { sky.destroy(); } catch {} sky = null; } });
   let weatherData = null;
   let skyRetries = 0;
   let skyWaitingVisible = false;
@@ -147,6 +158,7 @@
       if (!sky) {
         sky = AM.WeatherSky.mount({
           strength: settings.weatherStrength,
+          frost: settings.frostedStrips,
           // The renderer has destroyed itself after a lost graphics context: try again, at most 3 times per page load.
           onLost: () => {
             sky = null;
@@ -154,7 +166,7 @@
           },
         });
         if (!sky) return;
-      } else sky.setStrength(settings.weatherStrength);
+      } else { sky.setStrength(settings.weatherStrength); if (sky.setFrost) sky.setFrost(settings.frostedStrips); }
       sky.setState(AM.WEATHER.skyState(weatherData, Date.now(), settings.weatherForce));
     } catch (e) { console.warn('[Headroom] weather', e); }
   };
@@ -192,8 +204,8 @@
       }
     } else if (d.kind === 'response') {
       if (!d.shapeOnly) resSubs.forEach((f) => safe(f, d));
-      // Only a 429 on a real request counts, not on background telemetry.
-      if (d.status === 429 && !NOISE.test(d.url)) {
+      // Only a 429 on the provider's own send or usage endpoints counts, not on telemetry or any other background call.
+      if (d.status === 429 && !NOISE.test(d.url) && AM.isLimitEndpoint(d)) {
         const wait = AM.toTime(d.retryAfter, 'rel');
         ctx.report('ratelimit', [{ id: 'ratelimit', label: 'Rate limited', pct: 100, source: 'banner', seenAt: Date.now(), resetAt: wait }]);
       }
@@ -259,11 +271,14 @@
     if (area !== 'local' || !adapter) return;
     if (changes['weather.data']) { weatherData = changes['weather.data'].newValue || null; applyWeather(); }
     if (!changes.settings) return;
-    const wasDebug = settings.debug;
+    const prev = settings;
     settings = AM.mergeSettings(changes.settings.newValue);
-    if (settings.debug !== wasDebug) checkHook();
-    applyWeather();
-    refreshAdapter();
+    if (settings.debug !== prev.debug) checkHook();
+    const changed = (k) => JSON.stringify(settings[k]) !== JSON.stringify(prev[k]);
+    // Only the weather keys restart the sky, and only limit rules or sites call the provider again. Before, every change
+    // (dragging the bar, moving the strength slider) re-fetched usage and the whole open chat in every AI tab.
+    if (['weather', 'weatherPlace', 'weatherStrength', 'weatherForce', 'frostedStrips'].some(changed)) applyWeather();
+    if (['quotas', 'customSites'].some(changed)) refreshAdapter();
     publish();
   });
 
@@ -273,7 +288,6 @@
       settings = s;
       adapter = AM.adapterFor(host, settings);
       if (!adapter) return;
-      AM.siteId = adapter.id;
       // Lets the on-page panel change a setting (e.g. "Turn off weather"); onChanged below applies it.
       AM.setSetting = async (key, value) => {
         const patch = key && typeof key === 'object' ? key : { [key]: value };

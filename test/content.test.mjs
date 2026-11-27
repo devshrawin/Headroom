@@ -131,12 +131,13 @@ test('the refresh message from the popup is answered', async () => {
   assert.deepEqual(JSON.parse(JSON.stringify(replied)), { ok: true });
 });
 
-test('a settings change re-applies without reloading the page', async () => {
+test('a settings change re-applies without reloading the page, and does not resend an unchanged report', async () => {
   const c = await loadContent('claude.ai');
   const before = c.usage().length;
   c.onChanged.forEach((fn) => fn({ settings: { newValue: { widget: false } } }, 'local'));
   await new Promise((r) => setTimeout(r, 30));
-  assert.ok(c.usage().length > before, 'publishes again after a settings change');
+  // 1.4.4: identical meters are not re-sent to the service worker (it would rewrite storage and wake every tab); a 5-minute heartbeat keeps them fresh.
+  assert.equal(c.usage().length, before, 'an unchanged report is not sent again');
 });
 
 // ---------- hardening: one broken adapter must not break the bar ----------
@@ -179,4 +180,20 @@ test('weather: a hidden tab does not mount the sky until it becomes visible', as
   fns.forEach((fn) => fn());
   await new Promise((r) => setTimeout(r, 30));
   assert.equal(mounts, 1, 'mounts once the tab is visible');
+});
+
+test('AM.every: repeating jobs stop when the copy is shut down, and the page\'s own setInterval is untouched', async () => {
+  const c = await loadContent('example.org');
+  const real = c.ctx.setInterval; // the sandbox's own setInterval: AM.every must not replace it any more
+  assert.equal(typeof c.AM.every, 'function');
+  let n = 0;
+  const timers = [];
+  c.ctx.setInterval = (fn) => { timers.push(fn); return timers.length; };
+  c.AM.every(() => { n++; }, 1000);
+  timers[0]();
+  assert.equal(n, 1, 'runs while alive');
+  c.AM.shutdown();
+  timers[0](); // a tick already queued when the shutdown happened
+  assert.equal(n, 1, 'does nothing after shutdown');
+  c.ctx.setInterval = real;
 });

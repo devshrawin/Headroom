@@ -163,3 +163,19 @@ test('inject.js: on a forwarded body, secret-looking fields are masked and the r
   assert.match(b, /model=m/);
   assert.match(b, /note=hi/);
 });
+
+// ---------- same-site test for the debug "shape" capture (public suffixes such as co.uk) ----------
+
+test('inject.js sameSite: a sibling *.co.uk site is not the same site; the site\'s own subdomains are', async () => {
+  // the fetch hook only sees calls made through the wrapped fetch, so install a fresh page and use its own fetch
+  const { sandbox, fakePort, hello } = loadInject();
+  sandbox.location.hostname = 'app.example.co.uk';
+  const port = fakePort();
+  hello(port);
+  port.onmessage({ data: { kind: 'ping', debug: true } });
+  const seen = async (u) => { port.sent.length = 0; await sandbox.fetch(u); await new Promise((r) => setTimeout(r, 10)); return port.sent.some((d) => d.kind === 'response'); };
+  assert.equal(await seen('https://api.example.co.uk/data.json'), true, 'a subdomain of example.co.uk is the same site');
+  assert.equal(await seen('https://example.co.uk/data.json'), true, 'the registrable domain itself too');
+  assert.equal(await seen('https://other.co.uk/data.json'), false, 'another .co.uk site is a different site');
+  assert.equal(await seen('https://evil.example.com/data.json'), false);
+});

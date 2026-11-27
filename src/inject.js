@@ -50,10 +50,18 @@
   const abs = (u) => {
     try { return new URL(String(u), location.href).href; } catch { return String(u); }
   };
+  // The registrable domain of a host: the last two labels, or the last three under a two-level public suffix such as
+  // co.uk, com.au or co.jp (so every *.co.uk site is not treated as one site).
+  const SECOND_LEVEL = /^(co|com|org|net|gov|edu|ac|or|ne|go|gob|mil|nom)$/;
+  const baseDomain = (host) => {
+    const p = String(host).toLowerCase().split('.');
+    if (p.length >= 3 && p[p.length - 1].length === 2 && SECOND_LEVEL.test(p[p.length - 2])) return p.slice(-3).join('.');
+    return p.slice(-2).join('.');
+  };
   const sameSite = (url) => {
     try {
       const h = new URL(url).hostname;
-      const base = location.hostname.split('.').slice(-2).join('.');
+      const base = baseDomain(location.hostname);
       return h === base || h.endsWith('.' + base);
     } catch { return false; }
   };
@@ -107,7 +115,18 @@
     }
   };
 
-  const wrap = (base) => async function (input, init) {
+  // Many apps (Sentry, Datadog, their own code) wrap window.fetch after we did, and we then re-wrap their wrapper
+  // (see below), so one call can pass through two of our wrappers. Only the outermost one reports it: otherwise every
+  // send is counted twice. `depth` is raised for the synchronous part of a call, which is when a wrapper calls through.
+  let depth = 0;
+  const wrap = (base) => function (input, init) {
+    if (depth > 0) return base.apply(this, arguments);
+    depth++;
+    let p;
+    try { p = track.call(this, base, arguments, input, init); } finally { depth--; }
+    return p;
+  };
+  const track = async function (base, args, input, init) {
     let url = '';
     let method = 'GET';
     let body = null;
@@ -132,7 +151,7 @@
       }
     } catch {}
 
-    const res = await base.apply(this, arguments);
+    const res = await base.apply(this, args);
     try {
       const m = mode(url, res.status, res.headers.get('content-type') || '');
       if (m) emit(m, url, method, res.status, body, res);

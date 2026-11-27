@@ -2,6 +2,38 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.4.5 — 2026-11-26
+
+Contains the whole external audit of 1.4.3 (its fixes were built as an unpublished 1.4.4) and the follow-up recommendations. See `docs/audit-2026-11-26/report.md`.
+
+### Fixed
+- The weather sky now clears the header and the whole strip around the message box on claude.ai, not only the centre column. Anything painted in the page's own colour, in any colour syntax (`rgb`, `oklch`, `color()`, `hsl`), counts as page backdrop. Rounded inputs, cards, menus and dialogs keep their own paint. A visible-first pass clears the composer within seconds even on a 4,000-message chat.
+- The bar and its panel follow the page's own light or dark theme, not the operating system's (a dark bar on a light page is gone). New `src/core/page-tone.js`.
+- A message is counted once on sites that wrap `fetch` after load (a re-entrancy guard in the page hook).
+- Changing any setting no longer makes every AI tab re-download usage and the whole chat; the Claude chat is fetched only when the chat changes or after a send; one shared organisation lookup.
+- The Settings page no longer writes stale values back over changes made elsewhere (for example a bar you just dragged).
+- The Help page's debug log refreshes at most every 2 seconds and never while you type. Identical usage reports are no longer re-sent (a 5-minute heartbeat keeps them fresh).
+- After an extension reload an orphaned copy now also stops its sky and its banner watcher. Custom sites pick up an updated script list on install, update and start-up.
+- The bar no longer snaps back for a moment after a drag; the meter mounts once even if it is switched off before the page loads; "1 msgs" reads "1 msg".
+- A 429 only shows "Rate limited" when it comes from a provider's own send or usage endpoints, not from a feature-flag or telemetry call.
+- Kimi: a missing sign-in cookie reads "Sign in to Kimi", not "Can't read usage".
+- `parseReset` understands weekday names and "tomorrow" ("resets Monday 9 AM").
+- The debug "shape" capture no longer treats every `*.co.uk` (or `*.com.au`, `*.co.jp`) site as the same site.
+- The privacy links in Settings and the welcome page now point at the policy URL the store listing uses (the GitHub Pages address was never published).
+- Welcome art draws the bar on the top edge, the default; step 4 says to pick a place (the weather is on by default).
+- `minimum_chrome_version` 111.
+
+### Removed
+- Dead code left over from the toolbar popup and an unused event bus: `AM.splitMeters`, `AM.cardSource`, `AM.sortEntries`, `AM.isStale`, `AM.STALE_MS`, `AM.fmtTokens`, `AM.bus` and `AM.emit` (nothing listened to the `'send'` and `'limit'` events), together with their tests. Smaller scripts in every page.
+
+### Added
+- Settings → Weather → **Frosted strips** (off by default): the cleared header and composer strips blur what is behind them, so scrolling text stays hidden while the sky shows. A strip that holds a menu or dialog is left unfrosted.
+- Clicking a limit alert focuses that service's open tab, or opens it.
+- The sky's quality governor has hysteresis: after it steps the resolution down it will not step back up for 30 seconds, and stepping up needs frames averaging under 18 ms, so a borderline GPU no longer bounces between sizes.
+- Chat length is counted incrementally with a MutationObserver instead of re-reading the whole chat every 4 seconds.
+- `AM.every()` replaces the override of the global `setInterval`; shutting down an orphaned copy still stops every job.
+- An end-to-end harness (`e2e/`): the unpacked extension in real Chromium against a mocked claude.ai, with CI (`.github/workflows/ci.yml`).
+
 ## 1.4.3 — 2026-11-25
 
 ### Changed

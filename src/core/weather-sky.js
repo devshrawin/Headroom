@@ -7,6 +7,34 @@
   const AM = globalThis.Headroom;
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
+  // The quality governor: a slow GPU steps the drawing resolution down, a fast one steps it back up. Each change reallocates the
+  // canvas, so a borderline GPU must not bounce between sizes: after a step down, step-ups are blocked for UP_BLOCK_MS, and a
+  // step up needs the animation frames to average under UP_AVG_MS apart.
+  const UP_BLOCK_MS = 30000, UP_AVG_MS = 18;
+  function makeGovernor() {
+    let quality = 1, slow = 0, seen = 0, downAt = -Infinity, gapSum = 0, gapN = 0;
+    return {
+      get quality() { return quality; },
+      // one drawn frame (about 30 a second); gap = ms since the previous drawn frame. True when the resolution just stepped down.
+      drawn(gap, now) {
+        // frames arriving much slower than 30 a second, for about two seconds: draw fewer pixels (down to about 45%)
+        if (++seen > 20 && quality > .46) {
+          slow = gap > 50 ? slow + 1 : Math.max(0, slow - 1);
+          if (slow > 45) { slow = 0; quality *= .8; downAt = now; gapSum = 0; gapN = 0; return true; }
+        }
+        return false;
+      },
+      // one animation-frame gap in ms. True when the resolution just stepped up.
+      raf(g, now) {
+        if (g < 250) { gapSum += g; gapN++; }
+        if (gapN < 120) return false;
+        const avg = gapSum / gapN; gapSum = 0; gapN = 0;
+        if (avg < UP_AVG_MS && quality < 1 && now - downAt >= UP_BLOCK_MS) { quality = Math.min(1, quality * 1.1); slow = 0; return true; }
+        return false;
+      },
+    };
+  }
+
   const VERT = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
   const FRAG = `
 precision highp float;
@@ -332,6 +360,7 @@ void main(){
   // Is the page itself dark? Read its own background, fall back to the browser preference.
   // ignoreNight: skip the "our night flip is on" short-circuit (used when re-reading the page's real theme).
   function pageIsDark(ignoreNight) {
+    if (AM.pageIsDark) return AM.pageIsDark(ignoreNight); // page-tone.js: understands oklch(), color(), hsl() too
     const lum = (css) => {
       const m = /rgba?\((\d+)[ ,]+(\d+)[ ,]+(\d+)(?:[ ,/]+([\d.]+))?/.exec(css || '');
       if (!m) return null;
@@ -385,7 +414,14 @@ void main(){
     // (the body and the full-screen wrappers) are made transparent while the weather is on, and put back
     // when it is turned off. Text, images and panels stay exactly as they are, on top of the sky.
     const rootEl = doc.documentElement;
-    const alphaOf = (css) => { const n = (css || '').slice(css.indexOf('(') + 1, css.lastIndexOf(')')).split(/[ ,/]+/).filter(Boolean); return n.length > 3 ? +n[3] : 1; };
+    const rgbaOf = (css) => (AM.cssRGBA ? AM.cssRGBA(css) : null);
+    const alphaOf = (css) => {
+      const c = rgbaOf(css);
+      if (c) return c[3];
+      if (!css || css === 'transparent') return 0;
+      const n = css.slice(css.indexOf('(') + 1, css.lastIndexOf(')')).split(/[ ,/]+/).filter(Boolean);
+      return n.length > 3 ? +n[3] : 1;
+    };
     const readPageBg = () => {
       for (const el of [doc.body, rootEl]) { if (!el) continue; const c = win.getComputedStyle(el).backgroundColor; if (c && alphaOf(c) >= .5) return c; }
       return null;
@@ -408,9 +444,37 @@ void main(){
     let destroyed = false;
     const marked = new Set();     // full-screen / bar backdrops: marked once
     const bandMarked = new Set(); // edge bands: re-validated on every scan, unmarked when they stop qualifying
+    const tintMarked = new Set(); // wide strips painted in the page's own colour (headers, composer strips): re-validated by shape
+    // The page's own colour. Headers, composer strips and the plates behind inputs are painted in it so they blend into the
+    // page; once the page shows the sky they must go too, wherever they sit (pinned or not, at the edge or not).
+    let pageRGB = rgbaOf(pageBg);
+    let scanSeen = new WeakMap(); // element -> layout signature at its last check: unchanged elements are not re-read
     const isBacking = (cs) => alphaOf(cs.backgroundColor) >= .9 || (cs.backgroundImage || '').indexOf('gradient') >= 0;
+    const COLOUR_RE = /(?:rgba?|hsla?|oklch|oklab|lab|lch|hwb|color)\([^()]*\)|#[0-9a-f]{3,8}\b/gi;
+    // painted in the page colour: a solid fill (alpha >= .5, so frosted 80-90% headers count) or a fade whose stops use it
+    const pageTinted = (cs) => {
+      if (!pageRGB) return false;
+      const c = rgbaOf(cs.backgroundColor);
+      if (c && c[3] >= .5 && AM.sameColour(c, pageRGB)) return true;
+      const img = cs.backgroundImage || '';
+      if (img.indexOf('gradient') < 0) return false;
+      return (img.match(COLOUR_RE) || []).some((s) => { const g = rgbaOf(s); return g && g[3] >= .5 && AM.sameColour(g, pageRGB); });
+    };
+    const rounded = (cs) => Math.max(parseFloat(cs.borderTopLeftRadius) || 0, parseFloat(cs.borderTopRightRadius) || 0, parseFloat(cs.borderBottomLeftRadius) || 0, parseFloat(cs.borderBottomRightRadius) || 0) > 1;
+    // a wide, square-cornered strip (cards, bubbles and inputs are rounded and keep their own paint)
+    const stripShape = (r, vw, vh) => r.width >= vw * .4 && r.height >= 16 && r.height < vh * .85;
     const XHTML = 'http://www.w3.org/1999/xhtml';
     const OVERLAY_SEL = '[role=dialog],[role=alertdialog],[role=menu],[role=listbox],[role=tooltip],[role=status],[role=alert],dialog,[popover],[aria-modal=true]';
+    // Optional "frosted strips": a cleared strip on the top or bottom edge blurs what is behind it (the sky, and any text scrolling
+    // under it) instead of showing it raw. backdrop-filter makes the element the containing block of its position:fixed
+    // descendants, so a strip that holds a menu, dialog or popover (now or when one opens) is left unfrosted: :has() decides it live.
+    const FROST = 'data-hr-frost';
+    let frost = !!opts.frost;
+    const FROST_RULE = ':root[data-hr-frost-on] [' + MARK + '][' + FROST + ']:not(:has(' + OVERLAY_SEL + ')){-webkit-backdrop-filter:blur(12px) !important;backdrop-filter:blur(12px) !important}';
+    sheet.textContent += FROST_RULE;
+    const applyFrost = () => { if (frost) rootEl.setAttribute('data-hr-frost-on', ''); else rootEl.removeAttribute('data-hr-frost-on'); };
+    applyFrost();
+    const edgeTouch = (r, vh) => r.top <= 3 || r.bottom >= vh - 3;
     // A square-cornered band stuck to the top or bottom edge (the strip behind a composer): a fixed or sticky element that sits
     // fully inside the viewport. In-flow things that merely cross the edge while scrolling, rounded cards and overlays do not count.
     function bandShape(el, r, vw, vh) {
@@ -434,18 +498,34 @@ void main(){
       return !el.closest(OVERLAY_SEL);
     }
     function visit(el, vw, vh) {
-      if (marked.has(el) || bandMarked.has(el) || el === canvas || el.namespaceURI !== XHTML) return;
-      if (el.closest(OVERLAY_SEL)) return; // never clear anything inside a dialog, menu, tooltip or alert
+      if (marked.has(el) || bandMarked.has(el) || tintMarked.has(el) || el === canvas || el === rootEl || el.namespaceURI !== XHTML) return;
       const r = el.getBoundingClientRect();
       if (r.width < 8 || r.height < 8) return;
+      // skip elements whose box and classes have not changed since they were last checked (a long chat has thousands)
+      // position only matters at the top and bottom edges (bandShape); elsewhere, scrolling must not invalidate the cache
+      const edge = r.top <= 3 ? 't' + Math.round(r.top) : r.bottom >= vh - 3 ? 'b' + Math.round(vh - r.bottom) : 'm';
+      const sig = (el.getAttribute('class') || '') + '|' + (el.getAttribute('style') || '').length + '|' + edge + '|' + Math.round(r.width) + ',' + Math.round(r.height);
+      if (scanSeen.get(el) === sig) return;
+      scanSeen.set(el, sig);
+      if (el.closest(OVERLAY_SEL)) return; // never clear anything inside a dialog, menu, tooltip or alert
       // a page backdrop: most of the screen, or as tall as it. Width-only bars (headers, composer strips) go through bandShape.
       const full = r.width * r.height >= vw * vh * .5 || r.height >= vh * .85;
-      if (!full && !bandShape(el, r, vw, vh)) return;
+      const strip = !full && stripShape(r, vw, vh);
+      if (!full && !strip) return;
+      const band = !full && bandShape(el, r, vw, vh);
       const cs = win.getComputedStyle(el);
       if (cs.display === 'none') return;
-      if (isBacking(cs) || isBacking(win.getComputedStyle(el, '::before')) || isBacking(win.getComputedStyle(el, '::after'))) {
-        (full ? marked : bandMarked).add(el); el.setAttribute(MARK, '');
+      const pre = win.getComputedStyle(el, '::before'), post = win.getComputedStyle(el, '::after');
+      if (full || band) {
+        if (isBacking(cs) || isBacking(pre) || isBacking(post)) {
+          // the first full-screen backdrop tells us the page colour when <body> and <html> carry none
+          if (full && !pageRGB) { const c = rgbaOf(cs.backgroundColor); if (c && c[3] >= .9) { pageRGB = c; scanSeen = new WeakMap(); } }
+          (full ? marked : bandMarked).add(el); el.setAttribute(MARK, '');
+          if (!full && edgeTouch(r, vh)) el.setAttribute(FROST, '');
+          return;
+        }
       }
+      if (strip && !rounded(cs) && (pageTinted(cs) || pageTinted(pre) || pageTinted(post))) { tintMarked.add(el); el.setAttribute(MARK, ''); if (edgeTouch(r, vh)) el.setAttribute(FROST, ''); }
     }
     // The scan runs in ~4 ms slices (idle time when available) and resumes where it stopped: no element cap.
     let scanNodes = null, scanI = 0, scanHandle = 0, scanIdle = false;
@@ -470,15 +550,37 @@ void main(){
       }
       if (scanI >= all.length) scanNodes = null; else schedule(scanSlice);
     }
-    function clearBackdrops() {
-      if (destroyed || !doc.body || doc.hidden || scanNodes) return;
+    // What is on screen first: the stacks under a grid of points (edges included) cover the header, the composer strip and
+    // the page backdrops in a few dozen hit tests. It runs on every tick, even while a full walk is still under way: on a
+    // long chat (thousands of elements) the walk alone took 10+ seconds to reach the composer, which stayed opaque meanwhile.
+    function visibleFirst(vw, vh) {
+      try {
+        const seenNow = new Set();
+        for (const fx of [.02, .25, .5, .75, .98]) for (const fy of [.004, .03, .08, .3, .6, .9, .95, .985, .996]) {
+          for (const el of doc.elementsFromPoint(fx * vw, fy * vh)) if (!seenNow.has(el)) { seenNow.add(el); visit(el, vw, vh); }
+        }
+      } catch {}
+    }
+    let ticks = 0;
+    function clearBackdrops(force) {
+      if (destroyed || !doc.body || doc.hidden) return;
+      const vw = win.innerWidth, vh = win.innerHeight;
+      // the on-screen pass runs every tick; the full walk (for whatever the grid misses) every third tick, or when forced
+      const walk = force === true || ++ticks % 3 === 1;
+      if (scanNodes || !walk) { visibleFirst(vw, vh); return; }
       // drop detached nodes, and let bands go that stopped qualifying
       for (const el of marked) if (!el.isConnected) { el.removeAttribute(MARK); marked.delete(el); }
-      const vw = win.innerWidth, vh = win.innerHeight;
       for (const el of bandMarked) {
         if (!el.isConnected) { el.removeAttribute(MARK); bandMarked.delete(el); continue; }
-        if (!bandShape(el, el.getBoundingClientRect(), vw, vh)) { el.removeAttribute(MARK); bandMarked.delete(el); }
+        if (!bandShape(el, el.getBoundingClientRect(), vw, vh)) { el.removeAttribute(MARK); el.removeAttribute(FROST); bandMarked.delete(el); scanSeen.delete(el); }
       }
+      // tinted strips: their colour cannot be re-read while cleared, so only their shape is re-checked
+      for (const el of tintMarked) {
+        if (!el.isConnected) { el.removeAttribute(MARK); tintMarked.delete(el); continue; }
+        const r = el.getBoundingClientRect();
+        if ((r.width || r.height) && (!stripShape(r, vw, vh) || el.closest(OVERLAY_SEL) || rounded(win.getComputedStyle(el)))) { el.removeAttribute(MARK); el.removeAttribute(FROST); tintMarked.delete(el); scanSeen.delete(el); }
+      }
+      visibleFirst(vw, vh);
       scanNodes = doc.body.querySelectorAll('*'); scanI = -1;
       scanSlice();
     }
@@ -486,15 +588,17 @@ void main(){
       cancelScan();
       for (const el of marked) el.removeAttribute(MARK);
       for (const el of bandMarked) el.removeAttribute(MARK);
-      marked.clear(); bandMarked.clear();
-      for (const el of doc.querySelectorAll('[' + MARK + ']')) el.removeAttribute(MARK);
+      for (const el of tintMarked) el.removeAttribute(MARK);
+      marked.clear(); bandMarked.clear(); tintMarked.clear(); scanSeen = new WeakMap();
+      for (const el of doc.querySelectorAll('[' + MARK + '],[' + FROST + ']')) { el.removeAttribute(MARK); el.removeAttribute(FROST); }
       rootEl.removeAttribute('data-hr-night');
+      rootEl.removeAttribute('data-hr-frost-on');
       sheet.remove();
       if (rootPrev[0]) rootEl.style.setProperty('background-color', rootPrev[0], rootPrev[1]); else rootEl.style.removeProperty('background-color');
     };
     const maskTimer = win.setInterval(clearBackdrops, 1500);
     let resizeScanT = 0;
-    const onResizeScan = () => { win.clearTimeout(resizeScanT); resizeScanT = win.setTimeout(clearBackdrops, 250); };
+    const onResizeScan = () => { win.clearTimeout(resizeScanT); resizeScanT = win.setTimeout(() => clearBackdrops(true), 250); };
     (doc.documentElement).appendChild(canvas);
 
     const reduceMq = win.matchMedia('(prefers-reduced-motion: reduce)');
@@ -512,12 +616,12 @@ void main(){
     // one peak per strike: a single exponential decay (no flicker train, WCAG 2.3.1)
     const flashAt = (t) => { const d = t - flashT0; return d < 0 || d > 1.2 ? 0 : Math.exp(-d * 9); };
 
-    let quality = 1, slow = 0, seen = 0; // a slow GPU steps the resolution down instead of stuttering
-    let lastRaf = 0, gapSum = 0, gapN = 0; // animation-frame spacing, to step quality back up on a fast GPU
+    const gov = makeGovernor(); // a slow GPU steps the resolution down instead of stuttering
+    let lastRaf = 0; // animation-frame spacing, to step quality back up on a fast GPU
     const resize = (noDraw) => {
       // drawn at the screen's real pixels, capped so a big or high-DPI screen stays light on the GPU
       const dpr = Math.min(1.5, win.devicePixelRatio || 1);
-      const k = Math.max(.45, Math.min(dpr, Math.sqrt(1.5e6 / Math.max(1, win.innerWidth * win.innerHeight))) * quality);
+      const k = Math.max(.45, Math.min(dpr, Math.sqrt(1.5e6 / Math.max(1, win.innerWidth * win.innerHeight))) * gov.quality);
       const w = Math.max(2, Math.round(win.innerWidth * k)), h = Math.max(2, Math.round(win.innerHeight * k));
       if (w === W && h === H) return;
       W = w; H = h; canvas.width = W; canvas.height = H; gl.viewport(0, 0, W, H);
@@ -542,8 +646,9 @@ void main(){
     function setPure(on) {
       if (on === pure) return;
       pure = on;
-      if (on) { rootEl.setAttribute('data-hr-night', ''); clearBackdrops(); }
+      if (on) { rootEl.setAttribute('data-hr-night', ''); clearBackdrops(true); }
       else rootEl.removeAttribute('data-hr-night');
+      if (AM.widget && AM.widget.retone) AM.widget.retone(); // the meter follows the page's look
       lastOp = -1; lastFilter = ""; setOpacity(lastNight);
     }
     // layout-reading checks are cached (read at mount and every 1.5 s), never per frame
@@ -613,7 +718,16 @@ void main(){
         sheet.disabled = false;
         if (mo) mo.takeRecords(); // our own writes are not page changes
       }
+      const rgb = rgbaOf(col);
+      if (rgb && !(pageRGB && AM.sameColour(rgb, pageRGB, 2))) {
+        // the page changed colour (theme toggle): strips cleared for the old colour are judged again
+        pageRGB = rgb;
+        for (const el of tintMarked) el.removeAttribute(MARK);
+        tintMarked.clear(); scanSeen = new WeakMap();
+        clearBackdrops(true);
+      }
       if (d !== dark) { dark = d; tone = null; applyTone(); }
+      if (AM.widget && AM.widget.retone) AM.widget.retone();
     }
     const scheduleRead = () => { win.clearTimeout(readT); readT = win.setTimeout(readDark, 300); };
 
@@ -685,22 +799,14 @@ void main(){
     function tick(now) {
       raf = 0;
       if (destroyed || lost) return;
-      if (lastRaf) { // quality steps back up when the last ~120 animation frames averaged under 22 ms apart
-        const g = now - lastRaf;
-        if (g < 250) { gapSum += g; gapN++; }
-        if (gapN >= 120) {
-          const avg = gapSum / gapN; gapSum = 0; gapN = 0;
-          if (avg < 22 && quality < 1) { quality = Math.min(1, quality * 1.1); slow = 0; resize(true); }
-        }
-      }
+      if (lastRaf && gov.raf(now - lastRaf, now)) resize(true); // quality steps back up (with a cooldown, see makeGovernor)
       lastRaf = now;
       if (now - last >= 33) { // 30 frames a second is plenty for a sky
         const gap = last ? now - last : 33;
         const dt = last ? Math.min(.1, gap / 1000) : .033;
         last = now;
         frame(now, dt);
-        // frames arriving much slower than 30 a second, for about two seconds: draw fewer pixels (down to about 45%)
-        if (++seen > 20 && quality > .46) { slow = gap > 50 ? slow + 1 : Math.max(0, slow - 1); if (slow > 45) { slow = 0; quality *= .8; resize(); } }
+        if (gov.drawn(gap, now)) resize();
       }
       raf = win.requestAnimationFrame(tick);
     }
@@ -721,6 +827,7 @@ void main(){
     const onLost = () => { lost = true; if (api) api.destroy(); if (opts.onLost) opts.onLost(); }; // no preventDefault: the context stays gone, the page is put back as it was
     api = {
       setState, setStrength,
+      setFrost(v) { frost = !!v; applyFrost(); },
       destroy() {
         if (destroyed) return;
         destroyed = true;
@@ -767,5 +874,5 @@ void main(){
     return api;
   }
 
-  AM.WeatherSky = { mount, pageIsDark };
+  AM.WeatherSky = { mount, pageIsDark, makeGovernor };
 })();

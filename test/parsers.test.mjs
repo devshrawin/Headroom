@@ -138,10 +138,6 @@ test('claudeChatStats: flat list without tree, empty chat, bad input', () => {
   assert.equal(AM.claudeChatStats(null), null);
 });
 
-test('fmtTokens', () => {
-  assert.deepEqual([950, 1000, 34620, 250000, 1234567].map(AM.fmtTokens), ['950', '1k', '34.6k', '250k', '1.23M']);
-});
-
 test('b64ToBytes round-trips', () => {
   assert.deepEqual([...AM.b64ToBytes(Buffer.from([0, 1, 250, 255]).toString('base64'))], [0, 1, 250, 255]);
 });

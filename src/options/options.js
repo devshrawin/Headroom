@@ -38,6 +38,10 @@ const INDEX = [
 
 // ---------- saving ----------
 let saveTimer = 0, statusTimer = 0;
+// What this page last wrote, in a key-order-independent form, so its own writes are told apart from changes made elsewhere.
+const canon = (v) => JSON.stringify(v, (k, x) => (x && typeof x === 'object' && !Array.isArray(x) ? Object.fromEntries(Object.keys(x).sort().map((key) => [key, x[key]])) : x));
+const written = [];
+const remember = (v) => { written.push(canon(v)); if (written.length > 20) written.shift(); };
 function status(msg, ms = 2600) {
   const el = $('#saved');
   el.textContent = msg;
@@ -49,6 +53,7 @@ function save() {
   $('#saved').textContent = 'Saving…';
   saveTimer = setTimeout(async () => {
     S = AM.mergeSettings(S);
+    remember(S);
     await chrome.storage.local.set({ settings: S });
     status('All changes saved · ' + new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }), 4000);
   }, 300);
@@ -56,6 +61,7 @@ function save() {
 async function saveNow() {
   clearTimeout(saveTimer);
   S = AM.mergeSettings(S);
+  remember(S);
   await chrome.storage.local.set({ settings: S });
 }
 
@@ -95,6 +101,7 @@ async function weatherPage() {
       <div id="found" class="results" hidden></div>
       <div id="wmsg" class="muted" role="status"></div>`)}
     ${row('Right now', 'Refreshed every 20 minutes in the background.', `${now}${err ? `<div class="note warn">Could not reach the weather service: ${esc(err.error)}</div>` : ''}<div class="row"><button class="btn sm" type="button" data-act="refresh" ${place ? '' : 'disabled'}>Refresh now</button></div>`)}
+    ${row('Frosted strips', 'Blur the page behind the header and the strip around the message box, so text scrolling under them stays hidden while the sky still shows. Off by default.', sw('frostedStrips', 'On', S.frostedStrips))}
     ${row('Units', '', seg('weatherUnits', [['c', '°C'], ['f', '°F']], S.weatherUnits, 'Temperature units'))}
     ${row('Sky strength', 'How strongly the sky shows through the page. Lower it if text is hard to read.', `<input type="range" min="20" max="100" step="5" value="${Math.round(S.weatherStrength * 100)}" data-k="weatherStrength" data-div="100" aria-label="Sky strength"><div class="muted" id="strv">${Math.round(S.weatherStrength * 100)}%</div>`)}
   </section>
@@ -286,7 +293,7 @@ async function helpPage() {
   return `<h1 class="page-h">Help and debug</h1><p class="page-d">${PAGES[6].desc}</p>
   <section class="card">
     ${row('Version', '', `<div>Headroom ${esc(chrome.runtime.getManifest().version)}</div>`)}
-    ${row('Privacy', 'Everything stays on your computer. No account, no server, message text is never stored.', `<div><a href="https://devshrawin.github.io/Headroom/privacy" target="_blank" rel="noopener noreferrer">Read the privacy policy</a></div>`)}
+    ${row('Privacy', 'Everything stays on your computer. No account, no server, message text is never stored.', `<div><a href="https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md" target="_blank" rel="noopener noreferrer">Read the privacy policy</a></div>`)}
     ${row('Debug log', 'Records the shape of the usage requests (never message text) so a wrong number can be traced. Off by default.', `${sw('debug', 'Record the debug log', S.debug)}<pre class="log" id="log">${esc(text)}</pre><div class="row"><button class="btn sm" type="button" data-act="copyLog">Copy</button><button class="btn sm" type="button" data-act="clearLog">Clear</button></div>`)}
   </section>
   <p class="muted">Headroom is an independent project. It is not affiliated with, endorsed by or sponsored by Anthropic, OpenAI, Google, xAI, Perplexity, Moonshot AI, DeepSeek, Alibaba, Mistral AI, Microsoft, Meta or Quora. Names are trademarks of their owners.</p>`;
@@ -389,10 +396,27 @@ document.addEventListener('input', (e) => {
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'city') { e.preventDefault(); searchCity(); } });
 addEventListener('hashchange', () => { if (location.hash.slice(1) !== page) go(location.hash.slice(1)); });
+// Is the person typing in a field on this page? Then a re-render would wipe what they are typing: wait.
+const typing = () => { const a = document.activeElement; return !!a && a.closest && a.closest('#main') && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /^(text|search|number)$/.test(a.type))); };
+let logRenderT = 0;
 chrome.storage.onChanged.addListener((c, area) => {
   if (area !== 'local') return;
-  if ((c['weather.data'] || c['weather.error']) && page === 'weather' && !query) render();
-  if (c['debug.log'] && page === 'help' && !query) { const log = $('#log'); if (log) render(); }
+  // Settings changed somewhere else (the bar dragged to another edge, "Turn off weather" in the on-page panel, a second
+  // Settings tab). Take over just the keys that changed there, so this page never writes an old value back on its next save.
+  if (c.settings && S && !written.includes(canon(c.settings.newValue))) {
+    const nv = c.settings.newValue || {}, ov = c.settings.oldValue || {};
+    const keys = Object.keys(nv).filter((k) => JSON.stringify(nv[k]) !== JSON.stringify(ov[k]) && JSON.stringify(nv[k]) !== JSON.stringify(S[k]));
+    if (keys.length) {
+      for (const k of keys) S[k] = nv[k];
+      S = AM.mergeSettings(S);
+      if (!typing()) render();
+    }
+  }
+  if ((c['weather.data'] || c['weather.error']) && page === 'weather' && !query && !typing()) render();
+  // a busy site writes the debug log many times a second: refresh the view at most every 2 s
+  if (c['debug.log'] && page === 'help' && !query && !logRenderT) {
+    logRenderT = setTimeout(() => { logRenderT = 0; if (page === 'help' && !query && !typing() && $('#log')) render(); }, 2000);
+  }
 });
 
 (async () => {

@@ -83,6 +83,7 @@ export function loadWidget({ settings = {} } = {}) {
   const ctx = vm.createContext(sandbox);
   for (const f of ['src/core/quotas.js', 'src/core/common.js', 'src/core/parsers.js', 'src/core/widget.js']) vm.runInContext(read(f), ctx, { filename: f });
   const AM = ctx.Headroom;
+  AM.every = () => 0; // store.js (not loaded here) provides the real repeating-timer helper
   const base = { widget: true, ...settings };
   const tick = () => new Promise((r) => setTimeout(r, 0));
   return {

@@ -5,11 +5,18 @@
   const AM = globalThis.Headroom;
   const SVG_NS = 'http://www.w3.org/2000/svg';
 
+  // Dark tokens. The meter follows the PAGE's look (a light claude.ai on a dark-mode OS gets the light meter), and only
+  // falls back to the OS setting when the page's look cannot be read.
+  const DARK = `--hr-bg: #14121c; --hr-surf: #1e1b29; --hr-text: #eeebf7; --hr-muted: #aaa5c0; --hr-accent: #bba8ff;
+        --hr-line: #34304a; --hr-edge: #6a6585; --hr-track: #2c283d; --hr-chip: #2c283d;
+        --hr-ok: #4fd18b; --hr-close: #f5b544; --hr-crit: #ff7b7b; --hr-crit-2: #ffb3b3; --hr-empty: #ff9fc0; --hr-unk: #9a96b0;
+        --hr-real-bg: #d9d0ff; --hr-real-fg: #14121c; --hr-ban-bg: #3a2a12; --hr-ban-fg: #ffd9a3; --hr-ban-line: #f5b544; --hr-prob-bg: #2a2216;
+        --hr-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 8px 22px -6px rgba(0,0,0,.65);`;
   const CSS = `
     :host { all: initial; }
     * { box-sizing: border-box; font-family: inherit; }
     .wrap { --hr-bg: #f7f6fc; --hr-surf: #ffffff; --hr-text: #1f1d2b; --hr-muted: #5c5873; --hr-accent: #5b3fbf;
-      --hr-line: #d9d6e6; --hr-edge: #8e8aa3; --hr-track: #e8e5f2;
+      --hr-line: #d9d6e6; --hr-edge: #8e8aa3; --hr-track: #e8e5f2; --hr-chip: #efedf7;
       --hr-ok: #16794a; --hr-close: #a85a00; --hr-crit: #c42b2b; --hr-crit-2: #8f1d1d; --hr-empty: #7d1d3f; --hr-unk: #6b6880;
       --hr-real-bg: #3d3566; --hr-real-fg: #ffffff; --hr-ban-bg: #fff1dc; --hr-ban-fg: #7a3d00; --hr-ban-line: #a85a00; --hr-prob-bg: #fff6e8;
       --hr-shadow: 0 0 0 1px rgba(31,29,43,.04), 0 6px 18px -6px rgba(60,48,120,.30);
@@ -17,13 +24,8 @@
       --hr-bar-h: 6px; --hr-bar-h-hover: 10px;
       --hr-dur-fast: 120ms; --hr-dur-med: 200ms; --hr-dur-fill: 600ms; --hr-ease: cubic-bezier(.2,.8,.2,1);
       display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 6px; color: var(--hr-text); font-family: var(--hr-font); }
-    @media (prefers-color-scheme: dark) {
-      .wrap { --hr-bg: #14121c; --hr-surf: #1e1b29; --hr-text: #eeebf7; --hr-muted: #aaa5c0; --hr-accent: #bba8ff;
-        --hr-line: #34304a; --hr-edge: #6a6585; --hr-track: #2c283d;
-        --hr-ok: #4fd18b; --hr-close: #f5b544; --hr-crit: #ff7b7b; --hr-crit-2: #ffb3b3; --hr-empty: #ff9fc0; --hr-unk: #9a96b0;
-        --hr-real-bg: #d9d0ff; --hr-real-fg: #14121c; --hr-ban-bg: #3a2a12; --hr-ban-fg: #ffd9a3; --hr-ban-line: #f5b544; --hr-prob-bg: #2a2216;
-        --hr-shadow: 0 0 0 1px rgba(255,255,255,.06), 0 8px 22px -6px rgba(0,0,0,.65); }
-    }
+    .wrap.tone-dark { ${DARK} }
+    @media (prefers-color-scheme: dark) { .wrap:not(.tone-light):not(.tone-dark) { ${DARK} } }
     @media (prefers-reduced-motion: reduce) { .wrap { --hr-dur-fast: 0ms; --hr-dur-med: 0ms; --hr-dur-fill: 0ms; } }
     .lv-ok { color: var(--hr-ok); } .lv-close { color: var(--hr-close); } .lv-crit { color: var(--hr-crit); }
     .lv-empty { color: var(--hr-empty); } .lv-unk { color: var(--hr-unk); }
@@ -62,7 +64,7 @@
     .sec { font-size: 10.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--hr-muted); margin: 0 0 4px; }
     .kv { display: flex; justify-content: space-between; gap: 8px; margin: 2px 0; }
     .kv span:last-child { text-align: right; }
-    .k { color: var(--hr-muted); }
+    .k { color: var(--hr-muted); white-space: nowrap; }
     .hint { color: var(--hr-muted); font-size: 11.5px; margin: 4px 0 0; }
     .rule { height: 1px; background: var(--hr-line); margin: 11px 0; }
     .empty { color: var(--hr-muted); }
@@ -237,7 +239,7 @@
     root.append(style, wrap);
     applyEdge(edgeOfStyle(lastSettings.meterStyle));
     document.documentElement.appendChild(host);
-    ticker = setInterval(render, 30000);
+    ticker = AM.every(render, 30000);
   }
 
   const edgeOfStyle = (s) => { const m = /^bar-(bottom|left|right)$/.exec(s || ''); return m ? m[1] : 'top'; };
@@ -247,11 +249,22 @@
     barMode = mode;
     const pos = { top: 'left:0;right:0;top:0;bottom:auto', bottom: 'left:0;right:0;bottom:0;top:auto', left: 'top:0;bottom:0;left:0;right:auto', right: 'top:0;bottom:0;right:0;left:auto' }[mode];
     host.style.cssText = `position:fixed;${pos};margin:0;padding:0;transform:none;z-index:2147483646;`;
-    wrap.className = 'wrap edge ' + mode + (dragging ? ' dragging' : '');
+    wrap.className = 'wrap edge ' + mode + (dragging ? ' dragging' : '') + (tone ? ' tone-' + tone : '');
+  }
+
+  // The page's look ('light' | 'dark' | null when unknown), re-read on every render: sites switch themes, and the
+  // weather sky can flip a light page dark at night.
+  let tone = null;
+  function applyTone() {
+    const t = AM.pageTone ? AM.pageTone() : null;
+    if (t === tone || !wrap) return;
+    tone = t;
+    wrap.classList.remove('tone-light', 'tone-dark');
+    if (t) wrap.classList.add('tone-' + t);
   }
 
   // Drag the bar to any screen edge: it snaps to the nearest one while you drag, and the choice is saved.
-  let dragging = false, dragMoved = false;
+  let dragging = false, dragMoved = false, pendingStyle = null;
   const nearestEdge = (x, y) => {
     const d = { left: x, right: window.innerWidth - x, top: y, bottom: window.innerHeight - y };
     return Object.keys(d).reduce((a, b) => (d[b] < d[a] ? b : a));
@@ -288,6 +301,7 @@
         if (host) applyEdge(barMode);
         const s = 'bar-' + barMode;
         lastSettings = { ...lastSettings, meterStyle: s };
+        pendingStyle = { style: s, until: Date.now() + 3000 }; // until the saved setting comes back, older settings must not snap the bar back
         if (AM.setSetting) Promise.resolve(AM.setSetting('meterStyle', s)).catch(() => {});
         setTimeout(() => { dragMoved = false; }, 0); // the click that follows a drag must not open the panel
       };
@@ -354,14 +368,16 @@
       r.append(el('span', 'k', k), typeof v === 'string' ? el('span', null, v) : v);
       box.append(r);
     };
-    line('Length', `≈ ${chat.tokens.toLocaleString()} tokens · ${chat.messages} msgs`);
+    line('Length', `≈ ${chat.tokens.toLocaleString()} tokens · ${chat.messages} ${chat.messages === 1 ? 'msg' : 'msgs'}`);
     let cachedNow = false;
     if (hasCache(chat)) {
       const c = cacheState(chat, now);
       cachedNow = c.cls !== 'off';
       line('Cache', cachedNow ? cacheChip(c.long) : el('span', 'k', c.long));
     }
-    if (chat.nextCost != null) line('Next message', `≈ ${chat.nextCost.toLocaleString()} tokens${cachedNow ? ' (rest cached)' : ''}`);
+    // with a known cache window, the cost follows the clock: the newest reply while cached, the whole chat after
+    const next = hasCache(chat) && chat.cachedCost != null && chat.cachedUntil ? (cachedNow ? chat.cachedCost : chat.tokens) : chat.nextCost;
+    if (next != null) line('Next message', `≈ ${next.toLocaleString()} tokens${cachedNow ? ' (rest cached)' : ''}`);
     if (chat.note) box.append(el('p', 'hint', chat.note));
     box.append(el('div', 'rule'));
     return box;
@@ -474,6 +490,7 @@
 
   function render() {
     if (!root) return;
+    applyTone();
     const meters = AM.sortMeters(last.meters);
     const now = Date.now();
     const top = AM.primaryMeter(meters);
@@ -532,17 +549,27 @@
     if (tag) info.append(tag);
   }
 
+  let waitingBody = false;
+  // the OS theme can change while the page keeps its own: follow it when the page's look is unknown
+  try { window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { tone = undefined; render(); }); } catch {}
   AM.widget = {
     destroy: unmount,
+    retone() { render(); },
     update(name, meters, settings, chat, problem) {
       if (AM.dead) return;
       last = { name, meters, chat: chat || null, problem: problem || null };
+      if (pendingStyle && (settings.meterStyle === pendingStyle.style || Date.now() > pendingStyle.until)) pendingStyle = null;
+      if (pendingStyle) settings = { ...settings, meterStyle: pendingStyle.style };
+      lastSettings = settings; // before the "off" check, so a pending DOMContentLoaded mount sees the meter was switched off
       if (!settings.widget) return unmount();
-      lastSettings = settings;
       if (host && !dragging && edgeOfStyle(settings.meterStyle) !== barMode) { applyEdge(edgeOfStyle(settings.meterStyle)); expanded = false; }
       if (!host) {
         if (!document.body) {
-          document.addEventListener('DOMContentLoaded', () => AM.widget.update(name, last.meters, settings, last.chat, last.problem), { once: true });
+          // one listener, however many updates arrive before the body exists; it mounts with the latest state
+          if (!waitingBody) {
+            waitingBody = true;
+            document.addEventListener('DOMContentLoaded', () => { waitingBody = false; AM.widget.update(last.name, last.meters, lastSettings, last.chat, last.problem); }, { once: true });
+          }
           return;
         }
         mount();

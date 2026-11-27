@@ -140,3 +140,44 @@ test('formatDuration', () => {
   assert.equal(AM.formatDuration(3 * 86400e3), '3d 0h');
   assert.equal(AM.formatDuration(-5), 'now');
 });
+
+test('isLimitEndpoint: a 429 counts only on a provider\'s send or usage endpoints', () => {
+  const ok = [
+    'https://claude.ai/api/organizations/o1/chat_conversations/c1/completion',
+    'https://claude.ai/api/organizations/o1/usage',
+    'https://chatgpt.com/backend-api/f/conversation',
+    'https://chatgpt.com/backend-api/wham/usage',
+    'https://gemini.google.com/_/BardChatUi/data/assistant.lamda.BardFrontendService/StreamGenerate?bl=x',
+    'https://grok.com/rest/app-chat/conversations/new',
+    'https://grok.com/rest/rate-limits',
+    'https://www.perplexity.ai/rest/sse/perplexity_ask',
+    'https://www.kimi.com/apiv2/kimi.gateway.membership.v2.MembershipService/GetSubscription',
+  ];
+  for (const url of ok) assert.equal(AM.isLimitEndpoint({ url, method: 'POST', body: '' }), true, url);
+  const no = [
+    'https://claude.ai/api/bootstrap/features',
+    'https://chatgpt.com/ces/v1/flags',
+    'https://claude.ai/api/organizations/o1/chat_conversations/c1/title',
+    'https://example.com/flags/evaluate',
+  ];
+  for (const url of no) assert.equal(AM.isLimitEndpoint({ url, method: 'GET', body: '' }), false, url);
+  assert.equal(AM.isLimitEndpoint(null), false);
+  assert.equal(AM.isLimitEndpoint({ url: 5 }), false);
+});
+
+test('parseReset understands weekday names and "tomorrow"', () => {
+  // NOW is Saturday 26 Sep 2026, 10:00 UTC; compare in local time so the test does not depend on the machine's zone
+  const now = new Date(2026, 8, 26, 10, 0, 0).getTime(); // Saturday 10:00 local
+  const day0 = (t) => new Date(new Date(t).getFullYear(), new Date(t).getMonth(), new Date(t).getDate()).getTime();
+  const at = (t) => { const d = new Date(t); return [d.getDay(), d.getHours(), d.getMinutes(), Math.round((day0(t) - day0(now)) / 864e5)]; }; // [weekday, hour, minute, calendar days from now]
+  assert.deepEqual(at(AM.parseReset('Your limit resets Monday 9 AM', now)), [1, 9, 0, 2]);
+  assert.deepEqual(at(AM.parseReset('resets on Fri at 17:30', now)), [5, 17, 30, 6]);
+  assert.deepEqual(at(AM.parseReset('Resets Saturday 9:00 AM', now)), [6, 9, 0, 7], 'a time already past today means next week');
+  assert.deepEqual(at(AM.parseReset('resets Saturday 11 PM', now)), [6, 23, 0, 0], 'later today stays today');
+  assert.deepEqual(at(AM.parseReset('resets tomorrow at 9 AM', now)), [0, 9, 0, 1]);
+  assert.deepEqual(at(AM.parseReset('resets Wednesday', now)), [3, 0, 0, 4], 'no time of day: the start of that day');
+  // words that merely contain a day abbreviation are not days
+  assert.equal(AM.parseReset('you were satisfied with the summary', now), undefined);
+  assert.equal(AM.parseReset('resets at 5:00 PM', now) > now, true, 'plain times still work');
+  assert.equal(AM.parseReset('try again in 3 hours', now), now + 3 * 3600e3, 'relative still wins');
+});

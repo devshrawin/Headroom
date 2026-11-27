@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mock claude.ai (layout from the user's screenshots)</title>
+<style>
+  /* Page colour as a modern design system would write it (oklch); the browser may report it in that form. */
+  :root { --bg-100: PAGE_BG; --bg-000: #ffffff; --text: #1f1e1d; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg-100); color: var(--text); font: 15px/1.5 system-ui, sans-serif; }
+  .app { display: flex; height: 100vh; }
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  /* Header: an ordinary (not sticky) flex child, page colour at 85% with a blur: the shape the old scan never cleared. */
+  header.top { flex: none; height: 56px; display: flex; align-items: center; gap: 12px; padding: 0 24px;
+    background: color-mix(in srgb, var(--bg-100) 85%, transparent); backdrop-filter: blur(8px); }
+  .scroller { flex: 1; overflow-y: auto; position: relative; }
+  .col { max-width: 1150px; margin: 0 auto; padding: 16px 24px; }
+  .card { background: var(--bg-000); border-radius: 12px; padding: 14px; margin: 12px 0; box-shadow: 0 1px 2px rgba(0,0,0,.08); }
+  .msg { padding: 8px 0; }
+  /* Composer area: a full-width static strip (page colour, NOT pinned) holding a centred sticky column (page colour). */
+  .composer-outer { flex: none; background: var(--bg-100); padding: 0 12px; }
+  .composer-inner { position: sticky; bottom: 0; max-width: 1150px; margin: 0 auto; background: var(--bg-100); padding: 10px 0 12px; }
+  /* Square plate a little wider than the rounded input (screenshot 1). */
+  .plate { background: PLATE_BG; padding: 4px 12px; }
+  PLATE_CSS
+  .input { background: var(--bg-000); border-radius: 18px; height: 52px; display: flex; align-items: center; padding: 0 16px; border: 1px solid #ddd; }
+  .labels { display: flex; justify-content: space-between; padding: 8px 12px 0; font-size: 13px; }
+  [role=dialog] { position: fixed; right: 30px; top: 90px; width: 220px; height: 120px; background: var(--bg-100); }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="main">
+    <header class="top" id="hdr"><span>☰</span><b>Headroom extension audit and fixes</b></header>
+    <div class="scroller" id="scroller">
+      <div class="col" id="col">
+        <div class="msg">Thinking 14s</div>
+        <div class="card" id="toolcard">bash<br>mkdir -p /home/claude/src … unzip …</div>
+        MSGS
+      </div>
+    </div>
+    <div class="composer-outer" id="cOuter">
+      <div class="composer-inner" id="cInner">
+        <div class="plate" id="plate"><div class="input" id="input">Write a message…</div></div>
+        <div class="labels"><span>Auto</span><span>Opus 5.5 · High</span></div>
+      </div>
+    </div>
+  </div>
+</div>
+<div role="dialog" id="dlg">A menu that must stay opaque</div>
+</body>
+</html>

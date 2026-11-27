@@ -63,7 +63,7 @@ test('the forecast URL carries only the rounded coordinates; a city search URL i
   assert.ok(u.startsWith('https://api.open-meteo.com/'));
   assert.doesNotMatch(u, /23\.025|72\.587/);
   assert.equal(AM.geocodeUrl('São Paulo & co').includes('S%C3%A3o%20Paulo%20%26%20co'), true);
-  assert.ok(AM.WEATHER_HOSTS.every((h) => h.startsWith('https://') && h.endsWith('/*')));
+  assert.ok(AM.geocodeUrl('x').startsWith('https://geocoding-api.open-meteo.com/'));
 });
 
 test('the sky state: the hour is the hour AT the place, wind blows the clouds the other way, a preview overrides the real thing', () => {

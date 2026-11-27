@@ -21,7 +21,7 @@
       });
       this.est.refresh();
       this.refresh();
-      setInterval(() => ctx.visible() && this.refresh(), 120000);
+      AM.every(() => ctx.visible() && this.refresh(), 120000);
     },
 
     parse(j) {
@@ -36,7 +36,7 @@
       const tok = (document.cookie.match(/(?:^|;\s*)kimi-auth=([^;]+)/) || [])[1];
       if (!tok) {
         this.ctx.log('kimi-auth cookie not readable; waiting for the app to load its subscription');
-        return this.ctx.problem('error', 'Not signed in, or the sign-in cookie is not readable here');
+        return this.ctx.problem('signin', 'Sign in to Kimi to see your balance.');
       }
       try {
         this.parse(await this.ctx.getJSON(SUB_PATH, {

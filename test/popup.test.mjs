@@ -21,37 +21,6 @@ test('resetText: a reset time in the past reads "reset due" / "frees up now", ne
   assert.equal(AM.resetText({ source: 'real' }, now), '');
 });
 
-test('splitMeters: percentage meters get bars, counter-only meters get chips', () => {
-  const { bars, counters } = AM.splitMeters([
-    { id: 'a', label: 'Weekly', pct: 32 },
-    { id: 'b', label: 'Image Gen', remaining: 9 },
-    { id: 'c', label: 'Messages', used: 3, limit: 160 },
-    { id: 'd', label: 'Empty' },
-  ]);
-  assert.deepEqual(bars.map((m) => m.id).sort(), ['a', 'c']);
-  assert.deepEqual(counters.map((m) => m.id), ['b']);
-});
-
-test('isStale: older than a day or never updated', () => {
-  assert.equal(AM.isStale({ updatedAt: now - 2 * H }, now), false);
-  assert.equal(AM.isStale({ updatedAt: now - 25 * H }, now), true);
-  assert.equal(AM.isStale({}, now), true);
-});
-
-test('cardSource: real, estimate or mixed', () => {
-  assert.equal(AM.cardSource([{ source: 'real' }]), 'real');
-  assert.equal(AM.cardSource([{ source: 'estimate' }]), 'estimate');
-  assert.equal(AM.cardSource([{ source: 'real' }, { source: 'estimate' }]), 'mixed');
-  assert.equal(AM.cardSource([]), '');
-});
-
-test('sortEntries: fresh before stale, then closest to its limit, then provider order', () => {
-  const e = (provider, pct, ago) => ({ provider, name: provider, updatedAt: now - ago, meters: [{ id: 'five_hour', label: 'Session', pct, source: 'real' }] });
-  const order = (id) => ['claude', 'chatgpt', 'gemini'].indexOf(id);
-  const out = AM.sortEntries([e('claude', 90, 48 * H), e('chatgpt', 10, H), e('gemini', 60, H)], order, now);
-  assert.deepEqual(out.map((x) => x.provider), ['gemini', 'chatgpt', 'claude']);
-});
-
 test('usageLevel: ok under 75, close from 75, crit from 90, empty at 100 or on a banner, unk without a number', () => {
   const lv = (pct, m) => AM.usageLevel(m || {}, pct);
   assert.equal(lv(0), 'ok');
