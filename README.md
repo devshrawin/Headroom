@@ -4,7 +4,9 @@
 
 **Your AI usage limit, as a thin bar on the page, under a living background.**
 
-[![Get it on the Chrome Web Store](https://img.shields.io/badge/Chrome%20Web%20Store-Add%20to%20Chrome-4285F4?logo=googlechrome&logoColor=white)](https://chromewebstore.google.com/detail/headroom/omnaoikjfiodkffgjdkkepcgocnpdjcb) &nbsp; Version 2.0 · MIT · no account, no server, nothing leaves your computer except an optional weather lookup
+<p align="center"><a href="https://chromewebstore.google.com/detail/headroom/omnaoikjfiodkffgjdkkepcgocnpdjcb"><img alt="Add to Chrome: Headroom on the Chrome Web Store" src="https://img.shields.io/badge/Add%20to%20Chrome-Free%20on%20the%20Chrome%20Web%20Store-4285F4?style=for-the-badge&logo=googlechrome&logoColor=white&labelColor=1f1d2b" height="64"></a></p>
+
+<p align="center">Version 2.0 · MIT · no account, no server, nothing leaves your computer except an optional weather lookup</p>
 
 [**Install from the Chrome Web Store**](https://chromewebstore.google.com/detail/headroom/omnaoikjfiodkffgjdkkepcgocnpdjcb) · [What's new in 2.0](CHANGELOG.md) · [Privacy](docs/privacy.md)
 
