@@ -715,12 +715,21 @@ void main(){
     function hugBox(box, b, vw, vh) {
       const limH = b.height + vh * .5;
       const hugs = (r) => r.left >= b.left - HUG && r.right <= b.right + HUG && r.height <= limH;
+      // a wide strip of the composer: stuck to the top or bottom edge of the window, at most 40% of its height
+      const edgeStrip = (r) => r.width >= vw * .4 && r.height >= 16 && r.height <= vh * .4 && (r.bottom >= vh - 10 || r.top <= 10);
       const outline = (el, cs) => { if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 4) keepHalo(el, HALO_O); };
       // 1. the box's ancestors that hug it: its plate, frame, column, the composer strip
       const ancestors = [];
       for (let a = box.parentElement, i = 0; a && a !== doc.body && a !== rootEl && i < 10; a = a.parentElement, i++) {
-        if (!hugs(a.getBoundingClientRect()) || a.closest(OVERLAY_SEL)) break;
-        ancestors.push(a); keepHalo(a, HALO); outline(a, win.getComputedStyle(a));
+        if (a.closest(OVERLAY_SEL)) break;
+        const ar = a.getBoundingClientRect();
+        if (hugs(ar)) { ancestors.push(a); keepHalo(a, HALO); outline(a, win.getComputedStyle(a)); continue; }
+        // The composer's own full-width strip behind the column (on claude.ai the pale panels at the left and right of the message
+        // box): far wider than the box, so it does not hug it, but it is a wide square strip stuck to the window's edge and the box
+        // sits inside it. Its colour does not matter (it need not match the page colour).
+        const acs = win.getComputedStyle(a);
+        if (edgeStrip(ar) && radiusOf(acs) < 6) { keepHalo(a, HALO); outline(a, acs); continue; }
+        break;
       }
       // 2. square plates next to it: wide children of those ancestors (painted or not yet: a :focus-within plate is still bare)
       for (const a of ancestors) {
@@ -752,8 +761,8 @@ void main(){
           if (box.contains(e) || e.closest(OVERLAY_SEL)) continue;
           const r = e.getBoundingClientRect();
           if (r.width * r.height >= vw * vh * .5) break;
-          if (e.contains(box)) { if (hugs(r)) keepHalo(e, HALO); continue; }
-          if (!hugs(r) || e.matches(INTERACTIVE) || e.closest(INTERACTIVE)) continue;
+          if (e.contains(box)) { if (hugs(r) || edgeStrip(r)) keepHalo(e, HALO); continue; }
+          if ((!hugs(r) && !edgeStrip(r)) || e.matches(INTERACTIVE) || e.closest(INTERACTIVE)) continue;
           const cs = win.getComputedStyle(e);
           if (radiusOf(cs) >= 6) continue;
           keepHalo(e, HALO); outline(e, cs);

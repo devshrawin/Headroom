@@ -2,6 +2,12 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.4.7 — 2026-11-27
+
+### Fixed
+- The pale panels at the left and right of the message box (on a dark page, a white strip beside the input) are cleared. They are the composer's own full-width strip behind the column: far wider than the box, painted in a colour that is not the page colour, so neither the "hugs the box" rule nor the page-colour rule saw it. The halo pass now also clears composer strips (wide, square-cornered, stuck to the top or bottom edge of the window, at most 40% of its height) that contain the box or sit right behind it, whatever their colour.
+- New regression cases `wide@far` (ivory page, white strip) and `wide@dark` (near-black page, white strip) in `e2e/plates.mjs`: on 1.4.6 the margins stay 100% white, on 1.4.7 0%. `e2e/plates.mjs` also takes `--shots=<dir>` to keep the screenshots.
+
 ## 1.4.6 — 2026-11-27
 
 From an external fix round on 1.4.5 (three files changed: `src/core/weather-sky.js`, `src/options/options.js`, `manifest.json`; no permission changes). See section 8 of `docs/audit-2026-11-26/report.md` and the imported tests in `tests/headroom-1.4.6/`.

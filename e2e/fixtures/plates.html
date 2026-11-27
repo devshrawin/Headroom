@@ -53,6 +53,9 @@
   .gut { display: none; position: absolute; top: -3px; bottom: 0; width: 30px; background: #fff; }
   .gut.l { left: -30px; } .gut.r { right: -30px; }
   html.scrolled.v-fside .gut { display: block; }
+  /* v=wide:     the whole composer strip is painted (full window width), in a colour that is NOT the page colour: the pale
+                  panels at the left and right of the message box. The column itself is cleared by the page-colour rules. */
+  .v-wide .composer { background: var(--plate); }
   /* a model menu that opens above the composer must keep its paint */
   [role=menu] { position: absolute; right: 40px; bottom: 120px; width: 220px; height: 90px; background: var(--bg-000); border-radius: 0; }
 </style>
