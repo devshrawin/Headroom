@@ -133,11 +133,11 @@ All made with the real extension (`node tools/store-shots/shots.mjs` rebuilds th
 
 | File | Size | Caption to type in the dashboard |
 |---|---|---|
-| `1-clear-day.png` | 1280 x 800 | Your AI limit, with the real weather behind it |
-| `2-rain-80-percent.png` | 1280 x 800 | Rain outside, 80% of your limit used inside |
-| `3-sunset-details.png` | 1280 x 800 | Click the bar for the details, or turn the weather off in one click |
-| `4-night-stars.png` | 1280 x 800 | The real hour: moon and stars after dark |
-| `5-settings-weather.png` | 1280 x 800 | Use your location or type a city |
+| `1-clear-day.png` | 1280 x 800 | Your AI limit as a thin bar, with the real weather behind it |
+| `2-sunset-details.png` | 1280 x 800 | Click the bar for the details, or turn the background off in one click |
+| `3-fluid.png` | 1280 x 800 | New in 2.0: the optional Fluid background that follows your cursor |
+| `4-settings-weather.png` | 1280 x 800 | The redesigned Settings: choose the weather sky or the fluid |
+| `5-welcome.png` | 1280 x 800 | The new first-run guide |
 | `promo-tile-440x280.png` | 440 x 280 | Small promo tile (optional) |
 | `marquee-1400x560.png` | 1400 x 560 | Marquee promo (optional) |
 

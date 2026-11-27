@@ -1,24 +1,24 @@
-// Makes the Chrome Web Store images with the REAL extension: it loads the unpacked extension into a clean headless
-// Chrome, serves a neutral mock chat page in place of a supported host (so the real content script, bar, weather sky and
-// details panel run on it), seeds sample numbers, and captures:
+// Makes the Chrome Web Store images with the REAL extension: it loads the unpacked extension into Playwright's Chromium, serves a
+// neutral mock chat page in place of a supported host (so the real content script, bar, background and details panel run on it),
+// seeds sample numbers, and captures:
 //   screenshots 1280x800 (x5), promo tile 440x280, marquee 1400x560  ->  docs/store/assets/
-//   node tools/store-shots/shots.mjs
+//   cd e2e && npm ci && cd .. && node tools/store-shots/shots.mjs         (needs internet once, for the sample place's real sunset time)
 // No account, no real chat and no brand logo is ever on screen: the page is made here and the numbers are samples.
-import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
+// (Until 2.0 this drove a branded Chrome over raw CDP; current Chrome no longer loads unpacked extensions from the command line.)
+import { createRequire } from 'node:module';
+import { mkdirSync, readFileSync, writeFileSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const root = fileURLToPath(new URL('../../', import.meta.url));
+const require = createRequire(new URL('../../e2e/package.json', import.meta.url));
+const { chromium } = require('playwright');
+const root = fileURLToPath(new URL('../../', import.meta.url)).replace(/[\\/]$/, '');
 const OUT = join(root, 'docs/store/assets');
 mkdirSync(OUT, { recursive: true });
-const CHROME = process.env.CHROME || 'C:/Program Files/Google/Chrome/Application/chrome.exe';
 const HOST = 'https://poe.com/'; // a host the extension already runs on; the document is replaced by the mock below
 const icon = readFileSync(join(root, 'icons/icon128.png')).toString('base64');
-const port = 9544;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
-const profile = mkdtempSync(join(tmpdir(), 'hr-shots-'));
 
 const mock = (q) => {
   const dark = q.get('dark') === '1', promo = q.get('promo');
@@ -39,90 +39,91 @@ const mock = (q) => {
 </style></head><body>${promo ? '' : '<div class="top">Assistant</div>'}<div class="col">${chat}</div>${promo ? '' : '<div class="box">Message the assistant…</div>'}${hero}</body></html>`;
 };
 
-const chrome = spawn(CHROME, ['--headless=new', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--no-first-run', '--no-default-browser-check', '--enable-unsafe-extension-debugging', `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
-const conn = (url) => new Promise((resolve) => {
-  const ws = new WebSocket(url); let id = 0; const waiters = new Map(); const events = []; const hooks = [];
-  ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && waiters.has(d.id)) { waiters.get(d.id)(d); waiters.delete(d.id); } else { events.push(d); hooks.forEach((h) => h(d)); } };
-  ws.onopen = () => resolve({ events, on: (h) => hooks.push(h), call: (method, params = {}) => new Promise((res) => { const my = ++id; waiters.set(my, res); ws.send(JSON.stringify({ id: my, method, params })); }), close: () => ws.close() });
+const profile = mkdtempSync(join(tmpdir(), 'hr-shots-'));
+const ctx = await chromium.launchPersistentContext(profile, {
+  headless: true, channel: 'chromium', viewport: { width: 1280, height: 800 }, deviceScaleFactor: 1,
+  args: [`--disable-extensions-except=${root}`, `--load-extension=${root}`, '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'],
 });
-
 try {
-  let ver;
-  for (let i = 0; i < 60; i++) { try { ver = await (await fetch(`http://127.0.0.1:${port}/json/version`)).json(); break; } catch { await sleep(250); } }
-  const browser = await conn(ver.webSocketDebuggerUrl);
-  const load = await browser.call('Extensions.loadUnpacked', { path: root.replace(/[\\/]$/, '') });
-  const extId = load.result && load.result.id;
-  if (!extId) throw new Error('extension did not load: ' + JSON.stringify(load.error));
-  await sleep(2500);
-
-  const open = async (url, w, h, intercept) => {
-    const t = await (await fetch(`http://127.0.0.1:${port}/json/new?about:blank`, { method: 'PUT' })).json();
-    const c = await conn(t.webSocketDebuggerUrl); c.targetId = t.id;
-    await c.call('Runtime.enable'); await c.call('Page.enable');
-    await c.call('Emulation.setDeviceMetricsOverride', { width: w, height: h, deviceScaleFactor: 1, mobile: false });
-    if (intercept) {
-      await c.call('Fetch.enable', { patterns: [{ urlPattern: 'https://poe.com/*' }] });
-      c.on((d) => {
-        if (d.method !== 'Fetch.requestPaused') return;
-        const u = new URL(d.params.request.url);
-        const isDoc = d.params.resourceType === 'Document';
-        c.call('Fetch.fulfillRequest', { requestId: d.params.requestId, responseCode: isDoc ? 200 : 204, responseHeaders: [{ name: 'content-type', value: 'text/html; charset=utf-8' }], body: Buffer.from(isDoc ? mock(u.searchParams) : '').toString('base64') });
-      });
-    }
-    await c.call('Page.navigate', { url });
-    return c;
-  };
-  const ev = async (c, expression) => { const r = await c.call('Runtime.evaluate', { expression, awaitPromise: true, returnByValue: true }); return r.result.exceptionDetails ? 'ERR ' + String(r.result.exceptionDetails.text) : r.result.result.value; };
-  const shot = async (c, name) => { const r = await c.call('Page.captureScreenshot', { format: 'png' }); writeFileSync(join(OUT, name + '.png'), Buffer.from(r.result.data, 'base64')); console.log('wrote', name + '.png'); };
-
-  // settings page, also used to set storage for the page shots
-  const opts = await open(`chrome-extension://${extId}/src/options/options.html#weather`, 1280, 800);
-  await sleep(1500);
+  await ctx.route('https://poe.com/**', (r) => {
+    const u = new URL(r.request().url());
+    if (r.request().resourceType() === 'document') return r.fulfill({ status: 200, contentType: 'text/html; charset=utf-8', body: mock(u.searchParams) });
+    return r.fulfill({ status: 204, body: '' });
+  });
+  let [sw] = ctx.serviceWorkers();
+  if (!sw) sw = await ctx.waitForEvent('serviceworker');
+  const extId = new URL(sw.url()).host;
   const place = { name: 'London, United Kingdom', lat: 51.51, lon: -0.13 };
-  const setSettings = (force, extra = {}) => ev(opts, `chrome.storage.local.set({ settings: ${JSON.stringify({ weather: true, weatherPlace: place, weatherStrength: 1, meterStyle: 'bar-bottom', weatherForce: force, ...extra })} })`);
-  const seed = (n) => ev(opts, `chrome.storage.local.set({ 'events.poe': Array.from({ length: ${n} }, (_, i) => ({ t: Date.now() - (i + 1) * 60000, m: 'chat' })) })`);
-  await setSettings(null);
-  await ev(opts, `chrome.runtime.sendMessage({ type: 'headroom:weatherNow' })`);
-  await sleep(1500);
-  await ev(opts, `location.reload()`); await sleep(2500);
+  const setSettings = (force, extra = {}) => sw.evaluate(async (s) => chrome.storage.local.set({ settings: s }), { weather: true, weatherPlace: place, weatherStrength: 1, meterStyle: 'bar-top', weatherForce: force,
+    quotas: { poe: [{ id: 'messages', label: 'Messages', pattern: '.*', limit: 100, windowHours: 24 }] }, // a limit, so the bar shows a percentage
+    ...extra });
+  const seed = (n) => sw.evaluate(async (n) => chrome.storage.local.set({ 'events.poe': Array.from({ length: n }, (_, i) => ({ t: Date.now() - (i + 1) * 60000, m: 'chat' })) }), n);
+  const shot = async (page, name) => { writeFileSync(join(OUT, name + '.png'), await page.screenshot()); console.log('wrote', name); };
 
-  // the golden hour at the chosen place: shortly before the real sunset the stored forecast gives
-  const sunset = await ev(opts, "chrome.storage.local.get('weather.data').then((r) => r['weather.data'] ? r['weather.data'].set : null)");
+  // the real sunset at the sample place, for the golden-hour shot (falls back to 17.5 offline)
+  await setSettings(null);
+  const wn = await sw.evaluate(async () => { try { return await chrome.runtime.sendMessage({ type: 'headroom:weatherNow' }); } catch (e) { return { ok: false }; } });
+  await sleep(1500);
+  const sunset = await sw.evaluate(async () => { const r = await chrome.storage.local.get('weather.data'); return r['weather.data'] ? r['weather.data'].set : null; });
   const GOLD = typeof sunset === 'number' ? Math.round((sunset - 0.2) * 100) / 100 : 17.5;
-  console.log('sunset at', sunset, '-> golden hour', GOLD);
-  const look = async (name, { force, dark, n, panel, hover }) => {
-    await setSettings(force); await seed(n);
-    const page = await open(`${HOST}?dark=${dark ? 1 : 0}`, 1280, 800, true);
+  console.log('weather fetch', wn && wn.ok, 'sunset at', sunset, '-> golden hour', GOLD);
+
+  const look = async (name, { force, dark, n, panel, hover, fluid }) => {
+    await setSettings(force, fluid ? { weatherStyle: 'fluid' } : {}); await seed(n);
+    const page = await ctx.newPage();
+    await page.goto(`${HOST}?dark=${dark ? 1 : 0}`);
     await sleep(7000);
-    const where = await ev(page, "(() => { const h = document.querySelector('[data-headroom=\"\"]'); const b = h && h.shadowRoot && h.shadowRoot.querySelector('.bar, .pill, [role=button]'); if (!b) return null; const r = b.getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2 }); })()");
-    if (hover && where) { const { x, y } = JSON.parse(where); await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x - 200, y: y - 30 }); await page.call('Input.dispatchMouseEvent', { type: 'mouseMoved', x: x - 200, y }); await sleep(1200); }
+    const where = await page.evaluate(() => { const h = document.querySelector('[data-headroom=""]'); const b = h && h.shadowRoot && h.shadowRoot.querySelector('.bar, .pill, [role=button]'); if (!b) return null; const r = b.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2 }; });
+    if (hover && where) { await page.mouse.move(where.x - 200, where.y + 40); await page.mouse.move(where.x - 200, where.y + 2, { steps: 4 }); await sleep(500); }
     if (panel) {
-      const pt = await ev(page, `(() => { const h = document.querySelector('[data-headroom=""]'); const b = h && h.shadowRoot && h.shadowRoot.querySelector('.bar, .pill, [role=button]'); if (!b) return null; const r = b.getBoundingClientRect(); return JSON.stringify({ x: r.left + r.width / 2, y: r.top + r.height / 2 }); })()`);
-      if (pt) { const { x, y } = JSON.parse(pt); for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await page.call('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }); await sleep(1200); }
+      if (where) { await page.mouse.move(where.x, where.y); await page.mouse.click(where.x, where.y); await sleep(500); }
       else console.log('no bar found for the panel shot');
     }
+    if (fluid) { // two slow loops of the cursor across the page: the fluid only moves when the cursor does, and is still bright when the shot is taken
+      for (const [cx, cy, rx, ry, turns] of [[420, 430, 330, 190, 1.6], [900, 360, 260, 210, 1.2]]) {
+        const steps = Math.round(turns * 60);
+        for (let i = 0; i <= steps; i++) {
+          const a = (i / 60) * Math.PI * 2;
+          await page.mouse.move(Math.round(cx + Math.cos(a) * rx * (1 + i / (steps * 1.6))), Math.round(cy + Math.sin(a * 1.2) * ry));
+          await sleep(22);
+        }
+      }
+      await sleep(250);
+    }
     // a neutral name in the panel and tooltip: no brand on screen
-    await ev(page, "(() => { const h = document.querySelector('[data-headroom=\"\"]'); if (!h || !h.shadowRoot) return; const w = document.createTreeWalker(h.shadowRoot, 4); for (let n = w.nextNode(); n; n = w.nextNode()) n.nodeValue = n.nodeValue.replace(/Poe/g, 'Example AI'); })()");
+    await page.evaluate(() => { const h = document.querySelector('[data-headroom=""]'); if (!h || !h.shadowRoot) return; const w = document.createTreeWalker(h.shadowRoot, 4); for (let n = w.nextNode(); n; n = w.nextNode()) n.nodeValue = n.nodeValue.replace(/Poe/g, 'Assistant'); });
     await sleep(300);
     await shot(page, name);
-    await fetch(`http://127.0.0.1:${port}/json/close/${page.targetId || ''}`).catch(() => {});
-    page.close();
+    await page.close();
   };
 
   await look('1-clear-day', { force: { weather: 'clear', season: 'summer', tod: 13.5 }, n: 52, hover: true });
-  await look('2-rain-80-percent', { force: { weather: 'rain', season: 'monsoon', tod: 15 }, n: 128, hover: true });
-  await look('3-sunset-details', { force: { weather: 'clear', season: 'autumn', tod: GOLD }, n: 70, panel: true });
-  await look('4-night-stars', { force: { weather: 'clear', season: 'summer', tod: 23 }, dark: true, n: 40 });
+  await look('2-sunset-details', { force: { weather: 'clear', season: 'autumn', tod: GOLD }, n: 70, panel: true });
+  await look('3-fluid', { force: null, dark: true, n: 40, fluid: true });
 
+  // the redesigned Settings page, and the new Welcome (onboarding) page: both are the extension's own pages
   await setSettings(null);
-  await ev(opts, `location.hash = 'weather'; location.reload()`); await sleep(2500);
-  await shot(opts, '5-settings-weather');
+  const opts = await ctx.newPage();
+  await opts.setViewportSize({ width: 1280, height: 800 });
+  await opts.goto(`chrome-extension://${extId}/src/options/options.html#weather`);
+  await sleep(2500);
+  await shot(opts, '4-settings-weather');
+  await opts.goto(`chrome-extension://${extId}/src/welcome/welcome.html`);
+  await sleep(2000);
+  await shot(opts, '5-welcome');
+  await opts.close();
 
   // promo tile and marquee: the logo and name over a sunset sky
   for (const [name, w, h, kind] of [['promo-tile-440x280', 440, 280, 'tile'], ['marquee-1400x560', 1400, 560, 'marquee']]) {
     await setSettings({ weather: 'clear', season: 'autumn', tod: GOLD }); await seed(0);
-    const page = await open(`${HOST}?promo=${kind}`, w, h, true);
+    const page = await ctx.newPage();
+    await page.setViewportSize({ width: w, height: h });
+    await page.goto(`${HOST}?promo=${kind}`);
     await sleep(7000);
-    await shot(page, name); page.close();
+    await shot(page, name);
+    await page.close();
   }
-} catch (e) { console.error('ERROR', e); process.exitCode = 1; } finally { chrome.kill(); }
+  // the store icon is the extension's own 128 px icon
+  writeFileSync(join(OUT, 'store-icon-128.png'), readFileSync(join(root, 'icons/icon128.png')));
+  console.log('wrote store-icon-128');
+} catch (e) { console.error('ERROR', e); process.exitCode = 1; } finally { await ctx.close(); try { rmSync(profile, { recursive: true, force: true }); } catch {} }

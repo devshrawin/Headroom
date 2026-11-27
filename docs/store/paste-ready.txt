@@ -15,7 +15,7 @@ Mature content: none
 
 Images (docs/store/assets/):
   Store icon 128x128: store-icon-128.png
-  Screenshots (up to 5, all 1280x800 24-bit PNG, no alpha): 1-clear-day.png, 2-rain-80-percent.png, 3-sunset-details.png, 4-night-stars.png, 5-settings-weather.png
+  Screenshots (up to 5, all 1280x800 24-bit PNG, no alpha): 1-clear-day.png, 2-sunset-details.png, 3-fluid.png, 4-settings-weather.png, 5-welcome.png
   Small promo tile 440x280: promo-tile-440x280.png
   Marquee 1400x560 (optional): marquee-1400x560.png
 
