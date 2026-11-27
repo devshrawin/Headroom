@@ -35,6 +35,59 @@
     };
   }
 
+  // A queue that never loses work: drain() handles at most `max` entries (and stops when ok() says the frame's time is up), the rest
+  // stay queued for the next call. An entry added with deep = true also queues all of its descendants (expand) once it is handled.
+  // fn(x) returns false for an entry that no longer counts (e.g. it left the page).
+  function makeBatchQueue() {
+    const q = new Set(), deep = new WeakSet();
+    return {
+      get size() { return q.size; },
+      add(x, isDeep) { q.add(x); if (isDeep) deep.add(x); },
+      clear() { q.clear(); },
+      drain(max, fn, expand, ok) {
+        let n = 0, seen = 0;
+        for (const x of q) {
+          if (n >= max) break;
+          if ((++seen & 15) === 0 && ok && !ok()) break;
+          q.delete(x);
+          if (fn(x) === false) continue;
+          n++;
+          if (deep.has(x)) { deep.delete(x); if (expand) for (const d of expand(x)) q.add(d); }
+        }
+        return n;
+      },
+    };
+  }
+
+  // Text-bearing content (a paragraph, table, rule, quote, code, a heading, a picture, or anything with text of its own) is
+  // never part of a plate or frame around the message box, even when it scrolls behind the composer.
+  const CONTENT_TAGS = /^(P|LI|UL|OL|DL|DT|DD|TABLE|THEAD|TBODY|TFOOT|TR|TD|TH|CAPTION|HR|BLOCKQUOTE|CODE|PRE|KBD|MARK|H[1-6]|FIGURE|FIGCAPTION|IMG|PICTURE|VIDEO|CANVAS|MATH)$/;
+  function isContentBlock(el) {
+    if (CONTENT_TAGS.test(el.tagName || '')) return true;
+    for (const n of el.childNodes || []) if (n.nodeType === 3 && /\S/.test(n.nodeValue || '')) return true;
+    return false;
+  }
+
+  // The shader's ink band follows the page's text colour: it stays off (0) until the page's text has been switched to the ink
+  // (data-hr-ink set), then eases in. instant: reduced motion, no easing.
+  function bandStep(k, active, ease, instant) {
+    const target = active ? 1 : 0;
+    return instant || !Number.isFinite(k) ? target : k + (target - k) * ease;
+  }
+
+  // Windows high contrast (forced colours) and "more contrast": the page must keep its own colours, so there is no sky.
+  const PLAIN_QUERIES = ['(forced-colors: active)', '(prefers-contrast: more)'];
+  function plainLook(w) {
+    try { return PLAIN_QUERIES.some((q) => w.matchMedia(q).matches); } catch { return false; }
+  }
+
+  // Should the theme be read again? The read lifts every override and un-pins every island (a full style recalculation on a big chat),
+  // so it only runs when the theme signature changed, and at most once per minGap ms. Returns -1 skip, 0 run now, > 0 wait that long.
+  function readGate(sig, lastSig, now, lastAt, minGap, force) {
+    if (!force && sig === lastSig) return -1;
+    return Math.max(0, lastAt + minGap - now);
+  }
+
   const VERT = 'attribute vec2 p;void main(){gl_Position=vec4(p,0.,1.);}';
   const FRAG = `
 precision highp float;
@@ -434,8 +487,10 @@ void main(){
   }
 
   // opts: { strength: 0.2..1, onLost() }. Returns null when WebGL is not available.
+  let live = null; // the mounted instance (for stats())
   function mount(opts = {}) {
     const doc = document, win = window;
+    if (plainLook(win)) return null; // forced colours / more contrast: leave the page as it is
     const canvas = doc.createElement('canvas');
     canvas.setAttribute('aria-hidden', 'true');
     canvas.setAttribute('data-headroom', 'weather');
@@ -522,6 +577,10 @@ void main(){
       pinned.delete(el);
       if (prev[0]) el.style.setProperty('color', prev[0], prev[1]); else el.style.removeProperty('color');
     }
+    // the island mark is only ever removed together with its pin
+    function dropIsland(el) { el.removeAttribute(ISLAND); unpinIsland(el); }
+    // elements that left the page must not stay referenced (a single-page app swaps whole conversation trees): put their colour back and forget them
+    function prunePinned() { for (const el of [...pinned.keys()]) if (!el.isConnected) unpinIsland(el); }
     function checkIsland(el) {
       if (!el || el.nodeType !== 1 || el === canvas || el === rootEl || el === doc.body || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') return;
       if (el.hasAttribute('data-headroom')) return;
@@ -536,29 +595,30 @@ void main(){
       if (is && !inkActive() && !pinned.has(el)) islandOrig.set(el, cs.color);
       if (is !== el.hasAttribute(ISLAND)) {
         if (is) el.setAttribute(ISLAND, '');
-        else { el.removeAttribute(ISLAND); unpinIsland(el); }
+        else dropIsland(el);
       }
-      if (is) pinIsland(el);
+      if (is) pinIsland(el); else if (pinned.has(el)) unpinIsland(el);
     }
     // New content (a reply streaming in with a code block, a menu opening) and class or style changes are looked at in the next
     // animation frame, before it is painted: a new white card never shows white-on-white text, not even for a frame.
-    const islandQueue = new Set();
-    let islandRaf = 0;
+    // Each frame handles at most ISLAND_PER_FRAME elements (and about ISLAND_BUDGET_MS of work); whatever is left stays queued for the next frame.
+    const ISLAND_PER_FRAME = 6000, ISLAND_BUDGET_MS = 12;
+    const islandQueue = makeBatchQueue();
+    let islandRaf = 0, islandTimer = 0, pruneDue = false, readRuns = 0;
+    // A backlog is continued by whichever comes first, the next animation frame or a short timer: a page whose frames come slowly
+    // (a busy GPU, a background tab) must not leave elements waiting for seconds.
     const flushIslands = () => {
-      islandRaf = 0;
+      if (islandRaf) win.cancelAnimationFrame(islandRaf);
+      win.clearTimeout(islandTimer);
+      islandRaf = 0; islandTimer = 0;
       if (destroyed) { islandQueue.clear(); return; }
-      let n = 0;
-      for (const el of islandQueue) {
-        if (n > 6000) break;
-        if (!el.isConnected) continue;
-        checkIsland(el); n++;
-        if (el.__hrDeep) {
-          el.__hrDeep = false;
-          const all = el.getElementsByTagName('*');
-          for (let i = 0; i < all.length && n < 6000; i++, n++) checkIsland(all[i]);
-        }
-      }
-      islandQueue.clear();
+      const t0 = performance.now();
+      takeRecs(islandMo.takeRecords()); // what the page changed since the last callback comes first
+      islandQueue.drain(ISLAND_PER_FRAME, (el) => { if (!el.isConnected) return false; checkIsland(el); return true; },
+        (el) => el.getElementsByTagName('*'), () => performance.now() - t0 < ISLAND_BUDGET_MS);
+      if (pruneDue) { pruneDue = false; prunePinned(); }
+      islandMo.takeRecords(); // our own pins / un-pins (inline colour) are not page changes: without this every pinned element would queue itself again
+      if (islandQueue.size && !destroyed) { islandRaf = win.requestAnimationFrame(flushIslands); islandTimer = win.setTimeout(flushIslands, 24); }
     };
     // Hover, focus and transitions change backgrounds without changing classes (a sidebar row lights up under the pointer):
     // look at the element and a few ancestors at once and again when a fade-in has finished.
@@ -576,13 +636,19 @@ void main(){
       hoverT = win.setTimeout(() => queueUp(t, 5), 220);
     };
     const onTransition = (e) => { if (inkActive()) queueUp(e.target, 1); };
-    const islandMo = new MutationObserver((recs) => {
-      if (destroyed) return;
+    const takeRecs = (recs) => {
       for (const r of recs) {
-        if (r.type === 'childList') { for (const nd of r.addedNodes) if (nd.nodeType === 1) { nd.__hrDeep = true; islandQueue.add(nd); } }
+        if (r.type === 'childList') {
+          for (const nd of r.addedNodes) if (nd.nodeType === 1) islandQueue.add(nd, true);
+          if (r.removedNodes.length && pinned.size) pruneDue = true;
+        }
         else if (r.target.nodeType === 1) islandQueue.add(r.target);
       }
-      if (islandQueue.size && !islandRaf) islandRaf = win.requestAnimationFrame(flushIslands);
+    };
+    const islandMo = new MutationObserver((recs) => {
+      if (destroyed) return;
+      takeRecs(recs);
+      if ((islandQueue.size || pruneDue) && !islandRaf) islandRaf = win.requestAnimationFrame(flushIslands);
     });
     const marked = new Set();     // full-screen / bar backdrops: marked once
     const bandMarked = new Set(); // edge bands: re-validated on every scan, unmarked when they stop qualifying
@@ -664,13 +730,13 @@ void main(){
         if (isBacking(cs) || isBacking(pre) || isBacking(post)) {
           // the first full-screen backdrop tells us the page colour when <body> and <html> carry none
           if (full && !pageRGB) { const c = rgbaOf(cs.backgroundColor); if (c && c[3] >= .9) { pageRGB = c; scanSeen = new WeakMap(); } }
-          (full ? marked : bandMarked).add(el); el.setAttribute(MARK, ''); el.removeAttribute(ISLAND);
+          (full ? marked : bandMarked).add(el); el.setAttribute(MARK, ''); dropIsland(el);
           if (!full && edgeTouch(r, vh)) el.setAttribute(FROST, '');
           return;
         }
       }
       // (a rounded ::before / ::after behind the text is a card, not a strip: it keeps its paint)
-      if (strip && !rounded(cs) && (pageTinted(cs) || (pageTinted(pre) && !rounded(pre)) || (pageTinted(post) && !rounded(post)))) { tintMarked.add(el); el.setAttribute(MARK, ''); el.removeAttribute(ISLAND); if (edgeTouch(r, vh)) el.setAttribute(FROST, ''); }
+      if (strip && !rounded(cs) && (pageTinted(cs) || (pageTinted(pre) && !rounded(pre)) || (pageTinted(post) && !rounded(post)))) { tintMarked.add(el); el.setAttribute(MARK, ''); dropIsland(el); if (edgeTouch(r, vh)) el.setAttribute(FROST, ''); }
     }
     // ---- the message box's surroundings ----
     // Sites paint the space right around their message box in the page colour: a plate behind it, a frame that only appears
@@ -696,7 +762,7 @@ void main(){
     const haloMarks = new Map(); // element -> the tick it was last confirmed as hugging a box
     let haloTick = 0;
     const keepHalo = (el, attr) => {
-      if (!el.hasAttribute(attr)) { el.setAttribute(attr, ''); if (attr === HALO) el.removeAttribute(ISLAND); }
+      if (!el.hasAttribute(attr)) { el.setAttribute(attr, ''); if (attr === HALO) dropIsland(el); }
       haloMarks.set(el, haloTick);
     };
     // The message box around a text field: the outermost rounded, painted ancestor (up to 12 levels) that is still
@@ -717,9 +783,21 @@ void main(){
       const hugs = (r) => r.left >= b.left - HUG && r.right <= b.right + HUG && r.height <= limH;
       // a wide strip of the composer: stuck to the top or bottom edge of the window, at most 40% of its height
       const edgeStrip = (r) => r.width >= vw * .4 && r.height >= 16 && r.height <= vh * .4 && (r.bottom >= vh - 10 || r.top <= 10);
+      // the conversation: inside an ancestor that scrolls vertically but does not contain the message box
+      const scrollMemo = new Map();
+      const inScroller = (e) => {
+        for (let a = e; a && a !== doc.body && a !== rootEl; a = a.parentElement) {
+          if (a.contains(box)) return false;
+          let sc = scrollMemo.get(a);
+          if (sc === undefined) { const o = win.getComputedStyle(a).overflowY; sc = o === 'auto' || o === 'scroll' || o === 'overlay'; scrollMemo.set(a, sc); }
+          if (sc) return true;
+        }
+        return false;
+      };
       const outline = (el, cs) => { if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 4) keepHalo(el, HALO_O); };
       // 1. the box's ancestors that hug it: its plate, frame, column, the composer strip
       const ancestors = [];
+      const own = []; // wide edge strips that contain the box: part of the composer too, for the scope check in step 3
       for (let a = box.parentElement, i = 0; a && a !== doc.body && a !== rootEl && i < 10; a = a.parentElement, i++) {
         if (a.closest(OVERLAY_SEL)) break;
         const ar = a.getBoundingClientRect();
@@ -728,7 +806,7 @@ void main(){
         // box): far wider than the box, so it does not hug it, but it is a wide square strip stuck to the window's edge and the box
         // sits inside it. Its colour does not matter (it need not match the page colour).
         const acs = win.getComputedStyle(a);
-        if (edgeStrip(ar) && radiusOf(acs) < 6) { keepHalo(a, HALO); outline(a, acs); continue; }
+        if (edgeStrip(ar) && radiusOf(acs) < 6) { own.push(a); keepHalo(a, HALO); outline(a, acs); continue; }
         break;
       }
       // 2. square plates next to it: wide children of those ancestors (painted or not yet: a :focus-within plate is still bare)
@@ -763,6 +841,8 @@ void main(){
           if (r.width * r.height >= vw * vh * .5) break;
           if (e.contains(box)) { if (hugs(r) || edgeStrip(r)) keepHalo(e, HALO); continue; }
           if ((!hugs(r) && !edgeStrip(r)) || e.matches(INTERACTIVE) || e.closest(INTERACTIVE)) continue;
+          // the composer's own subtree keeps the old rules; anything else is cleared only if it is not conversation content
+          if (!ancestors.some((a) => a.contains(e)) && !own.some((a) => a.contains(e)) && (isContentBlock(e) || inScroller(e))) continue;
           const cs = win.getComputedStyle(e);
           if (radiusOf(cs) >= 6) continue;
           keepHalo(e, HALO); outline(e, cs);
@@ -850,6 +930,7 @@ void main(){
       const walk = force === true || ++ticks % 3 === 1;
       haloPass();
       if (scanNodes || !walk) { visibleFirst(vw, vh); return; }
+      prunePinned();
       // drop detached nodes, and let bands go that stopped qualifying
       for (const el of marked) if (!el.isConnected) { el.removeAttribute(MARK); marked.delete(el); }
       for (const el of bandMarked) {
@@ -956,7 +1037,7 @@ void main(){
     };
     const mixv = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
     const pageColour = () => (pageRGB ? [pageRGB[0] / 255, pageRGB[1] / 255, pageRGB[2] / 255] : dark ? [.078, .078, .11] : [1, 1, 1]);
-    let ink = 0, inkWant = 0, inkSince = 0, curInk = NaN;
+    let ink = 0, inkWant = 0, inkSince = 0, curInk = NaN, bandK = 0;
     function inkCosts(u) {
       const page = pageColour();
       const cloud = mixv(u.uAmb, u.uLit, .55), cov = clamp(u.uCover, 0, 1) * .7, fog = clamp(u.uFog, 0, 1) * .6;
@@ -994,12 +1075,19 @@ void main(){
         parts.push(el.className && el.className.baseVal === undefined ? el.className : '');
         for (const a of el.attributes) if (a.name.indexOf('data-') === 0 && a.name.indexOf('data-hr-') !== 0) parts.push(a.name + '=' + a.value);
       }
+      // inline CSS variables on <html>/<body> (a theme set through style="--bg:..."), minus the background colour we force ourselves
+      for (const el of [rootEl, doc.body]) if (el) parts.push((el.getAttribute('style') || '').replace(/background-color\s*:[^;]*;?/g, ''));
+      // stylesheets in <head> (a theme swapped in by adding or removing a <link> or <style>), ours left out
+      if (doc.head) parts.push('css:' + doc.head.querySelectorAll('link[rel~="stylesheet"],style:not([data-headroom])').length);
       parts.push(win.getComputedStyle(rootEl).colorScheme || '');
       return parts.join('|');
     };
     lastSig = themeSig();
+    let lastReadAt = -Infinity;
+    const READ_GAP = 1000;
     function readDark() {
       if (destroyed) return;
+      readRuns++; lastReadAt = performance.now();
       lastSig = themeSig();
       const pv = rootEl.style.getPropertyValue('background-color'), pp = rootEl.style.getPropertyPriority('background-color');
       let d = dark, col = null;
@@ -1031,15 +1119,27 @@ void main(){
       if (d !== dark) { dark = d; tone = null; applyTone(); }
       if (AM.widget && AM.widget.retone) AM.widget.retone();
     }
-    const scheduleRead = () => { win.clearTimeout(readT); readT = win.setTimeout(readDark, 300); };
+    // a burst of <head> and <html> / <body> changes ends in one look at the signature, and the read runs only if it changed (and at most once a second)
+    const maybeRead = (force) => {
+      if (destroyed) return;
+      const wait = readGate(themeSig(), lastSig, performance.now(), lastReadAt, READ_GAP, force === true);
+      if (wait < 0) return;
+      if (wait > 0) { win.clearTimeout(readT); readT = win.setTimeout(() => maybeRead(force), wait); return; }
+      forcePending = false;
+      readDark();
+    };
+    let forcePending = false; // sticky: a later, unforced reschedule (a <meta> update within 300 ms) must not drop a forced read
+    const scheduleRead = (force) => { if (force === true) forcePending = true; win.clearTimeout(readT); readT = win.setTimeout(() => maybeRead(forcePending), 300); };
+    const onSchemeChange = () => scheduleRead(true); // the system scheme flipped: CSS media queries may have changed the colours without touching any attribute
 
     function setState(st) {
+      if (destroyed) return;
       if (fluid) st = { season: 'summer', weather: 'clear', tod: 0, live: false, windX: 0, windY: 0 }; // the fixed dark palette
       sky = { season: st.season, weather: st.weather, hour: st.tod, rise: st.rise, set: st.set, live: !!st.live, seasonForced: !!st.seasonForced, t0: performance.now(), wind: [st.windX * 2.2, st.windY || 0] };
       if (reduceMq.matches) curU = null; // no easing without motion: show the new state at once
       if (reduceMq.matches || !raf) frame(performance.now(), .05);
     }
-    function setStrength(v) { const s = clamp(v, .2, 1); if (fluid) fluid.setStrength(s); strength = fluid ? 1 : s; tone = null; applyTone(); } // (the fluid dims itself; its canvas stays opaque black, so the ink never needs the page colour)
+    function setStrength(v) { if (destroyed) return; const s = clamp(v, .2, 1); if (fluid) fluid.setStrength(s); strength = fluid ? 1 : s; tone = null; applyTone(); } // (the fluid dims itself; its canvas stays opaque black, so the ink never needs the page colour)
 
     function frame(now, dt) {
       simT += dt;
@@ -1080,6 +1180,7 @@ void main(){
       decideInk(now, curU);
       if (!Number.isFinite(curInk) || reduceMq.matches) curInk = ink;
       else curInk += (ink - curInk) * kSlow;
+      bandK = bandStep(bandK, inkActive(), kSlow, reduceMq.matches); // no band until the page's text has taken the ink
       shX += (curU.uWind[0] + .45) * dt; shY += curU.uWind[1] * dt; // always a gentle drift, more with real wind
       if (doc.hidden) return; // nothing is drawn while the tab is hidden
       if (fluid) return; // the fluid draws its own canvas; the sky only decided the ink above
@@ -1088,7 +1189,7 @@ void main(){
       for (const key in curU) set1(key, curU[key]);
       set1('uShift', [shX, shY]);
       set1('uFlash', fl); set1('uFlashX', flashX); set1('uBolt', boltOn ? Math.min(.6, rawFlash * 1.6) : 0);
-      set1('uInk', curInk); set1('uVivid', VIVID); set1('uPage', pageColour()); set1('uMix', strength);
+      set1('uInk', curInk * bandK); set1('uVivid', VIVID); set1('uPage', pageColour()); set1('uMix', strength);
       setOpacity();
       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     }
@@ -1122,15 +1223,22 @@ void main(){
     const darkMq = win.matchMedia('(prefers-color-scheme: dark)');
     let api = null;
     const onLost = () => { lost = true; if (api) api.destroy(); if (opts.onLost) opts.onLost(); }; // no preventDefault: the context stays gone, the page is put back as it was
+    // forced colours or "more contrast" switched on while mounted: hand the page back (the caller may mount again when it is off)
+    const plainMqs = PLAIN_QUERIES.map((q) => win.matchMedia(q));
+    const onPlain = () => { if (destroyed || !plainMqs.some((m) => m.matches)) return; if (api) api.destroy(); if (opts.onDisabled) opts.onDisabled(); };
+    for (const m of plainMqs) m.addEventListener('change', onPlain);
     api = {
       setState, setStrength,
+      stats: () => ({ pinned: pinned.size, pinnedDetached: [...pinned.keys()].filter((e) => !e.isConnected).length, queued: islandQueue.size, readRuns }),
       setFrost(v) { frost = !!v; applyFrost(); },
       destroy() {
         if (destroyed) return;
         destroyed = true;
+        if (live === api) live = null;
+        for (const m of plainMqs) m.removeEventListener('change', onPlain);
         stop();
         win.clearInterval(maskTimer); win.clearInterval(sigTimer);
-        islandMo.disconnect(); if (islandRaf) win.cancelAnimationFrame(islandRaf); islandQueue.clear(); win.clearTimeout(hoverT);
+        islandMo.disconnect(); if (islandRaf) win.cancelAnimationFrame(islandRaf); win.clearTimeout(islandTimer); islandQueue.clear(); win.clearTimeout(hoverT);
         doc.removeEventListener('pointerover', onHover, true); doc.removeEventListener('pointerout', onHover, true);
         doc.removeEventListener('focusin', onHover, true); doc.removeEventListener('focusout', onHover, true);
         doc.removeEventListener('transitionend', onTransition, true);
@@ -1141,7 +1249,7 @@ void main(){
         win.clearTimeout(haloTrail);
         restoreBackdrops();
         if (mo) { mo.disconnect(); mo = null; }
-        darkMq.removeEventListener('change', scheduleRead);
+        darkMq.removeEventListener('change', onSchemeChange);
         win.removeEventListener('resize', onWinResize);
         doc.removeEventListener('visibilitychange', onVis);
         reduceMq.removeEventListener('change', onMotion);
@@ -1167,7 +1275,7 @@ void main(){
     doc.addEventListener('visibilitychange', onVis);
     reduceMq.addEventListener('change', onMotion);
     canvas.addEventListener('webglcontextlost', onLost);
-    darkMq.addEventListener('change', scheduleRead);
+    darkMq.addEventListener('change', onSchemeChange);
     // every attribute change on <html> and <body> (ours, data-hr-*, are ignored), and stylesheet / meta swaps in <head>
     mo = new MutationObserver((recs) => { if (recs.some((r) => r.type !== 'attributes' || (r.attributeName || '').indexOf('data-hr-') !== 0)) scheduleRead(); });
     mo.observe(rootEl, { attributes: true });
@@ -1184,8 +1292,9 @@ void main(){
     win.requestAnimationFrame(() => { if (destroyed) return; lastOp = -1; setOpacity(); });
     start();
 
+    live = api;
     return api;
   }
 
-  AM.WeatherSky = { mount, pageIsDark, makeGovernor };
+  AM.WeatherSky = { mount, pageIsDark, makeGovernor, makeBatchQueue, isContentBlock, bandStep, plainLook, readGate, stats: () => (live ? live.stats() : null) };
 })();

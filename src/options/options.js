@@ -59,10 +59,13 @@ function status(msg, ms = 2600) {
   clearTimeout(statusTimer);
   statusTimer = setTimeout(() => { el.textContent = 'All changes saved'; }, ms);
 }
+let dirty = false; // a change is waiting for the 300 ms save delay
 function save() {
   clearTimeout(saveTimer);
+  dirty = true;
   $('#saved').textContent = 'Saving…';
   saveTimer = setTimeout(async () => {
+    dirty = false;
     S = AM.mergeSettings(S);
     remember(S);
     await chrome.storage.local.set({ settings: S });
@@ -72,6 +75,7 @@ function save() {
 }
 async function saveNow() {
   clearTimeout(saveTimer);
+  dirty = false;
   S = AM.mergeSettings(S);
   remember(S);
   await chrome.storage.local.set({ settings: S });
@@ -285,7 +289,7 @@ function readQuotas() {
 const scriptIds = (host) => ['headroom-main-' + host, 'headroom-iso-' + host];
 function sitesPage() {
   const list = S.customSites.length
-    ? `<ul class="sites">${S.customSites.map((s) => `<li><b>${esc(s.host)}</b><span class="muted">${s.limit ? `${s.limit} per ${s.windowHours}h` : `counting, ${s.windowHours}h window`}</span><button class="x" type="button" data-rm-site="${esc(s.host)}" title="Remove site" aria-label="Remove ${esc(s.host)}">×</button></li>`).join('')}</ul>`
+    ? `<ul class="sites">${S.customSites.map((s) => `<li><b>${esc(s.host)}</b><span class="muted">${s.limit ? `${esc(s.limit)} per ${esc(s.windowHours)}h` : `counting, ${esc(s.windowHours)}h window`}</span><button class="x" type="button" data-rm-site="${esc(s.host)}" title="Remove site" aria-label="Remove ${esc(s.host)}">×</button></li>`).join('')}</ul>`
     : '<div class="muted">No extra sites yet.</div>';
   return `${head(PAGES[4], ' Chrome asks for access to <b>that one site only</b>.')}
   ${grid(
@@ -423,6 +427,7 @@ function resultsHtml() {
   return `<header class="page-head"><h1 class="page-h">Results for “${esc(query)}”</h1><p class="page-d">${hits.length} setting${hits.length === 1 ? ' matches' : 's match'}.</p></header>` +
     (cards.length ? grid(...cards) : grid(card('', '<div class="set-row"><div class="muted">Nothing matches. Try “weather”, “limit” or “bar”.</div></div>')));
 }
+let renderSeq = 0;
 async function render() {
   const keepSearch = document.activeElement && document.activeElement.id === 'nav-q' ? [document.activeElement.selectionStart, document.activeElement.selectionEnd] : null;
   const keepNav = navFocus(); // [redesign] keep keyboard focus on the sidebar link
@@ -431,7 +436,9 @@ async function render() {
   refocusNav(keepNav); // [redesign]
   if (keepSearch) { const n = $('#nav-q'); n.focus(); n.setSelectionRange(...keepSearch); }
   const pages = { weather: weatherPage, meter: meterPage, limits: limitsPage, alerts: alertsPage, sites: sitesPage, data: dataPage, help: helpPage };
-  main.innerHTML = query.trim() ? resultsHtml() : await pages[page]();
+  const my = ++renderSeq;
+  const html = query.trim() ? resultsHtml() : await pages[page]();
+  if (my === renderSeq) main.innerHTML = html; // a slower, older render must never overwrite a newer one
 }
 function go(id) { query = ''; page = PAGES.some((p) => p.id === id) ? id : 'weather'; history.replaceState(null, '', '#' + page); render(); scrollTo(0, 0); }
 
@@ -475,7 +482,7 @@ document.addEventListener('click', async (e) => {
       await chrome.storage.local.remove(Object.keys(all).filter((k) => /^(usage|events)\./.test(k) || k === 'notified'));
       return status('Usage data cleared.');
     }
-    case 'copyLog': await navigator.clipboard.writeText($('#log').textContent); return status('Log copied.');
+    case 'copyLog': { const logEl = $('#log'); if (!logEl) return; try { await navigator.clipboard.writeText(logEl.textContent); return status('Log copied.'); } catch { return status('Chrome did not allow copying. Select the text and press Ctrl+C.', 6000); } }
     case 'clearLog': await chrome.storage.local.remove('debug.log'); return render();
   }
 });
@@ -513,6 +520,8 @@ document.addEventListener('input', (e) => {
   else if (t.closest && t.closest('#quotas') && t.dataset.f) commitQuotas();
 });
 document.addEventListener('keydown', (e) => { if (e.key === 'Enter' && e.target.id === 'city') { e.preventDefault(); searchCity(); } });
+// closing the tab inside the 300 ms save delay must not lose the last change
+addEventListener('pagehide', () => { if (dirty && S) saveNow(); });
 addEventListener('hashchange', () => { if (location.hash.slice(1) !== page) go(location.hash.slice(1)); });
 // Is the person typing in a field on this page? Then a re-render would wipe what they are typing: wait.
 const typing = () => { const a = document.activeElement; return !!a && a.closest && a.closest('#main') && (a.tagName === 'TEXTAREA' || (a.tagName === 'INPUT' && /^(text|search|number)$/.test(a.type))); };

@@ -12,7 +12,9 @@ const scheme = args.scheme || 'dark'; // the user's OS is in dark mode while cla
 const PAGE_BG = args.bg || 'oklch(0.985 0.004 286)';
 const shots = args.shots || null;
 const msgs = Array.from({ length: Number(args.msgs || 40) }, (_, i) => `<div class="msg">Message ${i + 1}: lorem ipsum dolor sit amet, consectetur adipiscing elit.</div>`).join('');
-const html = fs.readFileSync(new URL('./fixtures/claude.html', import.meta.url), 'utf8').replace('PAGE_BG', PAGE_BG)
+// --fixture=islands: a different mock page (fixtures/islands.html) for the island / halo scenarios (--bigislands, --chatswitch, ...)
+const fixture = args.fixture || null;
+const html = fs.readFileSync(new URL(`./fixtures/${fixture || 'claude'}.html`, import.meta.url), 'utf8').replace('PAGE_BG', PAGE_BG)
   // --plate=other: the square plate behind the input is a DIFFERENT colour from the page (translucent white) and shorter than the rounded input
   .replace('PLATE_BG', args.plate === 'other' ? 'rgba(255,255,255,.8)' : 'var(--bg-100)')
   .replace('PLATE_CSS', args.plate === 'other' ? '.plate{padding:0 12px}.input{margin:-8px 0;position:relative}' : '').replace('MSGS', msgs);
@@ -54,7 +56,7 @@ try {
   await page.evaluate(() => { const s = document.getElementById('scroller'); s.scrollTop = s.scrollHeight; });
   await page.waitForTimeout(2000);
 
-  Object.assign(out, await page.evaluate(() => {
+  if (!fixture) Object.assign(out, await page.evaluate(() => {
     const alpha = (el) => { const c = getComputedStyle(el).backgroundColor; const m = c.match(/[\d.]+(?=\)$)/); return /rgba|\/|color\(/.test(c) ? (m ? +m[0] : 1) : (c === 'transparent' ? 0 : 1); };
     const ids = ['hdr', 'cOuter', 'cInner', 'plate', 'input', 'toolcard', 'dlg'];
     const bg = Object.fromEntries(ids.map((id) => [id, { css: getComputedStyle(document.getElementById(id)).backgroundColor, alpha: alpha(document.getElementById(id)), marked: document.getElementById(id).hasAttribute('data-hr-sky') }]));
@@ -142,7 +144,7 @@ try {
   // (k) R1 frosted strips: off by default; on, only the cleared edge strips blur what is behind them, and a strip that
   // holds a menu/dialog is left alone (backdrop-filter would re-anchor its position:fixed children).
   // The mock header has a blur of its own, so for it the frost attribute is what is checked.
-  {
+  if (!fixture) {
     const IDS = ['hdr', 'cOuter', 'cInner', 'plate', 'input', 'toolcard', 'dlg'];
     const snap = () => page.evaluate((ids) => Object.fromEntries(ids.map((id) => { const el = document.getElementById(id); const bf = getComputedStyle(el).backdropFilter; return [id, id === 'hdr' ? el.hasAttribute('data-hr-frost') && document.documentElement.hasAttribute('data-hr-frost-on') : /blur/.test(bf)]; })), IDS);
     out.frostDefault = await snap();
@@ -196,6 +198,81 @@ try {
     await set({ weather: false });
     out.switch.off = await look();
   }
+  // (m) 2.0 island / halo scenarios, on fixtures/islands.html (--fixture=islands), light page, clear night (white ink).
+  // The extension's own state (its pin table, queue, counters) lives in the content script's isolated world: read it over CDP.
+  if (fixture === 'islands') {
+    const cdp = await ctx.newCDPSession(page);
+    const worlds = [];
+    cdp.on('Runtime.executionContextCreated', (e) => worlds.push(e.context));
+    await cdp.send('Runtime.enable');
+    const stats = async () => {
+      for (const w of worlds) {
+        try {
+          const r = await cdp.send('Runtime.evaluate', { contextId: w.id, returnByValue: true, expression: 'JSON.stringify(globalThis.Headroom && Headroom.WeatherSky && Headroom.WeatherSky.stats && Headroom.WeatherSky.stats())' });
+          if (r.result && typeof r.result.value === 'string' && r.result.value !== 'null' && r.result.value !== 'undefined') return JSON.parse(r.result.value);
+        } catch {}
+      }
+      return null;
+    };
+    const INK_LIGHT = 'rgb(254, 254, 253)';
+    out.islandsFixture = { inkStart: await page.evaluate(() => document.documentElement.getAttribute('data-hr-ink')), statsAvailable: !!(await stats()) };
+    // (m1) several thousand painted islands added in one frame: none may keep the forced (white) text colour
+    if (args.bigislands) {
+      const n = Number(args.bigislands) > 1 ? Number(args.bigislands) : 8000;
+      await page.evaluate((n) => window.addCards(n), n);
+      const look = () => page.evaluate((INK) => { const c = [...document.querySelectorAll('#col .card')]; return { total: c.length, forced: c.filter((e) => getComputedStyle(e).color === INK).length, marked: c.filter((e) => e.hasAttribute('data-hr-island')).length }; }, INK_LIGHT);
+      let r = await look();
+      const t0 = Date.now();
+      while ((r.forced || r.marked < r.total) && Date.now() - t0 < 30000) { await page.waitForTimeout(500); r = await look(); }
+      out.bigislands = { ...r, settledMs: Date.now() - t0, stats: await stats() };
+    }
+    // (m2) chat switches: the whole conversation replaced twice; pinned colours and island marks must not pile up, and the
+    // extension must not keep the removed elements
+    if (args.chatswitch) {
+      const rounds = [];
+      for (let i = 0; i < 3; i++) {
+        await page.evaluate((n) => window.switchChat(n), 600);
+        await page.waitForTimeout(1500);
+        for (let k = 0, st = await stats(); k < 40 && st && st.queued; k++) { await page.waitForTimeout(500); st = await stats(); } // until the island queue is empty
+        await page.waitForTimeout(1000);
+        const dom = await page.evaluate(() => ({ islands: document.querySelectorAll('[data-hr-island]').length, inline: document.querySelectorAll('[style*="color"]').length }));
+        rounds.push({ ...dom, stats: await stats() });
+      }
+      out.chatswitch = rounds;
+    }
+    // (m3) an island pinned to its colour that turns into a page backdrop must lose its pin
+    if (args.stalepin) {
+      const before = await page.evaluate(() => { const m = document.getElementById('morph'); return { pinnedInline: m.style.getPropertyValue('color'), island: m.hasAttribute('data-hr-island') }; });
+      await page.evaluate(() => { document.getElementById('morph').className = 'backdrop'; });
+      await page.waitForTimeout(6500);
+      const after = await page.evaluate(() => { const m = document.getElementById('morph'); return { inlineColour: m.style.getPropertyValue('color'), island: m.hasAttribute('data-hr-island'), sky: m.hasAttribute('data-hr-sky') }; });
+      out.stalepin = { before, after, stats: await stats() };
+    }
+    // (m4) the halo pass leaves conversation content alone (also when it scrolls behind the composer), but still clears a real plate
+    if (args.haloscope) {
+      await page.evaluate(() => window.addProbes());
+      await page.evaluate(() => { const e = document.getElementById('edit'); e.focus(); });
+      await page.waitForTimeout(4500);
+      await page.evaluate(() => { document.getElementById('scroller').scrollTop = 1e6; });
+      await page.waitForTimeout(2500);
+      out.haloscope = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[data-probe]')].map((e) => [e.getAttribute('data-probe'), e.hasAttribute('data-hr-halo')])));
+      out.haloscopePlate = await page.evaluate(() => ({ plate: document.getElementById('plate').hasAttribute('data-hr-halo'), composer: document.getElementById('composer').hasAttribute('data-hr-halo'), plateAlpha: getComputedStyle(document.getElementById('plate')).backgroundColor }));
+    }
+    // (m5) a burst of unrelated <head> / <body> changes must not make the extension re-read the page's theme over and over
+    if (args.readthrottle) {
+      const s0 = await stats();
+      for (let i = 0; i < 12; i++) {
+        await page.evaluate((i) => { document.head.appendChild(document.createElement('meta')); document.body.setAttribute('aria-busy', String(i % 2)); }, i);
+        await page.waitForTimeout(400);
+      }
+      await page.waitForTimeout(1200);
+      const s1 = await stats();
+      await page.evaluate(() => document.documentElement.classList.add('dark')); // a real theme change still gets read
+      await page.waitForTimeout(2800);
+      const s2 = await stats();
+      out.readthrottle = { noise: s0 && s1 ? s1.readRuns - s0.readRuns : null, themeChange: s1 && s2 ? s2.readRuns - s1.readRuns : null };
+    }
+  }
   // (c) stability: in a steady page nothing is marked / unmarked over and over
   out.markFlips = await page.evaluate(() => new Promise((res) => {
     let n = 0; const mo = new MutationObserver((r) => { n += r.filter((x) => x.attributeName === 'data-hr-sky').length; });
@@ -212,6 +289,19 @@ try {
       for (const id of ['hdr', 'cOuter', 'cInner', 'plate', 'dlg']) res[id] = getComputedStyle(document.getElementById(id)).backgroundColor;
       res.wrapClass = host.shadowRoot.querySelector('.wrap').className;
       res.rootBg = getComputedStyle(document.documentElement).backgroundColor;
+      return res;
+    });
+  }
+  // (n) a theme that changes only through <head> (a <style> added: no attribute on <html>/<body> changes) must still be noticed: the
+  // strips are judged again against the new colour and the meter follows. (1.4.7 saw any <head> change; the 2.0 read gate must too.)
+  if (args.headtheme) {
+    await page.evaluate(() => { const s = document.createElement('style'); s.textContent = ':root{--bg-100:#1f1e1d;--text:#eee}'; document.head.appendChild(s); });
+    await page.waitForTimeout(5000);
+    out.afterHeadTheme = await page.evaluate(() => {
+      const host = document.querySelector('[data-headroom]:not(canvas):not(style)');
+      const res = {};
+      for (const id of ['hdr', 'cOuter', 'cInner', 'plate']) res[id] = getComputedStyle(document.getElementById(id)).backgroundColor;
+      res.wrapClass = host.shadowRoot.querySelector('.wrap').className;
       return res;
     });
   }

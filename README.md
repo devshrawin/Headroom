@@ -122,6 +122,7 @@ docs/                         privacy policy, store listing and checklist, secur
 ```bash
 npm test            # node --test, no dependencies to install
 (cd e2e && npm ci && node run-all.mjs)   # end-to-end: the unpacked extension in real Chromium against a mocked claude.ai (needs Playwright's Chromium)
+(cd e2e && node pages.mjs .. )          # Settings and Welcome at 6 widths in light and dark: errors, overflow, axe accessibility scan, functional checks
 npm run store-zip   # release/<date>/headroom-<version>.zip, the file you upload to the Web Store
 ```
 

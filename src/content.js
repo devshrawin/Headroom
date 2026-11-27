@@ -133,6 +133,15 @@
   let weatherData = null;
   let skyRetries = 0;
   let skyWaitingVisible = false;
+  // A plain look is asked for (forced colours, more contrast): no background. When the preference goes away, bring it back.
+  try {
+    for (const q of ['(forced-colors: active)', '(prefers-contrast: more)']) {
+      const mq = window.matchMedia(q);
+      const back = () => { if (!mq.matches && !AM.dead) applyWeather(); };
+      if (mq.addEventListener) mq.addEventListener('change', back);
+      (AM.onShutdown = AM.onShutdown || []).push(() => { try { mq.removeEventListener('change', back); } catch {} });
+    }
+  } catch {}
   const applyWeather = async () => {
     const token = ++skyToken;
     // The fluid background needs no place and no forecast; the weather sky does.
@@ -169,6 +178,9 @@
             sky = null;
             if (skyRetries < 3) { skyRetries++; setTimeout(applyWeather, 5000); }
           },
+          // Windows high contrast / forced colours (or prefers-contrast: more) switched on while it was running: it has handed the page
+          // back; forget it so it can come back when the setting goes away (see the media query listeners below).
+          onDisabled: () => { sky = null; },
         });
         if (!sky) return;
         skyFluid = fluid;

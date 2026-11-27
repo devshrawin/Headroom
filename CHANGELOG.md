@@ -11,6 +11,20 @@ The big one: a redesigned Settings and Welcome, a second background (Fluid), and
 - **Redesigned Welcome page**: full-width bands, a "five things to know" overview, five steps with pictures that scale with the window and alternate sides, step 4 showing the weather sky and the fluid together.
 - **Fluid background** and the `weatherStyle` setting: see 1.5.0 below (it ships here as part of 2.0.0). It is chosen on the new Settings page, and hides the sky-only cards (place, forecast, "try a look") while it is selected.
 
+### Fixed (the 2.0 bug-fix pass)
+- **Many painted elements after a chat loads or switches.** The queue that decides which elements keep their own text colour is now processed in batches (at most 6,000 elements or about 12 ms a frame) and never dropped. Before, above about 6,000 queued elements the rest were discarded, and those cards could keep the forced text colour (white on white at night). In the test, 1,999 of 8,001 cards were still forced white on the old code and none are now.
+- **Stale pinned colours and a memory leak.** An element that stopped being an island now gets its own colour back at once, and elements that left the page (a chat switch in a single-page app) are forgotten, so old conversations are no longer kept alive.
+- **The halo pass no longer reaches into the conversation.** Tables, rules, blockquotes and inline code that scroll behind the message box keep their borders and backgrounds (before, 11 of 11 probes lost them near the composer).
+- **Text no longer sits on a mis-banded sky while the first scan runs.** The ink band stays off until the text colour is set, then eases in.
+- **Windows high contrast / forced colours and "prefers more contrast"** now get a plain look: no sky or fluid is mounted, one that is running is handed back at once, and it returns when the preference goes away.
+- A cheaper theme re-read (only when the theme actually changed, at most once a second); nothing is stored as a property on the page's own elements any more.
+- **Settings page:** a slow render could overwrite a newer page and show the wrong section under the wrong sidebar item; a change made within 300 ms of closing the tab was lost; "Copy" on the debug log threw when Chrome refused clipboard access; the limit and window hours of added sites were not escaped in the list; the switch's off state had about 1.6:1 contrast against its card (now 3:1 or more).
+- **Fluid:** Sky strength is brightness now (the canvas stays opaque black), so white text stays readable on light pages at any strength; the loop behind it ticks once a second; resizing is debounced; a crash in a frame hands the page back instead of freezing.
+
+### Added (tests)
+- `e2e/pages.mjs`: every Settings page and the Welcome page at 6 widths (360 to 2560) in light and dark, 108 loads, with a console-error, overflow and axe-core accessibility scan, plus 21 functional checks (switches, radios, slider, the Background picker, summaries, search, export and import, restore defaults, Limits rules, keyboard). Its only addition to `e2e/package.json` is the dev dependency `axe-core`.
+- Browser scenarios `islands-big`, `islands-chat` (thousands of painted cards, a chat that is replaced twice, stale pins, halo scope, theme re-read throttling) and nine unit tests for the batch queue and the plain-look rule.
+
 ### Changed
 - Version 2.0.0. Includes everything in 1.4.5, 1.4.6, 1.4.7 and the unreleased 1.5.0 below.
 - Row titles: "Recording" (debug log) and "Alerts" (notifications).
