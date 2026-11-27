@@ -130,9 +130,12 @@
     }
     const ampm = text.match(/\b(\d{1,2})(?::(\d{2}))?\s*([ap])\.?\s*m\b/i);
     const h24 = !ampm && text.match(/\b([01]?\d|2[0-3]):([0-5]\d)\b/);
-    if (!ampm && !h24) return undefined;
-    let h = Number((ampm || h24)[1]);
-    const min = Number((ampm || h24)[2] || 0);
+    // "resets Monday 9 AM", "resets on Fri at 17:00", "resets tomorrow at 9 AM": a day name or "tomorrow" picks the day.
+    const wd = text.match(/\b(sunday|monday|tuesday|wednesday|thursday|friday|saturday|sun|mon|tues?|wed|thu|thurs?|fri|sat)\b/i);
+    const tomorrow = /\btomorrow\b/i.test(text);
+    if (!ampm && !h24 && !wd && !tomorrow) return undefined;
+    let h = ampm || h24 ? Number((ampm || h24)[1]) : 0; // a day with no time of day means the start of that day
+    const min = ampm || h24 ? Number((ampm || h24)[2] || 0) : 0;
     if (ampm) {
       const pm = ampm[3].toLowerCase() === 'p';
       if (h === 12) h = pm ? 12 : 0;
@@ -140,7 +143,12 @@
     }
     const d = new Date(now);
     d.setHours(h, min, 0, 0);
-    if (d.getTime() <= now) d.setDate(d.getDate() + 1);
+    if (wd) {
+      const target = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'].indexOf(wd[1].slice(0, 3).toLowerCase());
+      d.setDate(d.getDate() + ((target - d.getDay() + 7) % 7));
+      if (d.getTime() <= now) d.setDate(d.getDate() + 7);
+    } else if (tomorrow) d.setDate(d.getDate() + 1);
+    else if (d.getTime() <= now) d.setDate(d.getDate() + 1);
     return d.getTime();
   };
 
@@ -182,33 +190,6 @@
     const d = AM.formatClock(m.resetAt, now);
     return m.source === 'estimate' ? `next frees at ${d}` : `resets at ${d}`;
   };
-
-  // Popup layout helpers. Bar meters have a percentage; counters (e.g. "5 left" with no limit) get chips instead.
-  AM.splitMeters = (meters) => {
-    const sorted = AM.sortMeters(meters);
-    return { bars: sorted.filter((m) => AM.pctOf(m) != null), counters: sorted.filter((m) => AM.pctOf(m) == null && AM.meterValue(m)) };
-  };
-
-  AM.STALE_MS = 24 * 3600e3;
-  AM.isStale = (entry, now = Date.now()) => !entry || !entry.updatedAt || now - entry.updatedAt > AM.STALE_MS;
-
-  // One badge per card: "real" if any meter comes from the provider, else "estimate"; mixed cards tag only the estimate rows.
-  AM.cardSource = (meters) => {
-    const src = new Set((meters || []).map((m) => m.source));
-    if (src.has('real') || src.has('banner')) return src.has('estimate') ? 'mixed' : 'real';
-    return src.has('estimate') ? 'estimate' : '';
-  };
-
-  // Fresh cards first, then the one closest to its limit, then provider order.
-  AM.sortEntries = (entries, order, now = Date.now()) => entries.slice().sort((a, b) => {
-    const sa = AM.isStale(a, now) ? 1 : 0;
-    const sb = AM.isStale(b, now) ? 1 : 0;
-    if (sa !== sb) return sa - sb;
-    const pa = AM.pctOf(AM.primaryMeter(a.meters) || {}) ?? -1;
-    const pb = AM.pctOf(AM.primaryMeter(b.meters) || {}) ?? -1;
-    if (pa !== pb) return pb - pa;
-    return order(a.provider) - order(b.provider) || a.name.localeCompare(b.name);
-  });
 
   // Usage level for the glyph, colour and bar pattern: ok under 75, close 75-89, crit 90-99, empty at 100 (or a banner hit), unk = no number.
   AM.usageLevel = (m, pct) => (m && m.source === 'banner' ? 'empty' : pct == null ? 'unk' : pct >= 100 ? 'empty' : pct >= 90 ? 'crit' : pct >= 75 ? 'close' : 'ok');
@@ -278,6 +259,19 @@
   // ---- redaction for anything written to the debug log or copied out as diagnostics ----
   // Emails, bearer tokens, JWTs, UUIDs and long opaque strings are masked. Debug is opt-in and local, but a pasted
   // log should never carry an identity or a credential.
+  // The requests whose 429 really means "you are rate limited": each provider's send and usage endpoints. A 429 from anything
+  // else (a feature-flag service, a suggestions call) must not show the user as limited for an hour.
+  const LIMIT_URLS = [
+    /\/completion(\?|$)/, /\/api\/organizations\/[^/]+\/usage(\?|$)/, // Claude
+    /\/(backend-api|unauth-mweb)\/(f\/)?conversation(\?|$)/, /\/backend-api\/wham\/usage/, /\/sentinel\/chat-requirements/, // ChatGPT
+    /StreamGenerate/, // Gemini
+    /\/rest\/app-chat\/conversations\/(new|[^/]+\/responses)(\?|$)/, /\/ws\/mgw/, /\/rest\/rate-limits/, /GetGrokCreditsConfig/, // Grok
+    /\/rest\/sse\/perplexity_ask/, /\/rest\/rate-limit/, // Perplexity
+    /GetSubscription/, // Kimi
+    /\/c\/api\/chat/, /gql_POST/, // Copilot, Poe
+  ];
+  AM.isLimitEndpoint = (d) => !!d && typeof d.url === 'string' && (LIMIT_URLS.some((re) => re.test(d.url)) || !!(AM.looksLikeSend && AM.looksLikeSend(d)));
+
   AM.redact = (text) => String(text == null ? '' : text)
     .replace(/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/g, '[email]')
     .replace(/\bBearer\s+[A-Za-z0-9._~+/=-]+/gi, 'Bearer [token]')
@@ -329,7 +323,7 @@
   AM.buildExport = (settings, version, now = new Date()) => {
     const s = AM.mergeSettings(settings);
     const keep = {};
-    for (const k of ['widget', 'chatStats', 'meterStyle', 'notify', 'thresholds', 'debug', 'weather', 'weatherUnits', 'weatherStrength', 'quotas', 'customSites']) keep[k] = s[k]; // never the place: that is where you are
+    for (const k of ['widget', 'chatStats', 'meterStyle', 'notify', 'thresholds', 'debug', 'weather', 'weatherUnits', 'weatherStrength', 'weatherStyle', 'frostedStrips', 'quotas', 'customSites']) keep[k] = s[k]; // never the place: that is where you are
     return { app: 'headroom', format: 1, version: version || '', exportedAt: now.toISOString(), settings: keep };
   };
 
@@ -347,9 +341,10 @@
     const s = j.settings;
     const num = (v) => typeof v === 'number' && isFinite(v);
     const out = {};
-    for (const k of ['widget', 'chatStats', 'notify', 'debug', 'weather']) if (typeof s[k] === 'boolean') out[k] = s[k];
+    for (const k of ['widget', 'chatStats', 'notify', 'debug', 'weather', 'frostedStrips']) if (typeof s[k] === 'boolean') out[k] = s[k];
     if (['bar-top', 'bar-bottom', 'bar-left', 'bar-right'].includes(s.meterStyle)) out.meterStyle = s.meterStyle;
     if (s.weatherUnits === 'c' || s.weatherUnits === 'f') out.weatherUnits = s.weatherUnits;
+    if (s.weatherStyle === 'sky' || s.weatherStyle === 'fluid') out.weatherStyle = s.weatherStyle;
     if (typeof s.weatherStrength === 'number' && isFinite(s.weatherStrength)) out.weatherStrength = Math.min(1, Math.max(0.2, s.weatherStrength));
     if (Array.isArray(s.thresholds)) {
       const t = s.thresholds.filter((n) => num(n) && n > 0 && n <= 100).slice(0, 10);

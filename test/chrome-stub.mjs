@@ -28,21 +28,30 @@ export function loadBackground({ storage = makeStorage(), contains = async () =>
   const badges = [];
   const registeredScripts = [];
   const tabsCreated = [];
-  const listeners = { message: [], alarm: [], installed: [], startup: [], activated: [], storageChanged: [], actionClicked: [] };
+  const listeners = { message: [], alarm: [], installed: [], startup: [], activated: [], storageChanged: [], actionClicked: [], notificationClicked: [] };
+  const tabsOpen = []; // tabs the fake browser has open: { id, url, windowId }
+  const tabCalls = [];
+  // a match pattern like https://claude.ai/* or https://*.claude.ai/* against a tab url
+  const matches = (pattern, u) => {
+    const hostPat = pattern.split('://')[1].split('/')[0];
+    const host = new URL(u).hostname;
+    return u.startsWith('https://') && (hostPat.startsWith('*.') ? host.endsWith(hostPat.slice(1)) : host === hostPat);
+  };
   let optionsOpened = 0;
   const executed = [];
   const event = (name) => ({ addListener: (fn) => listeners[name].push(fn) });
   const chrome = {
     runtime: { getURL: (p) => 'chrome-extension://x/' + p, onMessage: event('message'), onInstalled: event('installed'), onStartup: event('startup'), openOptionsPage: async () => { optionsOpened++; } },
     storage: { local: storage, onChanged: event('storageChanged') },
-    notifications: { create: (id, opts) => { notifications.push({ id, ...opts }); } },
+    notifications: { create: (id, opts) => { notifications.push({ id, ...opts }); }, clear: () => {}, onClicked: event('notificationClicked') },
+    windows: { update: async (id, info) => { tabCalls.push({ windowUpdate: id, ...info }); } },
     alarms: { create: (name, info) => { alarms.push({ name, ...info }); }, get: async () => undefined, clear: async () => true, onAlarm: event('alarm') },
     action: {
       onClicked: event('actionClicked'),
       setBadgeText: async (o) => { badges.push({ text: o.text }); },
       setBadgeBackgroundColor: async (o) => { badges.push({ color: o.color }); },
     },
-    tabs: { onActivated: event('activated'), get: async () => ({ url: 'https://claude.ai/chat' }), create: async (o) => { tabsCreated.push(o); } },
+    tabs: { query: async ({ url }) => tabsOpen.filter((t) => (url || []).some((p) => matches(p, t.url))), update: async (id, info) => { tabCalls.push({ tabUpdate: id, ...info }); }, onActivated: event('activated'), get: async () => ({ url: 'https://claude.ai/chat' }), create: async (o) => { tabsCreated.push(o); } },
     scripting: {
       getRegisteredContentScripts: async () => registered,
       registerContentScripts: async (s) => { registeredScripts.push(...s); },
@@ -57,7 +66,7 @@ export function loadBackground({ storage = makeStorage(), contains = async () =>
 
   const settle = () => new Promise((r) => setTimeout(r, 10));
   return {
-    AM: ctx.Headroom, optionsOpened: () => optionsOpened, notifications, alarms, badges, registeredScripts, tabsCreated, listeners, storage, settle, executed,
+    AM: ctx.Headroom, tabsOpen, tabCalls, optionsOpened: () => optionsOpened, notifications, alarms, badges, registeredScripts, tabsCreated, listeners, storage, settle, executed,
     // what content.js sends after each refresh
     async usage(provider, name, meters, problem = null, sender = { tab: { id: 1 } }) {
       listeners.message.forEach((fn) => fn({ type: 'headroom:usage', provider, name, meters, problem }, sender, () => {}));

@@ -1,0 +1,729 @@
+diff -ruN v145/manifest.json ext146/manifest.json
+--- v145/manifest.json	2026-10-31 12:00:00.000000000 +0530
++++ ext146/manifest.json	2026-11-26 17:52:21.800044321 +0530
+@@ -2,7 +2,7 @@
+   "manifest_version": 3,
+   "minimum_chrome_version": "111",
+   "name": "Headroom",
+-  "version": "1.4.5",
++  "version": "1.4.6",
+   "description": "See your AI usage limit as a thin bar on the chat sites you use, with the live weather as a sky behind the chat.",
+   "permissions": [
+     "storage",
+diff -ruN v145/src/core/weather-sky.js ext146/src/core/weather-sky.js
+--- v145/src/core/weather-sky.js	2026-10-31 12:00:00.000000000 +0530
++++ ext146/src/core/weather-sky.js	2026-11-26 17:52:01.655946646 +0530
+@@ -47,8 +47,13 @@
+ uniform float uSunVis,uMoonVis,uMoonPhase,uTwi,uNight,uDay;
+ uniform float uCover,uGloom,uTower,uCirrus,uRain,uSnow,uFog,uHaze,uHalo,uSparkle;
+ uniform float uStars,uMilky,uPetals,uLeaves,uFlash,uFlashX,uBolt,uCalm;
+-uniform float uLift; // light page by day: eases the whole sky toward white (0..1) so grey text on the sidebar and header stays readable
+-uniform float uVeil; // reading-column veil, -1..1: >0 darkens (white text on a bright sky), <0 lightens (dark text on a deep sky)
++// Text on the sky: the page's text that sits straight on the sky is drawn in one ink, dark or white, chosen on the CPU for the
++// sky of the moment. uInk: +1 dark ink, so the sky is kept light (OKLab lightness >= LMIN); -1 white ink, so it is kept dark
++// (<= LMAX); in between while it eases from one to the other. Only lightness is moved, never hue or chroma, so nothing is
++// washed toward white or grey: a deep blue stays a vivid blue, only brighter or deeper. uVivid boosts the chroma on top.
++uniform float uInk, uVivid;
++uniform vec3 uPage;  // the page's own colour: Sky strength below 100% blends the sky toward it, before the ink band is applied
++uniform float uMix;  // Sky strength, .2 .. 1
+ uniform vec2 uWind,uSeed,uShift; // uShift: how far the wind has carried things in all (so a change in wind never makes clouds jump)
+ 
+ float h21(vec2 p){vec3 q=fract(vec3(p.xyx)*.1031);q+=dot(q,q.yzx+33.33);return fract((q.x+q.y)*q.z);}
+@@ -218,6 +223,43 @@
+   return vec4(s*1.4,m);
+ }
+ 
++// ---------- 6. colour: OKLab, gamut mapping, the ink band ----------
++vec3 toLin(vec3 c){return mix(c/12.92,pow((c+.055)/1.055,vec3(2.4)),step(.04045,c));}
++vec3 toSrgb(vec3 c){c=max(c,0.);return mix(c*12.92,1.055*pow(c,vec3(1./2.4))-.055,step(.0031308,c));}
++vec3 toLab(vec3 c){
++  vec3 lms=vec3(.4122214708*c.r+.5363325363*c.g+.0514459929*c.b,.2119034982*c.r+.6806995451*c.g+.1073969566*c.b,.0883024619*c.r+.2817188376*c.g+.6299787005*c.b);
++  lms=pow(max(lms,0.),vec3(1./3.));
++  return vec3(.2104542553*lms.x+.7936177850*lms.y-.0040720468*lms.z,1.9779984951*lms.x-2.4285922050*lms.y+.4505937099*lms.z,.0259040371*lms.x+.7827717662*lms.y-.8086757660*lms.z);
++}
++vec3 fromLab(vec3 c){
++  vec3 lms=vec3(c.x+.3963377774*c.y+.2158037573*c.z,c.x-.1055613458*c.y-.0638541728*c.z,c.x-.0894841775*c.y-1.2914855480*c.z);
++  lms=lms*lms*lms;
++  return vec3(4.0767416621*lms.x-3.3077115913*lms.y+.2309699292*lms.z,-1.2684380046*lms.x+2.6097574011*lms.y-.3413193965*lms.z,-.0041960863*lms.x-.7034186147*lms.y+1.7076147010*lms.z);
++}
++bool inGamut(vec3 c){return all(greaterThanEqual(c,vec3(-.0005)))&&all(lessThanEqual(c,vec3(1.0005)));}
++// out-of-gamut colours keep their lightness and hue and lose only as much chroma as they must (clipping would shift the hue)
++vec3 labToLin(vec3 lab){
++  vec3 c=fromLab(lab);
++  if(inGamut(c))return c;
++  float lo=0.,hi=1.;
++  for(int i=0;i<7;i++){float m=(lo+hi)*.5;if(inGamut(fromLab(vec3(lab.x,lab.yz*m))))lo=m;else hi=m;}
++  return clamp(fromLab(vec3(lab.x,lab.yz*lo)),0.,1.);
++}
++// the lightness band for the ink, with a knee so cloud structure survives in compressed form instead of being flattened:
++// dark ink: [0, LMIN+KNEE] -> [LMIN, LMIN+KNEE]; white ink: [LMAX-KNEE, 1] -> [LMAX-KNEE, LMAX]
++const float LMIN=.64,LMAX=.50,KNEE=.10;
++float bandDark(float L){float t=LMIN+KNEE;return L<t?LMIN+KNEE*(L/t):L;}
++float bandLight(float L){float t=LMAX-KNEE;return L>t?t+KNEE*((L-t)/(1.-t)):L;}
++vec3 inkSafe(vec3 col){
++  vec3 lab=toLab(toLin(clamp(col,0.,1.)));
++  // more boost for the near-greys (rain, overcast, fog), so they read as tinted skies rather than flat grey
++  lab.yz*=uVivid+.8*(1.-smoothstep(0.,.08,length(lab.yz)));
++  float k=clamp(uInk,-1.,1.);
++  if(k>0.)lab.x=mix(lab.x,bandDark(lab.x),k);
++  else if(k<0.)lab.x=mix(lab.x,bandLight(lab.x),-k);
++  return toSrgb(labToLin(lab));
++}
++
+ void main(){
+   vec2 uv=gl_FragCoord.xy/uRes;
+   float asp=uRes.x/uRes.y;
+@@ -226,13 +268,17 @@
+ 
+   vec3 base=skyDome(uv,asp);
+   vec3 col=base;
++  // stars, the sun's and moon's discs and a lightning bolt are small bright points: they are laid on after the ink band
++  // (which would dim them), hidden by whatever covers them in between (vis)
++  vec3 cel=vec3(0.),bolt=vec3(0.);
++  float vis=1.;
+ 
+-  if(uNight>.01)col+=nightSky(uv,asp)*uNight*(1.-smoothstep(.25,.85,uCover))*(1.-.5*calm);
++  if(uNight>.01)cel+=nightSky(uv,asp)*uNight*(1.-smoothstep(.25,.85,uCover))*(1.-.5*calm);
+ 
+   // sun behind everything else
+   float ls=length((uv-uSun)*vec2(asp,1.));
+   col+=uSunCol*(exp(-ls*4.)*.16+exp(-ls*14.)*.28+exp(-ls*55.)*.55)*uSunVis;
+-  col=mix(col,vec3(1.,.99,.96)*1.7,smoothstep(.021,.0175,ls)*uSunVis*(1.-uFog*.85));
++  float sunD=smoothstep(.021,.0175,ls)*uSunVis*(1.-uFog*.85);
+ 
+   // moon: soft atmosphere, a faint 22-degree ice halo in cold, hazy air, then the disc
+   float lm=length((uv-uMoon)*vec2(asp,1.));
+@@ -242,7 +288,7 @@
+     col+=(vec3(.72,.78,.92)*ring+vec3(.06,.03,.01)*exp(-pow((lm-.182)/.012,2.)))*.035*uHalo*uMoonVis;
+   }
+   vec4 mo=moonDisc(uv,asp);
+-  col=mix(col,mo.rgb,mo.a*uMoonVis);
++  mo.a*=uMoonVis;
+ 
+   vec2 Lp=uSunVis>uMoonVis?uSun:uMoon;
+   float Lvis=max(uSunVis,uMoonVis*.55);
+@@ -254,19 +300,21 @@
+     vec2 sp=vec2((uv.x-.5)*asp/pow(hz,.55)*.5,1./hz*.7)*1.6+uSeed*.7+uShift*.035;
+     float stx=fbm(sp,5);
+     vec3 deck=mix(uAmb,mix(uAmb,uLit,.75),smoothstep(.3,.75,stx));
+-    col=mix(col,mix(deck,base,.35),smoothstep(.8,1.,uCover)*.75*(1.-.3*calm));
++    float dk=smoothstep(.8,1.,uCover)*.75*(1.-.3*calm);
++    col=mix(col,mix(deck,base,.35),dk);vis*=1.-dk;
+   }
+   float ci=cirrus(uv,asp);
+-  col=mix(col,uLit*1.02+uGlow*.12*uTwi,ci*.42*(1.-.4*calm));
++  col=mix(col,uLit*1.02+uGlow*.12*uTwi,ci*.42*(1.-.4*calm));vis*=1.-ci*.42*(1.-.4*calm);
+   // keep the open sky open where people read: clouds lean to the top and the side edges
+   float edges=smoothstep(.22,.5,abs(uv.x-.5));
+   float topb=smoothstep(.55,.95,uv.y);
+   float bias=(.05*topb+.05*edges-.09*calm)*(1.-uCover*uCover);
+   vec4 c2=cumulus(uv+vec2(.37,.0),asp,uCover*.8,bias-.03,calm,Lp,Lvis,1.9);
+   c2.rgb=mix(c2.rgb,base,.18);
+-  col=mix(col,c2.rgb,c2.a*.85*(1.-.75*uCover*uCover));
++  float a2=c2.a*.85*(1.-.75*uCover*uCover);
++  col=mix(col,c2.rgb,a2);vis*=1.-a2;
+   vec4 c1=cumulus(uv,asp,uCover,bias,calm,Lp,Lvis,1.1);
+-  col=mix(col,c1.rgb,c1.a);
++  col=mix(col,c1.rgb,c1.a);vis*=1.-c1.a;
+   float cloudA=max(c1.a,c2.a*.85);
+ 
+   // glare on top of the clouds: the sun still burns through thin edges
+@@ -284,7 +332,7 @@
+       float xb=xo+(.56-y)*.22+(vn(vec2(y*48.,9.))-.5)*.008;    // one branch
+       float db=abs(uv.x-xb)*asp;
+       bb+=(exp(-db*db/1.2e-6)*.7+exp(-db*70.)*.12)*step(y,.56)*smoothstep(.36,.5,y);
+-      col+=vec3(.90,.93,1.)*bb*uBolt*smoothstep(.2,.32,y)*(1.-.8*c1.a);
++      bolt+=vec3(.90,.93,1.)*bb*uBolt*smoothstep(.2,.32,y)*(1.-.8*c1.a);
+     }
+   }
+ 
+@@ -298,7 +346,7 @@
+     }
+     f=clamp(.42+f*.55+(1.-uv.y)*.3,0.,1.)*uFog;
+     vec3 fc=uFogCol+uSunCol*(exp(-ls*3.)*.18+exp(-ls*16.)*.35+smoothstep(.03,.026,ls)*.25)*uSunVis+vec3(.6,.65,.75)*(exp(-lm*4.)*.08+exp(-lm*16.)*.12+smoothstep(.03,.026,lm)*.15)*uMoonVis;
+-    col=mix(col,fc,f*.9);
++    col=mix(col,fc,f*.9);vis*=1.-f*.9;
+   }
+ 
+   // rain: fine streaks at four depths and soft curtains below the cloud base
+@@ -338,20 +386,20 @@
+     col=mix(col,d1.rgb*lightK*1.04,d1.a*.6);
+   }
+ 
+-  // the reading column: pull mid-tones gently back towards the open sky
++  // the reading column: pull mid-tones gently back towards the open sky (fewer hard cloud edges behind text)
+   col=mix(col,base+(col-base)*.6,calm*.5);
+-  // targeted veil under the text: the sky stays vivid at the edges, only the reading column is pushed away from the text colour
+-  float cv=calm;
+-  if(uVeil>0.)col=mix(col,col*(1.-.30*uVeil),cv*cv);
+-  else if(uVeil<0.)col=mix(col,mix(col,vec3(1.),.32),cv*cv*-uVeil);
+-  // light pages: a dark sky (storm, overcast, deep blue zenith) is eased toward white everywhere, not only in the reading column
+-  col=mix(col,vec3(1.),uLift);
+   // soft shoulder so glows never clip into flat white
+   col=vec3(col.r<.82?col.r:.82+.18*(1.-exp(-(col.r-.82)/.18)),
+            col.g<.82?col.g:.82+.18*(1.-exp(-(col.g-.82)/.18)),
+            col.b<.82?col.b:.82+.18*(1.-exp(-(col.b-.82)/.18)));
+-  // corners just a touch deeper for depth; never the middle
++  // corners a touch deeper for depth (before the band, so the band still holds in the corners)
+   col*=1.-.10*pow(length((uv-vec2(.5,.45))*vec2(1.,1.2)),2.5);
++  // Sky strength blends toward the page's colour; then the ink band and the colour boost. No white wash anywhere.
++  col=inkSafe(mix(uPage,col,uMix));
++  // the bright points, over the band
++  col+=cel*vis*uMix+bolt*uMix;
++  col=mix(col,vec3(1.,.99,.96),sunD*vis*uMix);
++  col=mix(col,mo.rgb,mo.a*vis*uMix);
+   col+=(h21(gl_FragCoord.xy+fract(uTime)*91.)-.5)/255.;
+   gl_FragColor=vec4(col,1.);
+ }
+@@ -436,12 +484,106 @@
+     sheet.setAttribute('data-headroom', 'weather');
+     sheet.textContent = ':root [' + MARK + '][' + MARK + ']{background-color:transparent !important;background-image:none !important}'
+       + ':root [' + MARK + '][' + MARK + ']::before,:root [' + MARK + '][' + MARK + ']::after{background:none !important}'
+-      // night on a light page: flip the page dark; media is flipped back so it keeps its real colours
+-      + ':root[data-hr-night] body{filter:invert(1) hue-rotate(180deg)}'
+-      // only the outermost media element is flipped back (a <picture><img> would otherwise be inverted three times)
+-      + ':root[data-hr-night] body :is(img,video,canvas,picture,[style*="background-image"]):not(:is(picture,video,[style*="background-image"]) *){filter:invert(1) hue-rotate(180deg)}';
++      // Text straight on the sky takes the ink of the moment: near-black on a light sky, white on a dark one (see decideInk).
++      // Islands, the elements that keep a background of their own (the message box, cards, code, menus, buttons, bubbles),
++      // keep the site's colours, and so does everything inside them. data-hr-ink is only set once the islands are known.
++      + ':root[data-hr-ink=dark]{--hr-ink:rgb(18,19,23)}:root[data-hr-ink=light]{--hr-ink:rgb(254,254,253)}'
++      + ':root[data-hr-ink] body :not([data-hr-island]):not([data-hr-island] *){color:var(--hr-ink) !important}'
++      + ':root[data-hr-ink] body :not([data-hr-island]):not([data-hr-island] *)::placeholder{color:var(--hr-ink) !important;opacity:.7 !important}';
+     (doc.head || rootEl).appendChild(sheet);
+     let destroyed = false;
++    // ---- islands: elements that keep a background of their own (see the ink rule above) ----
++    const ISLAND = 'data-hr-island';
++    let islandsReady = false; // the first full walk has looked at every element
++    // An island without a colour of its own would inherit the ink from the forced text around it (white text on a white card).
++    // Such islands get their original colour back, inline: read before the ink rule was switched on, or else taken from the
++    // nearest island above it, or from the page's own text colour. Islands that set their own colour are left alone. The inks
++    // are odd values (no site uses exactly them), so "this island's colour is the ink" means it is only inherited.
++    const INK_DARK = 'rgb(18, 19, 23)', INK_LIGHT = 'rgb(254, 254, 253)';
++    const islandOrig = new WeakMap(); // island -> its colour as the site set it
++    const pinned = new Map();         // island -> [inline color before, priority]: what to put back
++    let siteInk = '';                 // the page's own text colour (<body>), read with our rules off
++    const inkActive = () => rootEl.hasAttribute('data-hr-ink');
++    function pinIsland(el) {
++      if (!inkActive() || pinned.has(el)) return;
++      let c;
++      try { c = win.getComputedStyle(el).color; } catch { return; }
++      if (c !== INK_DARK && c !== INK_LIGHT) return; // it has a colour of its own
++      let orig = islandOrig.get(el);
++      for (let a = el.parentElement; !orig && a && a !== doc.body; a = a.parentElement) if (a.hasAttribute(ISLAND)) orig = islandOrig.get(a) || (pinned.has(a) ? a.style.getPropertyValue('color') : '');
++      orig = orig || siteInk;
++      if (!orig || orig === INK_DARK || orig === INK_LIGHT) return;
++      pinned.set(el, [el.style.getPropertyValue('color'), el.style.getPropertyPriority('color')]);
++      el.style.setProperty('color', orig, 'important');
++    }
++    function unpinIsland(el) {
++      const prev = pinned.get(el);
++      if (!prev) return;
++      pinned.delete(el);
++      if (prev[0]) el.style.setProperty('color', prev[0], prev[1]); else el.style.removeProperty('color');
++    }
++    function checkIsland(el) {
++      if (!el || el.nodeType !== 1 || el === canvas || el === rootEl || el === doc.body || el.namespaceURI !== 'http://www.w3.org/1999/xhtml') return;
++      if (el.hasAttribute('data-headroom')) return;
++      let cs;
++      try { cs = win.getComputedStyle(el); } catch { return; }
++      // cleared by us (it reads transparent now, but say so explicitly) or painted: a solid fill, a gradient or an image
++      const cleared = el.hasAttribute(MARK) || el.hasAttribute('data-hr-halo');
++      const painted = (s) => alphaOf(s.backgroundColor) >= .5 || (!!s.backgroundImage && s.backgroundImage !== 'none');
++      // a card can also be drawn by the element's own ::before / ::after placed behind its text
++      const pseudo = (which) => { const p = win.getComputedStyle(el, which); return p.content !== 'none' && p.content !== 'normal' && p.position === 'absolute' && painted(p); };
++      const is = !cleared && (painted(cs) || pseudo('::before') || pseudo('::after'));
++      if (is && !inkActive() && !pinned.has(el)) islandOrig.set(el, cs.color);
++      if (is !== el.hasAttribute(ISLAND)) {
++        if (is) el.setAttribute(ISLAND, '');
++        else { el.removeAttribute(ISLAND); unpinIsland(el); }
++      }
++      if (is) pinIsland(el);
++    }
++    // New content (a reply streaming in with a code block, a menu opening) and class or style changes are looked at in the next
++    // animation frame, before it is painted: a new white card never shows white-on-white text, not even for a frame.
++    const islandQueue = new Set();
++    let islandRaf = 0;
++    const flushIslands = () => {
++      islandRaf = 0;
++      if (destroyed) { islandQueue.clear(); return; }
++      let n = 0;
++      for (const el of islandQueue) {
++        if (n > 6000) break;
++        if (!el.isConnected) continue;
++        checkIsland(el); n++;
++        if (el.__hrDeep) {
++          el.__hrDeep = false;
++          const all = el.getElementsByTagName('*');
++          for (let i = 0; i < all.length && n < 6000; i++, n++) checkIsland(all[i]);
++        }
++      }
++      islandQueue.clear();
++    };
++    // Hover, focus and transitions change backgrounds without changing classes (a sidebar row lights up under the pointer):
++    // look at the element and a few ancestors at once and again when a fade-in has finished.
++    let hoverT = 0;
++    const queueUp = (t, n) => {
++      if (destroyed || !t || t.nodeType !== 1) return;
++      for (let a = t, i = 0; a && a !== doc.body && a !== rootEl && i < n; a = a.parentElement, i++) islandQueue.add(a);
++      if (!islandRaf) islandRaf = win.requestAnimationFrame(flushIslands);
++    };
++    const onHover = (e) => {
++      if (!inkActive()) return;
++      const t = e.target;
++      queueUp(t, 5);
++      win.clearTimeout(hoverT);
++      hoverT = win.setTimeout(() => queueUp(t, 5), 220);
++    };
++    const onTransition = (e) => { if (inkActive()) queueUp(e.target, 1); };
++    const islandMo = new MutationObserver((recs) => {
++      if (destroyed) return;
++      for (const r of recs) {
++        if (r.type === 'childList') { for (const nd of r.addedNodes) if (nd.nodeType === 1) { nd.__hrDeep = true; islandQueue.add(nd); } }
++        else if (r.target.nodeType === 1) islandQueue.add(r.target);
++      }
++      if (islandQueue.size && !islandRaf) islandRaf = win.requestAnimationFrame(flushIslands);
++    });
+     const marked = new Set();     // full-screen / bar backdrops: marked once
+     const bandMarked = new Set(); // edge bands: re-validated on every scan, unmarked when they stop qualifying
+     const tintMarked = new Set(); // wide strips painted in the page's own colour (headers, composer strips): re-validated by shape
+@@ -497,7 +639,9 @@
+       if (!pinned) return false;
+       return !el.closest(OVERLAY_SEL);
+     }
+-    function visit(el, vw, vh) {
++    // fresh: ignore the cache. The on-screen pass always reads current styles: :focus-within, :hover and scroll-state rules change
++    // an element's paint without changing its classes, size or position, so a cached "nothing to clear" would go stale.
++    function visit(el, vw, vh, fresh) {
+       if (marked.has(el) || bandMarked.has(el) || tintMarked.has(el) || el === canvas || el === rootEl || el.namespaceURI !== XHTML) return;
+       const r = el.getBoundingClientRect();
+       if (r.width < 8 || r.height < 8) return;
+@@ -505,7 +649,7 @@
+       // position only matters at the top and bottom edges (bandShape); elsewhere, scrolling must not invalidate the cache
+       const edge = r.top <= 3 ? 't' + Math.round(r.top) : r.bottom >= vh - 3 ? 'b' + Math.round(vh - r.bottom) : 'm';
+       const sig = (el.getAttribute('class') || '') + '|' + (el.getAttribute('style') || '').length + '|' + edge + '|' + Math.round(r.width) + ',' + Math.round(r.height);
+-      if (scanSeen.get(el) === sig) return;
++      if (!fresh && scanSeen.get(el) === sig) return;
+       scanSeen.set(el, sig);
+       if (el.closest(OVERLAY_SEL)) return; // never clear anything inside a dialog, menu, tooltip or alert
+       // a page backdrop: most of the screen, or as tall as it. Width-only bars (headers, composer strips) go through bandShape.
+@@ -520,13 +664,137 @@
+         if (isBacking(cs) || isBacking(pre) || isBacking(post)) {
+           // the first full-screen backdrop tells us the page colour when <body> and <html> carry none
+           if (full && !pageRGB) { const c = rgbaOf(cs.backgroundColor); if (c && c[3] >= .9) { pageRGB = c; scanSeen = new WeakMap(); } }
+-          (full ? marked : bandMarked).add(el); el.setAttribute(MARK, '');
++          (full ? marked : bandMarked).add(el); el.setAttribute(MARK, ''); el.removeAttribute(ISLAND);
+           if (!full && edgeTouch(r, vh)) el.setAttribute(FROST, '');
+           return;
+         }
+       }
+-      if (strip && !rounded(cs) && (pageTinted(cs) || pageTinted(pre) || pageTinted(post))) { tintMarked.add(el); el.setAttribute(MARK, ''); if (edgeTouch(r, vh)) el.setAttribute(FROST, ''); }
++      // (a rounded ::before / ::after behind the text is a card, not a strip: it keeps its paint)
++      if (strip && !rounded(cs) && (pageTinted(cs) || (pageTinted(pre) && !rounded(pre)) || (pageTinted(post) && !rounded(post)))) { tintMarked.add(el); el.setAttribute(MARK, ''); el.removeAttribute(ISLAND); if (edgeTouch(r, vh)) el.setAttribute(FROST, ''); }
++    }
++    // ---- the message box's surroundings ----
++    // Sites paint the space right around their message box in the page colour: a plate behind it, a frame that only appears
++    // while the conversation is scrolled up (it hides text passing beside the box), a border, a spread box-shadow ring, an
++    // outline or a pseudo-element. Over the sky each of those shows as a pale shape around the box, and their colour is often
++    // not exactly the page colour. So instead of matching colours, the box itself is found (the rounded, painted box around
++    // the text field), and every kind of paint on the elements that hug it is switched off through the stylesheet. Because the
++    // marks sit on the elements and not on their current look, a plate or frame that only appears later (on focus, on scroll)
++    // is already neutralised the moment it appears. The box keeps its own look; menus and dialogs are never touched.
++    const HALO = 'data-hr-halo';     // background, border and box-shadow off (the ancestors, plates and gutters hugging the box)
++    const HALO_P = 'data-hr-halo-p'; // the box's own ::before / ::after off (a plate drawn as the box's pseudo-element)
++    const HALO_O = 'data-hr-halo-o'; // a thick (4 px+) outline off; thin outlines are focus indicators and stay
++    sheet.textContent += ':root [' + HALO + '][' + HALO + ']{background-color:transparent !important;background-image:none !important;border-color:transparent !important;box-shadow:none !important}'
++      + ':root [' + HALO + '][' + HALO + ']::before,:root [' + HALO + '][' + HALO + ']::after,:root [' + HALO_P + '][' + HALO_P + ']::before,:root [' + HALO_P + '][' + HALO_P + ']::after{background:none !important;border-color:transparent !important;box-shadow:none !important}'
++      + ':root [' + HALO_O + '][' + HALO_O + ']{outline-color:transparent !important}';
++    const EDIT_SEL = 'textarea,[contenteditable="true"],[contenteditable=""],[contenteditable="plaintext-only"],[role=textbox]';
++    const INTERACTIVE = 'button,a[href],input,select,textarea,[role=button],[role=link],[role=tab],[role=switch],[role=checkbox],[contenteditable]';
++    const HUG = 72; // how far past the box's sides an element may reach and still count as hugging it (px)
++    const radiusOf = (cs) => Math.max(parseFloat(cs.borderTopLeftRadius) || 0, parseFloat(cs.borderTopRightRadius) || 0, parseFloat(cs.borderBottomLeftRadius) || 0, parseFloat(cs.borderBottomRightRadius) || 0);
++    const paintsBox = (cs) => alphaOf(cs.backgroundColor) >= .5 || (cs.backgroundImage || '').indexOf('gradient') >= 0
++      || ['Top', 'Right', 'Bottom', 'Left'].some((s) => parseFloat(cs['border' + s + 'Width']) >= .5 && alphaOf(cs['border' + s + 'Color']) >= .15);
++    const pseudoPaints = (el) => [win.getComputedStyle(el, '::before'), win.getComputedStyle(el, '::after')].some((p) => p.content && p.content !== 'none' && (alphaOf(p.backgroundColor) > 0 || (p.backgroundImage || '').indexOf('gradient') >= 0 || (p.boxShadow && p.boxShadow !== 'none')));
++    const haloMarks = new Map(); // element -> the tick it was last confirmed as hugging a box
++    let haloTick = 0;
++    const keepHalo = (el, attr) => {
++      if (!el.hasAttribute(attr)) { el.setAttribute(attr, ''); if (attr === HALO) el.removeAttribute(ISLAND); }
++      haloMarks.set(el, haloTick);
++    };
++    // The message box around a text field: the outermost rounded, painted ancestor (up to 12 levels) that is still
++    // composer-sized (not the whole panel). Null for small fields (a sidebar search box) and anything inside a menu or dialog.
++    function boxFor(edit, vw, vh) {
++      let box = null;
++      for (let a = edit, i = 0; a && a !== doc.body && a !== rootEl && i < 12; a = a.parentElement, i++) {
++        const r = a.getBoundingClientRect();
++        if (r.width > vw * .95 || r.height > vh * .6) break;
++        if (box && r.width > box.r.width + 2 * HUG) break; // past the box's surroundings
++        const cs = win.getComputedStyle(a);
++        if (radiusOf(cs) >= 6 && paintsBox(cs)) box = { el: a, r };
++      }
++      return box && box.r.width >= Math.min(300, vw * .25) ? box : null;
++    }
++    function hugBox(box, b, vw, vh) {
++      const limH = b.height + vh * .5;
++      const hugs = (r) => r.left >= b.left - HUG && r.right <= b.right + HUG && r.height <= limH;
++      const outline = (el, cs) => { if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 4) keepHalo(el, HALO_O); };
++      // 1. the box's ancestors that hug it: its plate, frame, column, the composer strip
++      const ancestors = [];
++      for (let a = box.parentElement, i = 0; a && a !== doc.body && a !== rootEl && i < 10; a = a.parentElement, i++) {
++        if (!hugs(a.getBoundingClientRect()) || a.closest(OVERLAY_SEL)) break;
++        ancestors.push(a); keepHalo(a, HALO); outline(a, win.getComputedStyle(a));
++      }
++      // 2. square plates next to it: wide children of those ancestors (painted or not yet: a :focus-within plate is still bare)
++      for (const a of ancestors) {
++        let n = 0;
++        for (const c of a.children) {
++          if (++n > 40) break;
++          if (c === box || c.contains(box) || c.matches(OVERLAY_SEL) || c.matches(INTERACTIVE)) continue;
++          const r = c.getBoundingClientRect();
++          if (r.width < b.width * .8 || !hugs(r)) continue;
++          const cs = win.getComputedStyle(c);
++          if (radiusOf(cs) >= 6) continue; // a rounded card or tray next to the box keeps its look
++          keepHalo(c, HALO); outline(c, cs);
++        }
++      }
++      // 3. whatever is hit just outside the box: side gutters, plates drawn by cousins, the box's own pseudo-elements
++      const ys = [b.top + 8, b.top + b.height / 2, b.bottom - 8, b.bottom + 12, (b.bottom + vh) / 2];
++      const pts = [];
++      for (const y of ys) for (const x of [b.left - 6, b.left - 20, b.right + 6, b.right + 20]) pts.push([x, y]);
++      for (const x of [b.left + 24, b.left + b.width / 2, b.right - 24]) { pts.push([x, b.top - 2]); pts.push([x, b.bottom + 2]); }
++      for (const [x, y] of pts) {
++        if (x < 0 || y < 0 || x >= vw || y >= vh) continue;
++        let stack;
++        try { stack = doc.elementsFromPoint(x, y); } catch { continue; }
++        for (const e of stack) {
++          if (e === canvas || e === rootEl || e === doc.body || marked.has(e)) break; // reached the page backdrop
++          if (e.hasAttribute('data-headroom') || e.namespaceURI !== XHTML) continue;
++          // (once marked, the pseudo-element's paint reads as none: keep confirming the mark, or it would come and go)
++          if (e === box) { if (box.hasAttribute(HALO_P) || pseudoPaints(box)) keepHalo(box, HALO_P); continue; }
++          if (box.contains(e) || e.closest(OVERLAY_SEL)) continue;
++          const r = e.getBoundingClientRect();
++          if (r.width * r.height >= vw * vh * .5) break;
++          if (e.contains(box)) { if (hugs(r)) keepHalo(e, HALO); continue; }
++          if (!hugs(r) || e.matches(INTERACTIVE) || e.closest(INTERACTIVE)) continue;
++          const cs = win.getComputedStyle(e);
++          if (radiusOf(cs) >= 6) continue;
++          keepHalo(e, HALO); outline(e, cs);
++        }
++      }
+     }
++    function haloPass() {
++      if (destroyed || !doc.body) return;
++      const vw = win.innerWidth, vh = win.innerHeight;
++      haloTick++;
++      let edits = [];
++      try { edits = Array.prototype.slice.call(doc.querySelectorAll(EDIT_SEL), 0, 12); } catch {}
++      const ae = doc.activeElement;
++      if (ae && ae.matches && ae.matches(EDIT_SEL) && edits.indexOf(ae) < 0) edits.push(ae);
++      const done = new Set();
++      for (const ed of edits) {
++        const er = ed.getBoundingClientRect();
++        if (er.width < 40 || er.height < 10 || er.bottom < 0 || er.top > vh || ed.closest(OVERLAY_SEL)) continue;
++        const box = boxFor(ed, vw, vh);
++        if (!box || done.has(box.el)) continue;
++        done.add(box.el);
++        hugBox(box.el, box.r, vw, vh);
++      }
++      // Marks stay while they keep being confirmed. A gutter that is display:none right now (it only shows while scrolled)
++      // keeps its mark, so it is already neutralised when it reappears.
++      for (const [el, t] of haloMarks) {
++        const gone = !el.isConnected;
++        const hidden = !gone && el.getClientRects().length === 0;
++        if (gone || (!hidden && haloTick - t > 3)) { el.removeAttribute(HALO); el.removeAttribute(HALO_P); el.removeAttribute(HALO_O); haloMarks.delete(el); if (!gone) checkIsland(el); }
++      }
++    }
++    // Plates and frames often appear on focus or on scroll; look again in the next animation frame, after the page's own
++    // handlers have run and before anything is painted, so a newly shown gutter never flashes.
++    let haloRaf = 0, haloLast = 0, haloTrail = 0;
++    const haloSoon = () => {
++      if (destroyed) return;
++      win.clearTimeout(haloTrail);
++      haloTrail = win.setTimeout(haloPass, 160); // and once more when the scrolling stops
++      if (haloRaf || performance.now() - haloLast < 120) return;
++      haloRaf = win.requestAnimationFrame(() => { haloRaf = 0; haloLast = performance.now(); haloPass(); });
++    };
+     // The scan runs in ~4 ms slices (idle time when available) and resumes where it stopped: no element cap.
+     let scanNodes = null, scanI = 0, scanHandle = 0, scanIdle = false;
+     const schedule = (fn) => {
+@@ -546,9 +814,13 @@
+         const el = scanI < 0 ? doc.body : all[scanI]; // the body itself is often what paints the page colour
+         scanI++;
+         visit(el, vw, vh);
++        if (!islandsReady) checkIsland(el);
+         if ((++c & 15) === 0 && performance.now() - t0 > 4) break;
+       }
+-      if (scanI >= all.length) scanNodes = null; else schedule(scanSlice);
++      if (scanI >= all.length) {
++        scanNodes = null;
++        if (!islandsReady) { islandsReady = true; applyInk(); }
++      } else schedule(scanSlice);
+     }
+     // What is on screen first: the stacks under a grid of points (edges included) cover the header, the composer strip and
+     // the page backdrops in a few dozen hit tests. It runs on every tick, even while a full walk is still under way: on a
+@@ -557,7 +829,7 @@
+       try {
+         const seenNow = new Set();
+         for (const fx of [.02, .25, .5, .75, .98]) for (const fy of [.004, .03, .08, .3, .6, .9, .95, .985, .996]) {
+-          for (const el of doc.elementsFromPoint(fx * vw, fy * vh)) if (!seenNow.has(el)) { seenNow.add(el); visit(el, vw, vh); }
++          for (const el of doc.elementsFromPoint(fx * vw, fy * vh)) if (!seenNow.has(el)) { seenNow.add(el); visit(el, vw, vh, true); checkIsland(el); }
+         }
+       } catch {}
+     }
+@@ -567,18 +839,19 @@
+       const vw = win.innerWidth, vh = win.innerHeight;
+       // the on-screen pass runs every tick; the full walk (for whatever the grid misses) every third tick, or when forced
+       const walk = force === true || ++ticks % 3 === 1;
++      haloPass();
+       if (scanNodes || !walk) { visibleFirst(vw, vh); return; }
+       // drop detached nodes, and let bands go that stopped qualifying
+       for (const el of marked) if (!el.isConnected) { el.removeAttribute(MARK); marked.delete(el); }
+       for (const el of bandMarked) {
+         if (!el.isConnected) { el.removeAttribute(MARK); bandMarked.delete(el); continue; }
+-        if (!bandShape(el, el.getBoundingClientRect(), vw, vh)) { el.removeAttribute(MARK); el.removeAttribute(FROST); bandMarked.delete(el); scanSeen.delete(el); }
++        if (!bandShape(el, el.getBoundingClientRect(), vw, vh)) { el.removeAttribute(MARK); el.removeAttribute(FROST); bandMarked.delete(el); scanSeen.delete(el); checkIsland(el); }
+       }
+       // tinted strips: their colour cannot be re-read while cleared, so only their shape is re-checked
+       for (const el of tintMarked) {
+         if (!el.isConnected) { el.removeAttribute(MARK); tintMarked.delete(el); continue; }
+         const r = el.getBoundingClientRect();
+-        if ((r.width || r.height) && (!stripShape(r, vw, vh) || el.closest(OVERLAY_SEL) || rounded(win.getComputedStyle(el)))) { el.removeAttribute(MARK); el.removeAttribute(FROST); tintMarked.delete(el); scanSeen.delete(el); }
++        if ((r.width || r.height) && (!stripShape(r, vw, vh) || el.closest(OVERLAY_SEL) || rounded(win.getComputedStyle(el)))) { el.removeAttribute(MARK); el.removeAttribute(FROST); tintMarked.delete(el); scanSeen.delete(el); checkIsland(el); }
+       }
+       visibleFirst(vw, vh);
+       scanNodes = doc.body.querySelectorAll('*'); scanI = -1;
+@@ -591,8 +864,14 @@
+       for (const el of tintMarked) el.removeAttribute(MARK);
+       marked.clear(); bandMarked.clear(); tintMarked.clear(); scanSeen = new WeakMap();
+       for (const el of doc.querySelectorAll('[' + MARK + '],[' + FROST + ']')) { el.removeAttribute(MARK); el.removeAttribute(FROST); }
++      for (const el of haloMarks.keys()) { el.removeAttribute(HALO); el.removeAttribute(HALO_P); el.removeAttribute(HALO_O); }
++      haloMarks.clear();
++      for (const el of doc.querySelectorAll('[' + HALO + '],[' + HALO_P + '],[' + HALO_O + ']')) { el.removeAttribute(HALO); el.removeAttribute(HALO_P); el.removeAttribute(HALO_O); }
+       rootEl.removeAttribute('data-hr-night');
+       rootEl.removeAttribute('data-hr-frost-on');
++      rootEl.removeAttribute('data-hr-ink');
++      for (const el of [...pinned.keys()]) unpinIsland(el);
++      for (const el of doc.querySelectorAll('[' + ISLAND + ']')) el.removeAttribute(ISLAND);
+       sheet.remove();
+       if (rootPrev[0]) rootEl.style.setProperty('background-color', rootPrev[0], rootPrev[1]); else rootEl.style.removeProperty('background-color');
+     };
+@@ -632,60 +911,62 @@
+     };
+     const onWinResize = () => resize();
+ 
+-    // A light page at night gets the real night sky, and the page is flipped to a dark look (the usual invert + hue-rotate
+-    // trick, with images, video and canvases flipped back so photos keep their colours). It is only used when the page itself
+-    // does not scroll and whose <body> covers the window, because a filter on <body> becomes the containing block of the
+-    // fixed parts inside it (they would move with a page that scrolls, or sit in the wrong place in a short body).
+-    let pure = false, lastNight = 0, noPure = false;
+-    const docScrolls = () => rootEl.scrollHeight > win.innerHeight + 4;
+-    const bodyCovers = () => {
+-      if (!doc.body) return false;
+-      const r = doc.body.getBoundingClientRect();
+-      return r.left <= 2 && r.top <= 2 && r.right >= win.innerWidth - 2 && r.bottom >= win.innerHeight - 2;
+-    };
+-    function setPure(on) {
+-      if (on === pure) return;
+-      pure = on;
+-      if (on) { rootEl.setAttribute('data-hr-night', ''); clearBackdrops(true); }
+-      else rootEl.removeAttribute('data-hr-night');
+-      if (AM.widget && AM.widget.retone) AM.widget.retone(); // the meter follows the page's look
+-      lastOp = -1; lastFilter = ""; setOpacity(lastNight);
+-    }
+-    // layout-reading checks are cached (read at mount and every 1.5 s), never per frame
+-    let scrolls = docScrolls(), covers = bodyCovers();
+-    const keepTimer = win.setInterval(() => {
+-      scrolls = docScrolls(); covers = bodyCovers();
+-      if (!pure) return;
+-      if (scrolls) { noPure = true; setPure(false); }
+-      else if (!covers) setPure(false);
+-    }, 1500);
+-
+-    let lastOp = -1, lastFilter = "";
+-    // How the canvas is shown. night: 0 (day) .. 1 (night). The canvas itself keeps its natural look (light page by day: full
+-    // strength; dark page by day: brightness .92); text contrast comes from the shader's targeted veil (uVeil) in the reading
+-    // column only. Veil maths (see frame): Ls = max(luma(uMid), luma(uHor)), linearised relative luminance of the eased sky.
+-    // Dark page: +clamp((Ls-.04)/.28,0,1)*(1-night) darkens the column by up to 62%. Light page: -clamp((.9-Ls)/.6,0,1)*(1-night)
+-    // lightens it towards white by up to 62%. Night and flipped (pure) pages: 0. At dusk and night a light page still fades.
+-    function setOpacity(night) {
+-      lastNight = night;
+-      if (!dark && (night > .55 && !pure && !noPure && !scrolls && covers || night < .4 && pure)) { setPure(night > .55); return; }
+-      const deep = dark || pure;
+-      const o = strength * (deep ? .96 : 1 - .68 * night);
+-      const f = dark ? 'brightness(' + (.92 + .08 * night).toFixed(2) + ')'
+-        : pure ? 'brightness(' + (1 - .14 * (1 - night)).toFixed(2) + ')'
+-        : night > .02 ? 'brightness(' + (1 + 2.2 * night).toFixed(2) + ') saturate(.8)' : 'none';
+-      if (Math.abs(o - lastOp) > .01 || f !== lastFilter) {
+-        lastOp = o; lastFilter = f; canvas.style.opacity = String(o); canvas.style.filter = f;
+-      }
++    // The canvas is always shown whole, in its own colours: no fade by night, no brightness or saturation filter. Sky strength and
++    // the page's colour are blended inside the shader (uMix, uPage), before the ink band, so text contrast holds at any strength.
++    // (1.4.5 and earlier faded and washed the sky toward white for dark text, and inverted light pages at night; now the text
++    // follows the sky instead, see decideInk.)
++    let lastOp = -1;
++    function setOpacity() {
++      if (lastOp === 1) return;
++      lastOp = 1; canvas.style.opacity = '1'; canvas.style.filter = 'none';
+     }
+     function applyTone() {
+       const t = dark ? 'dark' : 'light';
+       if (t === tone) return;
+       tone = t;
+-      if (dark && pure) setPure(false);
+       canvas.style.mixBlendMode = 'normal';
+-      lastOp = -1;
+-      setOpacity(lastNight);
++      setOpacity();
++    }
++
++    // ---- ink: the colour of the text that sits straight on the sky ----
++    // Whichever of the two inks needs the smaller lightness change to the sky wins: OKLab lightness is sampled at the top,
++    // middle and horizon of the sky as it will be drawn (clouds, fog and Sky strength included), and each ink's cost is how far
++    // those samples sit outside its band (dark ink needs L >= LMIN, white ink L <= LMAX; the shader holds the same values).
++    // A change of ink must win clearly (by .02) for 2.5 s, so the text never flickers at dusk.
++    const LMIN = .64, LMAX = .50, VIVID = 1.4;
++    const s2l = (c) => (c <= .04045 ? c / 12.92 : Math.pow((c + .055) / 1.055, 2.4));
++    const okL = (c) => {
++      const r = s2l(clamp(c[0], 0, 1)), g = s2l(clamp(c[1], 0, 1)), b = s2l(clamp(c[2], 0, 1));
++      const l = Math.cbrt(.4122214708 * r + .5363325363 * g + .0514459929 * b), m = Math.cbrt(.2119034982 * r + .6806995451 * g + .1073969566 * b), s = Math.cbrt(.0883024619 * r + .2817188376 * g + .6299787005 * b);
++      return .2104542553 * l + .7936177850 * m - .0040720468 * s;
++    };
++    const mixv = (a, b, k) => [a[0] + (b[0] - a[0]) * k, a[1] + (b[1] - a[1]) * k, a[2] + (b[2] - a[2]) * k];
++    const pageColour = () => (pageRGB ? [pageRGB[0] / 255, pageRGB[1] / 255, pageRGB[2] / 255] : dark ? [.078, .078, .11] : [1, 1, 1]);
++    let ink = 0, inkWant = 0, inkSince = 0, curInk = NaN;
++    function inkCosts(u) {
++      const page = pageColour();
++      const cloud = mixv(u.uAmb, u.uLit, .55), cov = clamp(u.uCover, 0, 1) * .7, fog = clamp(u.uFog, 0, 1) * .6;
++      let dk = 0, lt = 0;
++      for (const [c, w] of [[u.uTop, .25], [u.uMid, .45], [u.uHor, .3]]) {
++        const L = okL(mixv(page, mixv(mixv(c, cloud, cov), u.uFogCol, fog), strength));
++        dk += w * Math.max(0, LMIN - L); lt += w * Math.max(0, L - LMAX);
++      }
++      return { dark: dk, light: lt };
++    }
++    function applyInk() {
++      if (destroyed || !ink || !islandsReady) return;
++      const first = !inkActive();
++      if (first && !siteInk && doc.body) siteInk = win.getComputedStyle(doc.body).color;
++      rootEl.setAttribute('data-hr-ink', ink > 0 ? 'dark' : 'light');
++      if (first) for (const el of doc.querySelectorAll('[' + ISLAND + ']')) pinIsland(el);
++    }
++    function decideInk(now, u) {
++      const c = inkCosts(u);
++      const want = c.dark <= c.light ? 1 : -1;
++      if (!ink) { ink = want; applyInk(); return; }
++      if (want === ink || Math.abs(c.dark - c.light) < .02) { inkWant = 0; return; }
++      if (inkWant !== want) { inkWant = want; inkSince = now; }
++      if (reduceMq.matches || now - inkSince > 2500) { inkWant = 0; ink = want; applyInk(); }
+     }
+ 
+     // The page's own theme can change after we mounted (a toggle, late CSS, the system scheme). Read it with our own
+@@ -710,13 +991,20 @@
+       let d = dark, col = null;
+       sheet.disabled = true;
+       rootEl.style.removeProperty('background-color');
+-      try { d = pageIsDark(true); col = readPageBg(); }
++      const pins = [...pinned.keys()];
++      for (const el of pins) unpinIsland(el);
++      try {
++        d = pageIsDark(true); col = readPageBg();
++        if (doc.body) siteInk = win.getComputedStyle(doc.body).color;
++        for (const el of doc.querySelectorAll('[' + ISLAND + ']')) islandOrig.set(el, win.getComputedStyle(el).color);
++      }
+       finally {
+         const next = d !== dark ? (col || (d ? '#14141c' : '#ffffff')) : null;
+         if (next) rootEl.style.setProperty('background-color', next, 'important');
+         else if (pv) rootEl.style.setProperty('background-color', pv, pp);
+         sheet.disabled = false;
+         if (mo) mo.takeRecords(); // our own writes are not page changes
++        for (const el of doc.querySelectorAll('[' + ISLAND + ']')) pinIsland(el);
+       }
+       const rgb = rgbaOf(col);
+       if (rgb && !(pageRGB && AM.sameColour(rgb, pageRGB, 2))) {
+@@ -773,18 +1061,10 @@
+           }
+         }
+       }
+-      // the reading-column veil follows the sky's perceived brightness (maths in the setOpacity comment)
+-      const lin = (c) => Math.pow((clamp(c, 0, 1) + .055) / 1.055, 2.4);
+-      const rl = (v) => .2126 * lin(v[0]) + .7152 * lin(v[1]) + .0722 * lin(v[2]);
+-      const Ls = Math.max(rl(curU.uMid), rl(curU.uHor)), nt = clamp(curU.uNight, 0, 1);
+-      const veilT = pure ? 0 : dark ? clamp((Ls - .04) / .28, 0, 1) * (1 - nt) : -clamp((.9 - Ls) / .6, 0, 1) * (1 - nt);
+-      if (!Number.isFinite(curU.uVeil)) curU.uVeil = veilT;
+-      curU.uVeil += (veilT - curU.uVeil) * kSlow;
+-      // light page by day: the darker the whole sky (mean of zenith, middle, horizon), the more it is eased toward white
+-      const Lavg = (rl(curU.uTop) + rl(curU.uMid) + rl(curU.uHor)) / 3;
+-      const liftT = pure || dark ? 0 : clamp((.62 - Lavg) / .62, 0, 1) * .55 * (1 - nt);
+-      if (!Number.isFinite(curU.uLift)) curU.uLift = liftT;
+-      curU.uLift += (liftT - curU.uLift) * kSlow;
++      // the ink for this sky; the sky's band follows it smoothly (the page's text switches at once)
++      decideInk(now, curU);
++      if (!Number.isFinite(curInk) || reduceMq.matches) curInk = ink;
++      else curInk += (ink - curInk) * kSlow;
+       shX += (curU.uWind[0] + .45) * dt; shY += curU.uWind[1] * dt; // always a gentle drift, more with real wind
+       if (doc.hidden) return; // nothing is drawn while the tab is hidden
+       const set1 = (n, v) => { const l = U[n]; if (l == null) return; if (typeof v === 'number') gl.uniform1f(l, v); else if (v.length === 2) gl.uniform2fv(l, v); else gl.uniform3fv(l, v); };
+@@ -792,7 +1072,8 @@
+       for (const key in curU) set1(key, curU[key]);
+       set1('uShift', [shX, shY]);
+       set1('uFlash', fl); set1('uFlashX', flashX); set1('uBolt', boltOn ? Math.min(.6, rawFlash * 1.6) : 0);
+-      setOpacity(curU.uNight);
++      set1('uInk', curInk); set1('uVivid', VIVID); set1('uPage', pageColour()); set1('uMix', strength);
++      setOpacity();
+       gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+     }
+ 
+@@ -832,9 +1113,16 @@
+         if (destroyed) return;
+         destroyed = true;
+         stop();
+-        win.clearInterval(maskTimer); win.clearInterval(keepTimer); win.clearInterval(sigTimer);
++        win.clearInterval(maskTimer); win.clearInterval(sigTimer);
++        islandMo.disconnect(); if (islandRaf) win.cancelAnimationFrame(islandRaf); islandQueue.clear(); win.clearTimeout(hoverT);
++        doc.removeEventListener('pointerover', onHover, true); doc.removeEventListener('pointerout', onHover, true);
++        doc.removeEventListener('focusin', onHover, true); doc.removeEventListener('focusout', onHover, true);
++        doc.removeEventListener('transitionend', onTransition, true);
+         win.clearTimeout(resizeScanT); win.clearTimeout(readT); win.clearTimeout(firstRead);
+         win.removeEventListener('resize', onResizeScan);
++        doc.removeEventListener('scroll', haloSoon, true); doc.removeEventListener('focusin', haloSoon, true); doc.removeEventListener('focusout', haloSoon, true);
++        if (haloRaf) win.cancelAnimationFrame(haloRaf);
++        win.clearTimeout(haloTrail);
+         restoreBackdrops();
+         if (mo) { mo.disconnect(); mo = null; }
+         darkMq.removeEventListener('change', scheduleRead);
+@@ -850,6 +1138,14 @@
+       canvas,
+     };
+     win.addEventListener('resize', onResizeScan);
++    // capture: scroll events do not bubble, and the conversation scrolls inside its own container, not the window
++    doc.addEventListener('scroll', haloSoon, { capture: true, passive: true });
++    doc.addEventListener('focusin', haloSoon, true);
++    doc.addEventListener('focusout', haloSoon, true);
++    if (doc.body) islandMo.observe(doc.body, { childList: true, subtree: true, attributes: true, attributeFilter: ['class', 'style'] });
++    doc.addEventListener('pointerover', onHover, true); doc.addEventListener('pointerout', onHover, true);
++    doc.addEventListener('focusin', onHover, true); doc.addEventListener('focusout', onHover, true);
++    doc.addEventListener('transitionend', onTransition, true);
+     win.addEventListener('resize', onWinResize);
+     doc.addEventListener('visibilitychange', onVis);
+     reduceMq.addEventListener('change', onMotion);
+@@ -868,7 +1164,7 @@
+     applyTone();
+     clearBackdrops();
+     canvas.style.opacity = '0';
+-    win.requestAnimationFrame(() => { if (destroyed) return; lastOp = -1; setOpacity(lastNight); });
++    win.requestAnimationFrame(() => { if (destroyed) return; lastOp = -1; setOpacity(); });
+     start();
+ 
+     return api;
+diff -ruN v145/src/options/options.js ext146/src/options/options.js
+--- v145/src/options/options.js	2026-10-31 12:00:00.000000000 +0530
++++ ext146/src/options/options.js	2026-11-26 17:52:21.775358580 +0530
+@@ -103,7 +103,7 @@
+     ${row('Right now', 'Refreshed every 20 minutes in the background.', `${now}${err ? `<div class="note warn">Could not reach the weather service: ${esc(err.error)}</div>` : ''}<div class="row"><button class="btn sm" type="button" data-act="refresh" ${place ? '' : 'disabled'}>Refresh now</button></div>`)}
+     ${row('Frosted strips', 'Blur the page behind the header and the strip around the message box, so text scrolling under them stays hidden while the sky still shows. Off by default.', sw('frostedStrips', 'On', S.frostedStrips))}
+     ${row('Units', '', seg('weatherUnits', [['c', '°C'], ['f', '°F']], S.weatherUnits, 'Temperature units'))}
+-    ${row('Sky strength', 'How strongly the sky shows through the page. Lower it if text is hard to read.', `<input type="range" min="20" max="100" step="5" value="${Math.round(S.weatherStrength * 100)}" data-k="weatherStrength" data-div="100" aria-label="Sky strength"><div class="muted" id="strv">${Math.round(S.weatherStrength * 100)}%</div>`)}
++    ${row('Sky strength', 'How strongly the sky shows through the page. Text on the sky switches between dark and white on its own, so it stays readable at any setting.', `<input type="range" min="20" max="100" step="5" value="${Math.round(S.weatherStrength * 100)}" data-k="weatherStrength" data-div="100" aria-label="Sky strength"><div class="muted" id="strv">${Math.round(S.weatherStrength * 100)}%</div>`)}
+   </section>
+   <section class="card">
+     <div class="card-h">Try a look</div>

@@ -3,104 +3,166 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
   <title>Welcome to Headroom</title>
   <link rel="stylesheet" href="welcome.css">
 </head>
 <body>
-  <main>
-    <header>
-      <img src="../../icons/icon128.png" alt="" width="64" height="64">
-      <div>
+  <header class="top">
+    <div class="in top-in">
+      <div class="intro">
+        <img src="../../icons/icon128.png" alt="" width="72" height="72">
         <h1>Welcome to Headroom</h1>
         <p class="lead">Your AI usage limit, as a thin bar on the page. No setup.</p>
+        <div class="actions">
+          <a class="button" href="#step1">Start the tour</a>
+          <a class="button alt" href="../options/options.html">Open Settings</a>
+        </div>
       </div>
-    </header>
+      <nav class="overview" aria-label="Tour steps">
+        <p class="kicker">Five things to know</p>
+        <ol>
+          <li><a href="#step1"><span class="n" aria-hidden="true">1</span><span>Open an AI site</span></a></li>
+          <li><a href="#step2"><span class="n" aria-hidden="true">2</span><span>Click it for the details</span></a></li>
+          <li><a href="#step3"><span class="n" aria-hidden="true">3</span><span>Drag it anywhere</span></a></li>
+          <li><a href="#step4"><span class="n" aria-hidden="true">4</span><span>Optional: a live background</span></a></li>
+          <li><a href="#step5"><span class="n" aria-hidden="true">5</span><span>Know where a number comes from</span></a></li>
+          <li><a href="#done"><span class="n ok" aria-hidden="true">✓</span><span>You are set</span></a></li>
+        </ol>
+      </nav>
+    </div>
+  </header>
 
-    <div class="steps">
-
-      <section class="step" aria-labelledby="s1">
+  <main>
+    <section class="step" id="step1" aria-labelledby="s1">
+      <div class="in step-in">
         <div class="art" aria-hidden="true">
           <div class="win">
             <div class="chat"><i></i><i class="r"></i><i></i><i class="r s"></i></div>
-            <div class="bar b-bottom"><b style="width:38%"></b></div>
+            <div class="bar b-top"><b style="width:38%"></b></div>
           </div>
         </div>
         <div class="txt">
-          <span class="num">1</span>
+          <p class="kicker"><span class="num">1</span>Step 1 of 5</p>
           <h2 id="s1">Open an AI site</h2>
           <p>A thin bar shows up on the edge of the page. It fills as you use your limit.</p>
+          <a class="next" href="#step2">Next: click it for the details</a>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="step" aria-labelledby="s2">
+    <section class="step" id="step2" aria-labelledby="s2">
+      <div class="in step-in">
         <div class="art" aria-hidden="true">
           <div class="win">
             <div class="chat"><i></i><i class="r s"></i></div>
             <div class="mini-panel"><u>Messages</u><em>42%</em><div class="mbar"><b></b></div><small>resets at 5:23 PM</small></div>
-            <div class="bar b-bottom"><b style="width:42%"></b></div>
+            <div class="bar b-top"><b style="width:42%"></b></div>
             <div class="cursor c2"></div>
           </div>
         </div>
         <div class="txt">
-          <span class="num">2</span>
+          <p class="kicker"><span class="num">2</span>Step 2 of 5</p>
           <h2 id="s2">Click it for the details</h2>
           <p>Point at the bar for a quick number. Click it to see every limit and when it resets. The ✕ closes it.</p>
+          <a class="next" href="#step3">Next: drag it anywhere</a>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="step" aria-labelledby="s3">
+    <section class="step" id="step3" aria-labelledby="s3">
+      <div class="in step-in">
         <div class="art" aria-hidden="true">
           <div class="win">
             <div class="chat"><i></i><i class="r"></i></div>
-            <div class="ghost g-top"></div><div class="ghost g-left"></div><div class="ghost g-right"></div>
-            <div class="bar b-bottom"><b style="width:55%"></b></div>
-            <div class="arrow a-up">↑</div><div class="arrow a-l">←</div><div class="arrow a-r">→</div>
+            <div class="ghost g-bottom"></div><div class="ghost g-left"></div><div class="ghost g-right"></div>
+            <div class="bar b-top"><b style="width:55%"></b></div>
+            <div class="arrow a-dn">↓</div><div class="arrow a-l">←</div><div class="arrow a-r">→</div>
             <div class="cursor c3"></div>
           </div>
         </div>
         <div class="txt">
-          <span class="num">3</span>
+          <p class="kicker"><span class="num">3</span>Step 3 of 5</p>
           <h2 id="s3">Drag it anywhere</h2>
           <p>Grab the bar and drop it on any edge: top, bottom, left or right. It remembers.</p>
+          <a class="next" href="#step4">Next: a live background</a>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="step" aria-labelledby="s4">
-        <div class="art" aria-hidden="true">
-          <div class="win sky">
-            <div class="sun"></div><div class="cloud c-a"></div><div class="cloud c-b"></div>
-            <div class="chat"><i></i><i class="r"></i></div>
-            <div class="bar b-bottom"><b style="width:20%"></b></div>
+    <section class="step" id="step4" aria-labelledby="s4">
+      <div class="in step-in">
+        <div class="art duo" aria-hidden="true">
+          <div class="look">
+            <div class="win sky">
+              <div class="sun"></div><div class="cloud c-a"></div><div class="cloud c-b"></div>
+              <div class="chat"><i></i><i class="r"></i></div>
+              <div class="bar b-top"><b style="width:20%"></b></div>
+            </div>
+            <span class="cap">Weather sky</span>
+          </div>
+          <div class="look">
+            <div class="win fluid">
+              <div class="blob f1"></div><div class="blob f2"></div><div class="blob f3"></div><div class="blob f4"></div>
+              <div class="chat"><i></i><i class="r"></i></div>
+              <div class="bar b-top"><b style="width:20%"></b></div>
+              <div class="cursor c4"></div>
+            </div>
+            <span class="cap">Fluid</span>
           </div>
         </div>
         <div class="txt">
-          <span class="num">4</span>
-          <h2 id="s4">Optional: a live sky</h2>
-          <p>Turn on <a href="../options/options.html#weather">Weather</a> in Settings and the page gets a sky that follows your real weather and time of day.</p>
+          <p class="kicker"><span class="num">4</span>Step 4 of 5</p>
+          <h2 id="s4">Optional: a live background</h2>
+          <p>Put a moving background behind the chat. Pick one:</p>
+          <ul class="pair">
+            <li><b>Weather sky</b> follows the real weather and time of day where you are. Choose your place first.</li>
+            <li><b>Fluid</b> is dark coloured smoke that swirls, glows and follows your cursor. It needs no place.</li>
+          </ul>
+          <p>Choose it in <a class="crumb" href="../options/options.html#weather">Settings <span aria-hidden="true">›</span> Weather <span aria-hidden="true">›</span> Background</a>. You can switch it off there, or from the bar's panel.</p>
+          <a class="next" href="#step5">Next: where a number comes from</a>
         </div>
-      </section>
+      </div>
+    </section>
 
-      <section class="step" aria-labelledby="s5">
-        <div class="art tags" aria-hidden="true">
-          <span class="tag real">✓ real</span>
-          <span class="tag estimate">≈ estimate</span>
-          <span class="tag banner">⚑ banner</span>
+    <section class="step" id="step5" aria-labelledby="s5">
+      <div class="in step-in">
+        <div class="art" aria-hidden="true">
+          <div class="win plain">
+            <div class="tag-panel">
+              <div class="tp-row"><u>Messages</u><span class="tag real">✓ real</span></div>
+              <div class="tp-row"><u>Daily sends</u><span class="tag estimate">≈ estimate</span></div>
+              <div class="tp-row"><u>Limit hit</u><span class="tag banner">⚑ banner</span></div>
+            </div>
+          </div>
         </div>
         <div class="txt">
-          <span class="num">5</span>
+          <p class="kicker"><span class="num">5</span>Step 5 of 5</p>
           <h2 id="s5">Know where a number comes from</h2>
           <p><b>real</b> comes from the site itself. <b>estimate</b> is counted from your sends, so set your plan's limit in Settings. <b>banner</b> means the site said you hit a limit.</p>
+          <a class="next" href="#done">Next: you are set</a>
         </div>
-      </section>
+      </div>
+    </section>
 
-    </div>
-
-    <p class="privacy">Private by design: no account, no server, message text is never stored. Everything stays on your computer. <a href="https://devshrawin.github.io/headroom/privacy" target="_blank" rel="noopener noreferrer">Privacy policy</a></p>
-
-    <footer>
-      <a class="button" href="../options/options.html">Open Settings</a>
-      <p class="hint">Need another site? Add it under <b>Other AI sites</b> in Settings. Headroom is an independent project, not affiliated with the AI services it works with.</p>
-    </footer>
+    <section class="done" id="done" aria-labelledby="done-h">
+      <div class="in done-in">
+        <div class="done-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M6 12.5l4 4 8-9"></path></svg></div>
+        <div class="done-txt">
+          <h2 id="done-h">You are set</h2>
+          <p>Headroom already runs on the AI sites you use. Open one to see the bar.</p>
+          <div class="actions">
+            <a class="button" href="../options/options.html">Open Settings</a>
+            <a class="button alt" href="https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md" target="_blank" rel="noopener noreferrer">Privacy policy</a>
+          </div>
+          <p class="privacy"><svg class="lock" viewBox="0 0 16 16" aria-hidden="true"><path d="M4 7.5h8v6H4z M5.5 7.5V5.5a2.5 2.5 0 0 1 5 0v2"></path></svg><span>No account, no server, message text is never stored. Everything stays on your computer.</span></p>
+        </div>
+      </div>
+    </section>
   </main>
+
+  <footer class="in foot">
+    <p class="hint">Need another site? Add it under <b>Other AI sites</b> in Settings. Headroom is an independent project, not affiliated with the AI services it works with.</p>
+  </footer>
 </body>
 </html>

@@ -39,5 +39,8 @@ test('every file the manifest points at exists (icons, options, background, cont
   assert.equal(manifest.web_accessible_resources, undefined, 'nothing is exposed to web pages');
   for (const f of AM.WEATHER_FILES) assert.ok(existsSync(new URL('../' + f, import.meta.url)), `${f} is missing`);
   for (const f of AM.WEATHER_FILES) assert.ok(!AM.CONTENT_BUNDLE.includes(f), `${f} is injected on demand, not always loaded`);
+  for (const f of AM.FLUID_FILES) assert.ok(existsSync(new URL('../' + f, import.meta.url)), `${f} is missing`);
+  assert.deepEqual(AM.FLUID_FILES.slice(0, AM.WEATHER_FILES.length), AM.WEATHER_FILES, 'the fluid look loads the sky files first (it borrows page handling from the sky)');
+  assert.ok(AM.FLUID_FILES.includes('src/core/fluid-sim.js') && !AM.CONTENT_BUNDLE.includes('src/core/fluid-sim.js'), 'the fluid renderer is injected on demand, not always loaded');
 });
 

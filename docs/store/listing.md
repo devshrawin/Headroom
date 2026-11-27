@@ -9,7 +9,7 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 | Name | Headroom: AI usage limit and weather |
 | Category | Productivity |
 | Language | English |
-| Package version | 1.4.3 |
+| Package version | 2.0.0 |
 | Privacy policy URL | `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md` (no GitHub Pages needed: the repo is public, so GitHub shows `docs/privacy.md` as a page. It must be merged to `main` first, or it shows the old policy. Open it in a private window to check it loads without signing in) |
 | Support URL | `https://github.com/devshrawin/Headroom/issues` |
 | Homepage URL | `https://github.com/devshrawin/Headroom` |
@@ -50,7 +50,7 @@ No lists of product or company names (the store rejected version 1.2.6 for that)
 
 ## Single-purpose statement
 
-> Headroom makes the AI chat websites you use more informative at a glance. It shows how much of your usage limit remains (a bar along the page edge, a toolbar badge, and optional threshold notifications), and it shows the real weather for a place you choose as a background sky on those same sites.
+> Headroom makes the AI chat websites you use more informative at a glance. It shows how much of your usage limit remains (a bar along the page edge, a toolbar badge, and optional threshold notifications), and it shows the real weather for a place you choose as a background sky on those same sites (or, if you prefer, a dark fluid animation that follows your cursor).
 
 ## Permission justifications
 
@@ -97,6 +97,19 @@ The **Use my location** button in Settings → Weather uses Chrome's normal loca
 ### Remote code
 **No.** All code ships in the package, including the weather sky (one shader, no images). Nothing is downloaded and executed.
 
+### One-line justifications (paste-ready, for the Privacy practices tab)
+Short versions of the sections above, for the single-line boxes. Every one is true of the 2.0.0 build.
+
+| Permission | One line |
+|---|---|
+| `storage` | Saves your settings and the latest usage numbers on your computer so the bar can show them on every tab. |
+| `alarms` | Times the "limit has reset" notice and, only while the weather is on, a forecast refresh every 20 minutes. |
+| `notifications` | Optional desktop alerts when a limit crosses a threshold you set, or resets. Off with one switch in Settings. |
+| `scripting` | Registers the content scripts for a site you add yourself, and loads the weather sky into a page only while the weather is on. All code ships in the package; nothing is downloaded. |
+| Host permissions (the listed AI sites) | Lets the extension show your own usage on those sites by reading that site's own usage data from your logged-in tab. It does nothing on any other site. |
+| Optional host permission `https://*/*` | Never granted up front. Asked for one site at a time, only when you click Add site for a site you want measured. |
+| Remote code | No. Everything runs from the package. |
+
 ## Data usage answers (Privacy practices tab)
 
 Suggested answers. Review them against the dashboard wording on the day you submit, because the questions change.
@@ -136,8 +149,8 @@ The store description keeps only the short line at its end. The full list of com
 
 ## Before you submit
 
-- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.4.3)
-- [ ] Zip built with `npm run store-zip`, upload `release/2026-11-25/headroom-1.4.3.zip`; tag the release `v1.4.3` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
+- [ ] `manifest.json` and `package.json` both say the version you are uploading (2.0.0)
+- [ ] Zip built with `npm run store-zip`, upload `release/2026-11-27/headroom-2.0.0.zip`; tag the release `v2.0.0` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
 - [ ] Privacy policy URL is live and loads without sign-in
 - [ ] Single-purpose statement and every permission justification pasted
 - [ ] Images uploaded from `docs/store/assets/` (5 screenshots, small tile, optional marquee)

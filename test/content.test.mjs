@@ -131,12 +131,13 @@ test('the refresh message from the popup is answered', async () => {
   assert.deepEqual(JSON.parse(JSON.stringify(replied)), { ok: true });
 });
 
-test('a settings change re-applies without reloading the page', async () => {
+test('a settings change re-applies without reloading the page, and does not resend an unchanged report', async () => {
   const c = await loadContent('claude.ai');
   const before = c.usage().length;
   c.onChanged.forEach((fn) => fn({ settings: { newValue: { widget: false } } }, 'local'));
   await new Promise((r) => setTimeout(r, 30));
-  assert.ok(c.usage().length > before, 'publishes again after a settings change');
+  // 1.4.4: identical meters are not re-sent to the service worker (it would rewrite storage and wake every tab); a 5-minute heartbeat keeps them fresh.
+  assert.equal(c.usage().length, before, 'an unchanged report is not sent again');
 });
 
 // ---------- hardening: one broken adapter must not break the bar ----------
@@ -179,4 +180,44 @@ test('weather: a hidden tab does not mount the sky until it becomes visible', as
   fns.forEach((fn) => fn());
   await new Promise((r) => setTimeout(r, 30));
   assert.equal(mounts, 1, 'mounts once the tab is visible');
+});
+
+test('AM.every: repeating jobs stop when the copy is shut down, and the page\'s own setInterval is untouched', async () => {
+  const c = await loadContent('example.org');
+  const real = c.ctx.setInterval; // the sandbox's own setInterval: AM.every must not replace it any more
+  assert.equal(typeof c.AM.every, 'function');
+  let n = 0;
+  const timers = [];
+  c.ctx.setInterval = (fn) => { timers.push(fn); return timers.length; };
+  c.AM.every(() => { n++; }, 1000);
+  timers[0]();
+  assert.equal(n, 1, 'runs while alive');
+  c.AM.shutdown();
+  timers[0](); // a tick already queued when the shutdown happened
+  assert.equal(n, 1, 'does nothing after shutdown');
+  c.ctx.setInterval = real;
+});
+
+test('fluid background: needs no place; the weather sky still does; switching the style swaps the renderer', async () => {
+  const mounts = [], destroyed = [];
+  const fakeMount = (o) => { mounts.push(!!o.fluid); return { destroy() { destroyed.push(o.fluid ? 'fluid' : 'sky'); }, setStrength() {}, setState() {}, setFrost() {} }; };
+  const beforeContent = (AM) => { AM.WeatherSky = { mount: fakeMount }; AM.FluidSim = {}; };
+  // fluid, no place, no forecast: it mounts
+  const a = await loadContent('claude.ai', { settings: { weather: true, weatherStyle: 'fluid' }, beforeContent });
+  assert.deepEqual(mounts, [true], 'the fluid mounts without a place');
+  // the weather sky with no place does not
+  mounts.length = 0;
+  await loadContent('claude.ai', { settings: { weather: true, weatherStyle: 'sky' }, beforeContent });
+  assert.deepEqual(mounts, [], 'the sky still needs a place');
+  // switching from fluid to sky (with a place and a forced look) destroys the fluid and mounts the sky
+  mounts.length = 0; destroyed.length = 0;
+  const s = { weather: true, weatherStyle: 'fluid', weatherPlace: { lat: 28.6, lon: 77.2, name: 'T' }, weatherForce: { weather: 'clear' } };
+  const b = await loadContent('claude.ai', { settings: s, beforeContent });
+  assert.deepEqual(mounts, [true]);
+  b.stored.settings = { ...s, weatherStyle: 'sky' };
+  b.onChanged.forEach((fn) => fn({ settings: { oldValue: s, newValue: b.stored.settings } }, 'local'));
+  await new Promise((r) => setTimeout(r, 40));
+  assert.deepEqual(destroyed, ['fluid'], 'the fluid is torn down');
+  assert.deepEqual(mounts, [true, false], 'and the weather sky is mounted in its place');
+  void a;
 });

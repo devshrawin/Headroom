@@ -8,22 +8,17 @@
   const AM = globalThis.Headroom;
   const KEEP_MS = 8 * 24 * 3600e3;
 
-  // Track intervals created by our scripts so an orphaned copy can stop all of them.
-  // This only affects the extension's isolated world, never the page's own timers.
+  // Every repeating job of ours goes through AM.every(), so an orphaned copy (after an extension reload or update) can stop all
+  // of them at once: AM.shutdown() clears them, and a tick that was already queued does nothing once AM.dead is set.
+  // (This replaces an override of the global setInterval: nothing outside our own calls is touched any more.)
   const timers = new Set();
-  const nativeSetInterval = globalThis.setInterval.bind(globalThis);
-  globalThis.setInterval = (fn, ms, ...args) => {
-    const id = nativeSetInterval(() => { if (!AM.dead) fn(...args); }, ms);
+  AM.every = (fn, ms, ...args) => {
+    const id = setInterval(() => { if (!AM.dead) fn(...args); }, ms);
     timers.add(id);
     return id;
   };
 
   const isInvalidated = (e) => /context invalidated/i.test((e && e.message) || String(e));
-
-  // Page-level events other parts react to: 'send' (a message went out), 'limit' (the site showed
-  // its own limit notice).
-  AM.bus = new EventTarget();
-  AM.emit = (type, detail) => { if (!AM.dead) AM.bus.dispatchEvent(new CustomEvent(type, { detail })); };
 
   AM.dead = false;
   AM.shutdown = () => {
@@ -32,6 +27,7 @@
     for (const id of timers) clearInterval(id);
     timers.clear();
     try { AM.widget && AM.widget.destroy(); } catch {}
+    for (const fn of AM.onShutdown || []) { try { fn(); } catch {} }
   };
 
   AM.alive = () => {
@@ -121,7 +117,7 @@
     const report = (events) => { if (!AM.dead) ctx.report('estimate', AM.countMeters(events, ctx.quotas())); };
     const safe = (p) => p.then(report).catch((e) => { if (!isInvalidated(e)) console.warn('[Headroom]', e); });
     return {
-      record: (model) => { AM.emit('send'); return safe(AM.events.record(provider, model)); },
+      record: (model) => safe(AM.events.record(provider, model)),
       relabelLast: (model) => safe(AM.events.relabelLast(provider, model)),
       refresh: () => safe(AM.events.list(provider)),
     };

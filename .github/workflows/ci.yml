@@ -1,0 +1,27 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      # the repo's own unit tests (no dependencies, no build step)
+      - run: npm test
+      # end-to-end: the unpacked extension in real Chromium against a mocked claude.ai
+      - name: Install the e2e harness
+        working-directory: e2e
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+      - name: Run the end-to-end scenarios
+        working-directory: e2e
+        # extensions need a headed-capable Chromium; xvfb provides a display if the harness falls back to one
+        run: xvfb-run --auto-servernum node run-all.mjs

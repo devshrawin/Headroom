@@ -1,0 +1,32 @@
+// Captures frames of tools/fluid-demo/index.html (no extension): idle, after a cursor sweep, and a short recording.
+import { chromium } from 'playwright';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+const here = path.dirname(fileURLToPath(import.meta.url));
+const out = path.resolve(process.argv[2] || path.join(here, '..', '.smoke-frames', 'fluid-demo'));
+fs.mkdirSync(out, { recursive: true });
+const browser = await chromium.launch({ channel: 'chromium', headless: true, args: ['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
+const ctx = await browser.newContext({ viewport: { width: 1280, height: 720 }, recordVideo: { dir: out, size: { width: 1280, height: 720 } } });
+const page = await ctx.newPage();
+const errs = [];
+page.on('pageerror', (e) => errs.push(String(e)));
+page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errs.push(m.text()); });
+await page.goto(pathToFileURL(path.resolve(here, '..', 'tools', 'fluid-demo', 'index.html')).href);
+await page.waitForTimeout(1500);
+await page.screenshot({ path: path.join(out, '1-start.png') });
+await page.waitForTimeout(9000);
+await page.screenshot({ path: path.join(out, '2-idle.png') });
+// sweep the cursor in a few loops
+const sweep = async (cx, cy, r, turns) => { for (let i = 0; i <= turns * 40; i++) { const a = (i / 40) * Math.PI * 2; await page.mouse.move(cx + Math.cos(a) * r * (1 + i / (turns * 60)), cy + Math.sin(a * 1.3) * r * .7); await page.waitForTimeout(16); } };
+await sweep(640, 360, 220, 2);
+await page.screenshot({ path: path.join(out, '3-swept.png') });
+await sweep(300, 500, 160, 1);
+await sweep(980, 220, 180, 1);
+await page.screenshot({ path: path.join(out, '4-more.png') });
+await page.waitForTimeout(6000);
+await page.screenshot({ path: path.join(out, '5-settling.png') });
+await ctx.close();
+await browser.close();
+console.log(JSON.stringify({ out, errors: errs, files: fs.readdirSync(out) }));

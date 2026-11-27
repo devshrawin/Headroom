@@ -167,15 +167,8 @@
     const cached = cachedUntil != null && cachedUntil > now;
     // While cached, only the newest reply is re-read at full cost; after expiry the whole chat is.
     const nextCost = cached ? per[per.length - 1] : tokens;
-    return { tokens, messages: msgs.length, lastAt, cachedUntil, nextCost, model: conv.model || null };
-  };
-
-  AM.fmtTokens = (n) => {
-    if (n == null || !isFinite(n)) return '';
-    if (n < 1000) return String(Math.round(n));
-    if (n < 100000) return (n / 1000).toFixed(1).replace(/\.0$/, '') + 'k';
-    if (n < 1e6) return Math.round(n / 1000) + 'k';
-    return (n / 1e6).toFixed(2).replace(/0$/, '') + 'M';
+    // cachedCost lets the panel switch to the full cost by itself once the cache runs out, without fetching the chat again
+    return { tokens, messages: msgs.length, lastAt, cachedUntil, nextCost, cachedCost: per[per.length - 1], model: conv.model || null };
   };
 
   AM.b64ToBytes = (b64) => {

@@ -150,3 +150,28 @@ test('there is no popup: clicking the toolbar icon opens Settings', async () => 
   await bg.settle();
   assert.equal(bg.optionsOpened(), 1);
 });
+
+test('clicking an alert focuses the provider\'s open tab, or opens the provider when none is open', async () => {
+  const bg = loadBackground();
+  assert.equal(bg.listeners.notificationClicked.length, 1);
+  // a tab is open: focus it, never open a second one
+  bg.tabsOpen.push({ id: 7, windowId: 3, url: 'https://chatgpt.com/c/abc' });
+  bg.listeners.notificationClicked[0]('headroom|chatgpt|messages|75|123');
+  await bg.settle();
+  assert.deepEqual(bg.tabCalls.map((c) => JSON.parse(JSON.stringify(c))), [{ tabUpdate: 7, active: true }, { windowUpdate: 3, focused: true }]);
+  assert.equal(bg.tabsCreated.length, 0);
+  // none open: open the provider's home page (a reset alert has a different id shape)
+  bg.listeners.notificationClicked[0]('headroom|reset|claude|five_hour|123');
+  await bg.settle();
+  assert.deepEqual(bg.tabsCreated.map((t) => t.url), ['https://claude.ai/']);
+  // a user-added site
+  bg.listeners.notificationClicked[0]('headroom|site:chat.example.test|cap|90|123');
+  await bg.settle();
+  assert.equal(bg.tabsCreated.at(-1).url, 'https://chat.example.test/');
+  // anything that is not ours, or an unknown provider, does nothing
+  const n = bg.tabsCreated.length;
+  bg.listeners.notificationClicked[0]('other|x');
+  bg.listeners.notificationClicked[0]('headroom|nonesuch|a|1|1');
+  await bg.settle();
+  assert.equal(bg.tabsCreated.length, n);
+});

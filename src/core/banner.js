@@ -31,8 +31,6 @@
           if (!text || text.length > 300) continue;
           if (LIMIT_RE.test(text)) {
             ctx.log('limit notice', text);
-            AM.lastLimitEl = el;
-            AM.emit('limit', { el });
             ctx.report('banner', [{
               id: 'banner', label: 'Limit reached', pct: 100, source: 'banner',
               resetAt: AM.parseReset(text), seenAt: Date.now(), note: text.slice(0, 160),
@@ -51,14 +49,17 @@
         }
       };
 
-      new MutationObserver((muts) => {
+      const mo = new MutationObserver((muts) => {
         for (const m of muts) {
           if (pending.size >= MAX_PENDING) break;
           if (m.type === 'characterData') pending.add(m.target);
           else m.addedNodes.forEach((n) => pending.add(n));
         }
         if (!timer && pending.size) timer = setTimeout(check, 600);
-      }).observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+      });
+      mo.observe(document.documentElement, { childList: true, subtree: true, characterData: true });
+      // an orphaned copy stops watching the page
+      (AM.onShutdown = AM.onShutdown || []).push(() => { mo.disconnect(); clearTimeout(timer); pending.clear(); });
     },
   };
 })();

@@ -53,9 +53,10 @@ async function checkThresholds(entry, settings) {
 let queue = Promise.resolve();
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === 'headroom:loadWeather') {
-    // The weather sky's renderer, injected into the asking frame like the rest of the content scripts.
+    // The weather sky's renderer (or, with style 'fluid', the sky plus the fluid renderer), injected into the asking frame like the
+    // rest of the content scripts. The file lists are fixed here: a page can never choose what gets injected.
     if (!sender.tab || sender.tab.id == null) { sendResponse({ ok: false, error: 'no tab' }); return; }
-    chrome.scripting.executeScript({ target: { tabId: sender.tab.id, frameIds: [sender.frameId || 0] }, files: AM.WEATHER_FILES })
+    chrome.scripting.executeScript({ target: { tabId: sender.tab.id, frameIds: [sender.frameId || 0] }, files: msg.style === 'fluid' ? AM.FLUID_FILES : AM.WEATHER_FILES })
       .then(() => sendResponse({ ok: true }))
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e) }));
     return true;
@@ -138,13 +139,18 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 // Keep dynamic content scripts for user-added sites in step with settings (they can be dropped on update).
+// A registration whose file list is out of date (an update added or renamed a script) is replaced, so added sites
+// never run an old bundle that misses a file.
 async function syncSites() {
   const settings = await getSettings();
-  const registered = new Set((await chrome.scripting.getRegisteredContentScripts()).map((s) => s.id));
+  const registered = new Map((await chrome.scripting.getRegisteredContentScripts()).map((s) => [s.id, s]));
   for (const site of settings.customSites) {
     const origins = [`https://${site.host}/*`];
     if (!(await chrome.permissions.contains({ origins }))) continue;
-    const missing = AM.siteScripts(site.host).filter((s) => !registered.has(s.id));
+    const want = AM.siteScripts(site.host);
+    const stale = want.filter((s) => registered.has(s.id) && JSON.stringify(registered.get(s.id).js) !== JSON.stringify(s.js)).map((s) => s.id);
+    if (stale.length) await chrome.scripting.unregisterContentScripts({ ids: stale }).catch((e) => console.warn('[Headroom]', e));
+    const missing = want.filter((s) => !registered.has(s.id) || stale.includes(s.id));
     if (missing.length) await chrome.scripting.registerContentScripts(missing).catch((e) => console.warn('[Headroom]', e));
   }
 }
@@ -155,6 +161,28 @@ chrome.runtime.onInstalled.addListener((details) => {
   if (details && details.reason === 'install') chrome.tabs.create({ url: chrome.runtime.getURL('src/welcome/welcome.html') }).catch(() => {});
 });
 chrome.runtime.onStartup.addListener(() => { syncSites().catch(() => {}); syncWeatherAlarm().catch(() => {}); refreshWeather().catch(() => {}); });
+
+// Clicking an alert takes you to that service: focus its tab if one is open, otherwise open it.
+// Notification ids are 'headroom|<provider>|<meter>|<percent>|<time>' or 'headroom|reset|<provider>|<meter>|<time>'.
+async function openProvider(notificationId) {
+  const parts = String(notificationId).split('|');
+  if (parts[0] !== 'headroom') return;
+  const id = parts[1] === 'reset' ? parts[2] : parts[1];
+  let hosts;
+  if (id && id.startsWith('site:')) hosts = [id.slice(5)];
+  else { const p = AM.PROVIDERS.find((x) => x.id === id); hosts = p ? p.hosts : null; }
+  if (!hosts || !hosts.length) return;
+  const found = await chrome.tabs.query({ url: hosts.flatMap((h) => [`https://${h}/*`, `https://*.${h}/*`]) });
+  const tab = found && found[0];
+  if (tab && tab.id != null) {
+    await chrome.tabs.update(tab.id, { active: true });
+    if (tab.windowId != null) await chrome.windows.update(tab.windowId, { focused: true });
+  } else await chrome.tabs.create({ url: 'https://' + hosts[0] + '/' });
+}
+chrome.notifications.onClicked.addListener((nid) => {
+  openProvider(nid).catch((e) => console.warn('[Headroom]', e));
+  chrome.notifications.clear(nid);
+});
 
 // No popup: the toolbar icon only carries the percentage badge; clicking it opens Settings.
 chrome.action.onClicked.addListener(() => { chrome.runtime.openOptionsPage().catch(() => {}); });

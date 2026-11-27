@@ -71,7 +71,6 @@
     'https://api.open-meteo.com/v1/forecast?latitude=' + (+lat).toFixed(2) + '&longitude=' + (+lon).toFixed(2) +
     '&current=temperature_2m,weather_code,cloud_cover,wind_speed_10m,wind_direction_10m,is_day,precipitation&daily=sunrise,sunset&timezone=auto&forecast_days=1';
   AM.geocodeUrl = (name) => 'https://geocoding-api.open-meteo.com/v1/search?count=5&language=en&format=json&name=' + encodeURIComponent(String(name).slice(0, 80));
-  AM.WEATHER_HOSTS = ['https://api.open-meteo.com/*', 'https://geocoding-api.open-meteo.com/*'];
 
   // A forecast response to the small record we keep. Returns null for anything that is not a real response.
   function parseForecast(j, lat, lon) {

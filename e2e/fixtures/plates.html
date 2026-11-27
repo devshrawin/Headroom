@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mock composer: ways a square "plate" can be painted behind the rounded message box</title>
+<!-- Geometry taken from the user's screenshot (1.4.5): the input box is 1151 px wide and 67 px tall, a container with faint
+     0.5-1 px side borders sits 12 px outside it on each side and starts 6 px below the input's top, and the pale plate fills
+     the container's top 48 px. Each ?v= variant paints that plate a different way. -->
+<style>
+  :root { --bg-100: PAGE_BG; --bg-000: #ffffff; --plate: PLATE_BG; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg-100); color: #1f1e1d; font: 15px/1.5 system-ui, sans-serif; }
+  .app { display: flex; flex-direction: column; height: 100vh; }
+  header { flex: none; height: 52px; display: flex; align-items: center; padding: 0 24px; background: var(--bg-100); }
+  .scroller { flex: 1; overflow-y: auto; }
+  .col { max-width: 1151px; margin: 0 auto; padding: 16px 0; }
+  .msg { padding: 8px 0; }
+  .composer { flex: none; position: relative; }
+  /* the bordered container: 12 px wider than the input on each side, faint side borders (invisible on the page colour) */
+  .cwrap { position: relative; width: 1175px; margin: 0 auto; padding: 0 12px; box-sizing: border-box; height: 118px;
+    border-left: 1px solid rgba(255,255,255,.5); border-right: 1px solid rgba(255,255,255,.5); }
+  .input { position: relative; z-index: 1; margin-top: -6px; height: 67px; border-radius: 18px; background: var(--bg-000);
+    box-shadow: 0 4px 20px rgba(0,0,0,.06); display: flex; align-items: center; padding: 0 16px; gap: 12px; }
+  .input .row { flex: 1; height: 27px; display: flex; align-items: center; }
+  .input [contenteditable] { flex: 1; outline: none; min-height: 22px; }
+  .labels { display: flex; justify-content: space-between; padding: 10px 12px 0; font-size: 13px; }
+  .plate { position: absolute; left: 0; right: 0; top: 0; height: 48px; z-index: 0; }
+  /* v=bg:       the plate is a child with an opaque background in a shade a little off the page colour */
+  .v-bg .plate { background: var(--plate); }
+  /* v=focus:    the plate only gets its paint while the message box has focus (:focus-within), after a 200 ms transition */
+  .v-focus .plate { transition: background-color .2s; }
+  .v-focus .cwrap:focus-within .plate { background: var(--plate); }
+  /* v=pseudo:   the plate is the rounded input's own ::before, reaching 12 px past it on each side */
+  .v-pseudo .input::before { content: ""; position: absolute; z-index: -1; left: -12px; right: -12px; top: 6px; bottom: 13px; background: var(--plate); }
+  /* v=gradient: the plate is the container's own background, a hard-stop gradient (48 px of colour, then nothing) */
+  .v-gradient .cwrap { background: linear-gradient(var(--plate) 0 48px, transparent 48px); }
+  /* v=ring:     a square element behind the input paints the plate as a 12 px spread box-shadow ring */
+  .v-ring .plate { left: 12px; right: 12px; top: 12px; height: 24px; box-shadow: 0 0 0 12px var(--plate); }
+  /* v=outline:  the same, drawn as a 12 px outline */
+  .v-outline .plate { left: 12px; right: 12px; top: 12px; height: 24px; outline: 12px solid var(--plate); }
+  /* v=radius:   a child plate with a small (4 px) corner radius, which the 1.4.4 square-only rule skips */
+  .v-radius .plate { background: var(--plate); border-radius: 4px; }
+  /* Frames that appear only after the conversation is scrolled away from the bottom (the user's third screenshot): the page
+     paints a white frame hugging the message box, 30 px at the sides and 3 px on top, down to the bottom of the window,
+     to hide text scrolling past it. .frame wraps the input and the labels and reaches 30 px past the input on each side. */
+  .frame { position: relative; }
+  /* v=fborder: drawn as the frame's own borders */
+  .v-fborder .frame { border-style: solid; border-color: transparent; border-width: 3px 30px 0; margin: -3px -30px 0; }
+  html.scrolled.v-fborder .frame { border-color: #fff; }
+  /* v=fring: drawn as a 30 px spread box-shadow ring around the column that holds the input */
+  html.scrolled.v-fring .frame { box-shadow: 0 0 0 30px #fff; }
+  /* v=fside: drawn as two side gutters that only exist while scrolled */
+  .gut { display: none; position: absolute; top: -3px; bottom: 0; width: 30px; background: #fff; }
+  .gut.l { left: -30px; } .gut.r { right: -30px; }
+  html.scrolled.v-fside .gut { display: block; }
+  /* v=wide:     the whole composer strip is painted (full window width), in a colour that is NOT the page colour: the pale
+                  panels at the left and right of the message box. The column itself is cleared by the page-colour rules. */
+  .v-wide .composer { background: var(--plate); }
+  /* a model menu that opens above the composer must keep its paint */
+  [role=menu] { position: absolute; right: 40px; bottom: 120px; width: 220px; height: 90px; background: var(--bg-000); border-radius: 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <header id="hdr"><b>Plate fixture</b></header>
+  <div class="scroller"><div class="col">MSGS</div></div>
+  <div class="composer" id="composer">
+    <div class="cwrap" id="cwrap">
+      <div class="plate" id="plate"></div>
+      <div class="frame" id="frame">
+        <div class="gut l"></div><div class="gut r"></div>
+        <div class="input" id="input"><span>+</span><div class="row"><div contenteditable="true" id="edit" aria-label="Write a message"></div></div><span>⏎</span></div>
+        <div class="labels"><span>Auto</span><button type="button" id="modelBtn" style="border:1px solid #ccc;background:#fff;border-radius:0">Opus 5.5 · High</button></div>
+      </div>
+      <div role="menu" id="menu">Model menu</div>
+    </div>
+  </div>
+</div>
+<script>
+  const v = new URLSearchParams(location.search).get('v') || 'bg';
+  document.documentElement.classList.add('v-' + v);
+  // like the real page: the frame appears once the conversation is scrolled away from its bottom
+  addEventListener('DOMContentLoaded', () => {
+    const sc = document.querySelector('.scroller');
+    const upd = () => document.documentElement.classList.toggle('scrolled', sc.scrollTop < sc.scrollHeight - sc.clientHeight - 40);
+    sc.addEventListener('scroll', upd, { passive: true });
+    sc.scrollTop = sc.scrollHeight; upd();
+  });
+</script>
+</body>
+</html>

@@ -63,7 +63,7 @@ test('the forecast URL carries only the rounded coordinates; a city search URL i
   assert.ok(u.startsWith('https://api.open-meteo.com/'));
   assert.doesNotMatch(u, /23\.025|72\.587/);
   assert.equal(AM.geocodeUrl('São Paulo & co').includes('S%C3%A3o%20Paulo%20%26%20co'), true);
-  assert.ok(AM.WEATHER_HOSTS.every((h) => h.startsWith('https://') && h.endsWith('/*')));
+  assert.ok(AM.geocodeUrl('x').startsWith('https://geocoding-api.open-meteo.com/'));
 });
 
 test('the sky state: the hour is the hour AT the place, wind blows the clouds the other way, a preview overrides the real thing', () => {
@@ -160,6 +160,12 @@ test('background: loadWeather is refused without a sender tab, and injects only 
   assert.equal(replies[1].ok, true);
   assert.equal(bg.executed.length, 1);
   assert.equal(JSON.stringify(bg.executed[0].files), JSON.stringify(['src/core/sky-palette.js', 'src/core/weather-sky.js']));
+  // the fluid look adds its renderer; anything else a page-side script might send still gets only the sky (the lists are fixed here)
+  fn({ type: 'headroom:loadWeather', style: 'fluid' }, { tab: { id: 3 }, frameId: 0 }, (r) => replies.push(r));
+  fn({ type: 'headroom:loadWeather', style: 'src/evil.js' }, { tab: { id: 3 }, frameId: 0 }, (r) => replies.push(r));
+  await bg.settle();
+  assert.equal(JSON.stringify(bg.executed[1].files), JSON.stringify(['src/core/sky-palette.js', 'src/core/weather-sky.js', 'src/core/fluid-sim.js']));
+  assert.equal(JSON.stringify(bg.executed[2].files), JSON.stringify(['src/core/sky-palette.js', 'src/core/weather-sky.js']));
 });
 
 test('background: a 20-minute alarm is created when a place is saved, and the weather is fetched at once', async () => {
@@ -185,7 +191,9 @@ test('the sky palette and the shader agree on every uniform', async () => {
   const declared = new Set([...frag.matchAll(/uniform\s+(?:float|vec2|vec3)\s+([^;]+);/g)].flatMap((m) => m[1].split(',').map((s) => s.trim())));
   const fromPalette = new Set(Object.keys(PAL.uniforms({ season: 'summer', weather: 'rain', hour: 12 })));
   // set by the sky script itself
-  const own = ['uRes', 'uTime', 'uShift', 'uFlash', 'uFlashX', 'uBolt', 'uVeil', 'uLift'];
+  // (1.4.6 removed uVeil and uLift, the white wash; it added uInk, uVivid, uPage and uMix for the ink-safe sky)
+  const own = ['uRes', 'uTime', 'uShift', 'uFlash', 'uFlashX', 'uBolt', 'uInk', 'uVivid', 'uPage', 'uMix'];
+  for (const gone of ['uVeil', 'uLift']) assert.ok(!declared.has(gone) && !src.includes("'" + gone + "'"), gone + ' was the white wash and must stay removed');
   for (const u of fromPalette) assert.ok(declared.has(u), 'palette sets ' + u + ' but the shader has no such uniform');
   for (const u of declared) assert.ok(fromPalette.has(u) || own.includes(u), 'the shader needs ' + u + ' but nothing sets it');
   for (const u of own) assert.ok(src.includes("'" + u + "'") || src.includes('U.' + u), 'weather-sky.js never sets ' + u);

@@ -2,6 +2,94 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 2.0.0 — 2026-11-27
+
+The big one: a redesigned Settings and Welcome, a second background (Fluid), and the message-box fixes of 1.4.6 and 1.4.7, together.
+
+### Added
+- **Redesigned Settings page** (sidebar with live one-line summaries and three groups, grid of cards that goes to two and three columns on wide screens, a Weather hero card with two preview cards for the background, a mini window that shows the bar on the chosen edge, one card per service in Limits). Responsive from 360 px to 3440 px, light and dark. No new permissions, no remote assets, no inline script; every setting key, `data-*` hook and id is unchanged. Designed by an outside designer; see `docs/redesign-2.0/NOTES.md` for the rationale, breakpoints and every markup hook.
+- **Redesigned Welcome page**: full-width bands, a "five things to know" overview, five steps with pictures that scale with the window and alternate sides, step 4 showing the weather sky and the fluid together.
+- **Fluid background** and the `weatherStyle` setting: see 1.5.0 below (it ships here as part of 2.0.0). It is chosen on the new Settings page, and hides the sky-only cards (place, forecast, "try a look") while it is selected.
+
+### Fixed (the 2.0 bug-fix pass)
+- **Many painted elements after a chat loads or switches.** The queue that decides which elements keep their own text colour is now processed in batches (at most 6,000 elements or about 12 ms a frame) and never dropped. Before, above about 6,000 queued elements the rest were discarded, and those cards could keep the forced text colour (white on white at night). In the test, 1,999 of 8,001 cards were still forced white on the old code and none are now.
+- **Stale pinned colours and a memory leak.** An element that stopped being an island now gets its own colour back at once, and elements that left the page (a chat switch in a single-page app) are forgotten, so old conversations are no longer kept alive.
+- **The halo pass no longer reaches into the conversation.** Tables, rules, blockquotes and inline code that scroll behind the message box keep their borders and backgrounds (before, 11 of 11 probes lost them near the composer).
+- **Text no longer sits on a mis-banded sky while the first scan runs.** The ink band stays off until the text colour is set, then eases in.
+- **Windows high contrast / forced colours and "prefers more contrast"** now get a plain look: no sky or fluid is mounted, one that is running is handed back at once, and it returns when the preference goes away.
+- A cheaper theme re-read (only when the theme actually changed, at most once a second); nothing is stored as a property on the page's own elements any more.
+- **Settings page:** a slow render could overwrite a newer page and show the wrong section under the wrong sidebar item; a change made within 300 ms of closing the tab was lost; "Copy" on the debug log threw when Chrome refused clipboard access; the limit and window hours of added sites were not escaped in the list; the switch's off state had about 1.6:1 contrast against its card (now 3:1 or more).
+- **Fluid:** Sky strength is brightness now (the canvas stays opaque black), so white text stays readable on light pages at any strength; the loop behind it ticks once a second; resizing is debounced; a crash in a frame hands the page back instead of freezing.
+
+### Added (tests)
+- `e2e/pages.mjs`: every Settings page and the Welcome page at 6 widths (360 to 2560) in light and dark, 108 loads, with a console-error, overflow and axe-core accessibility scan, plus 21 functional checks (switches, radios, slider, the Background picker, summaries, search, export and import, restore defaults, Limits rules, keyboard). Its only addition to `e2e/package.json` is the dev dependency `axe-core`.
+- Browser scenarios `islands-big`, `islands-chat` (thousands of painted cards, a chat that is replaced twice, stale pins, halo scope, theme re-read throttling) and nine unit tests for the batch queue and the plain-look rule.
+
+### Changed
+- Version 2.0.0. Includes everything in 1.4.5, 1.4.6, 1.4.7 and the unreleased 1.5.0 below.
+- Row titles: "Recording" (debug log) and "Alerts" (notifications).
+
+## 1.5.0 — 2026-11-27 (ships as part of 2.0.0)
+
+### Added
+- **Fluid background.** Settings → Weather → **Background** now chooses between the real-weather sky and a dark fluid simulation: coloured smoke that swirls, glows and follows your cursor. It needs no place or forecast. The fluid draws on its own canvas above the sky canvas; the existing sky code keeps doing the rest for it (clearing the page backdrops and the plate around the message box, picking white text, the frosted-strips option, putting the page back exactly when it is switched off). The sky shader itself does not draw while the fluid is on. Sky strength dims the fluid toward the page colour. If the fluid cannot start (no WebGL2 or float textures) the page gets a plain daytime sky instead. Sky strength sets how bright the fluid is (its canvas always stays opaque black, so white text is readable on light pages too).
+- The fluid is a trimmed port of Pavel Dobryakov's WebGL Fluid Simulation (MIT licence; the notice is kept in `src/core/fluid-sim.js` and `THIRD_PARTY_NOTICES.md`), lighter than the original (128 / 512 simulation and dye resolution, 12 pressure iterations, 30 frames a second, the same resolution governor as the sky), with no control panel, no audio, no network. It pauses in hidden tabs, and with reduced motion it shows a single still frame and ignores the cursor. The renderer is injected only when the fluid is chosen, so there is no new permission.
+- New setting `weatherStyle` ('sky' by default, or 'fluid'), included in export and import.
+- The fluid reacts only to the cursor (a few seed splats at the start, nothing on its own afterwards), is capped in brightness so white text stays readable, and is covered by end-to-end tests (it draws, a cursor sweep lights it up, switching styles and switching off leave nothing behind, the plate/strip regression cases also pass on it).
+
+## 1.4.7 — 2026-11-27
+
+### Fixed
+- The pale panels at the left and right of the message box (on a dark page, a white strip beside the input) are cleared. They are the composer's own full-width strip behind the column: far wider than the box, painted in a colour that is not the page colour, so neither the "hugs the box" rule nor the page-colour rule saw it. The halo pass now also clears composer strips (wide, square-cornered, stuck to the top or bottom edge of the window, at most 40% of its height) that contain the box or sit right behind it, whatever their colour.
+- New regression cases `wide@far` (ivory page, white strip) and `wide@dark` (near-black page, white strip) in `e2e/plates.mjs`: on 1.4.6 the margins stay 100% white, on 1.4.7 0%. `e2e/plates.mjs` also takes `--shots=<dir>` to keep the screenshots.
+
+## 1.4.6 — 2026-11-27
+
+From an external fix round on 1.4.5 (three files changed: `src/core/weather-sky.js`, `src/options/options.js`, `manifest.json`; no permission changes). See section 8 of `docs/audit-2026-11-26/report.md` and the imported tests in `tests/headroom-1.4.6/`.
+
+### Fixed
+- The white plate or frame around the message box is gone. A new "halo" pass finds the message box (the outermost rounded, painted ancestor of the textarea or contenteditable, if it is composer-sized) and switches off the background, border and box-shadow of the elements that hug it (its ancestors no more than 72 px wider on each side, their wide square children, and whatever sits just outside it), plus the box's own `::before`/`::after` and outlines of 4 px or more. The marks are set before any paint appears, so a frame that only shows on scroll or on focus is already off. It runs every 1.5 s and on the next animation frame after a scroll or focus event.
+- The on-screen pass reads fresh styles every time; before, its cache missed `:focus-within` and scroll-state paint.
+- A rounded `::before`/`::after` card is no longer cleared as a page-coloured strip.
+- Sky strength is now blended inside the shader toward the page colour, and the canvas is always at opacity 1.
+
+### Changed
+- The sky is vivid again and text stays readable by choosing the text colour, not by washing the sky out. Removed: the white wash (`uLift`, `uVeil`), the night fade, the brightness and saturation filters on the canvas, and the night page inversion (`data-hr-night`, "pure" mode). A new shader stage works in OKLab: chroma boost (x1.4, up to x2.2 for near-greys), gamut mapping that only reduces chroma (hue never shifts), and a lightness band chosen by the text colour (dark text keeps the sky at L >= .64, white text at L <= .50, with a 0.10 knee). Stars, the sun and moon discs and the lightning bolt are drawn after the band.
+- Automatic text colour: the sky picks dark or white text, whichever needs the smaller lightness change (sampled at the top, middle and horizon, including clouds, fog and Sky strength; a switch needs a 0.02 margin held for 2.5 s) and writes it as `data-hr-ink` on `<html>`. Elements with their own paint ("islands": background alpha >= .5, a background image or gradient, or a painted `::before`/`::after`) keep the site's colours, found in the first scan and then through a MutationObserver and pointer, focus and transition events (hover backgrounds). Turning the sky off removes every mark and every pinned colour.
+- Settings → Sky strength has a new description: text stays readable at any setting.
+
+## 1.4.5 — 2026-11-26
+
+Contains the whole external audit of 1.4.3 (its fixes were built as an unpublished 1.4.4) and the follow-up recommendations. See `docs/audit-2026-11-26/report.md`.
+
+### Fixed
+- The weather sky now clears the header and the whole strip around the message box on claude.ai, not only the centre column. Anything painted in the page's own colour, in any colour syntax (`rgb`, `oklch`, `color()`, `hsl`), counts as page backdrop. Rounded inputs, cards, menus and dialogs keep their own paint. A visible-first pass clears the composer within seconds even on a 4,000-message chat.
+- The bar and its panel follow the page's own light or dark theme, not the operating system's (a dark bar on a light page is gone). New `src/core/page-tone.js`.
+- A message is counted once on sites that wrap `fetch` after load (a re-entrancy guard in the page hook).
+- Changing any setting no longer makes every AI tab re-download usage and the whole chat; the Claude chat is fetched only when the chat changes or after a send; one shared organisation lookup.
+- The Settings page no longer writes stale values back over changes made elsewhere (for example a bar you just dragged).
+- The Help page's debug log refreshes at most every 2 seconds and never while you type. Identical usage reports are no longer re-sent (a 5-minute heartbeat keeps them fresh).
+- After an extension reload an orphaned copy now also stops its sky and its banner watcher. Custom sites pick up an updated script list on install, update and start-up.
+- The bar no longer snaps back for a moment after a drag; the meter mounts once even if it is switched off before the page loads; "1 msgs" reads "1 msg".
+- A 429 only shows "Rate limited" when it comes from a provider's own send or usage endpoints, not from a feature-flag or telemetry call.
+- Kimi: a missing sign-in cookie reads "Sign in to Kimi", not "Can't read usage".
+- `parseReset` understands weekday names and "tomorrow" ("resets Monday 9 AM").
+- The debug "shape" capture no longer treats every `*.co.uk` (or `*.com.au`, `*.co.jp`) site as the same site.
+- The privacy links in Settings and the welcome page now point at the policy URL the store listing uses (the GitHub Pages address was never published).
+- Welcome art draws the bar on the top edge, the default; step 4 says to pick a place (the weather is on by default).
+- `minimum_chrome_version` 111.
+
+### Removed
+- Dead code left over from the toolbar popup and an unused event bus: `AM.splitMeters`, `AM.cardSource`, `AM.sortEntries`, `AM.isStale`, `AM.STALE_MS`, `AM.fmtTokens`, `AM.bus` and `AM.emit` (nothing listened to the `'send'` and `'limit'` events), together with their tests. Smaller scripts in every page.
+
+### Added
+- Settings → Weather → **Frosted strips** (off by default): the cleared header and composer strips blur what is behind them, so scrolling text stays hidden while the sky shows. A strip that holds a menu or dialog is left unfrosted.
+- Clicking a limit alert focuses that service's open tab, or opens it.
+- The sky's quality governor has hysteresis: after it steps the resolution down it will not step back up for 30 seconds, and stepping up needs frames averaging under 18 ms, so a borderline GPU no longer bounces between sizes.
+- Chat length is counted incrementally with a MutationObserver instead of re-reading the whole chat every 4 seconds.
+- `AM.every()` replaces the override of the global `setInterval`; shutting down an orphaned copy still stops every job.
+- An end-to-end harness (`e2e/`): the unpacked extension in real Chromium against a mocked claude.ai, with CI (`.github/workflows/ci.yml`).
+
 ## 1.4.3 — 2026-11-25
 
 ### Changed

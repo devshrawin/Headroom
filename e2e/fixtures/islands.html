@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Mock chat for the island and halo scenarios (e2e.mjs --fixture=islands)</title>
+<!-- A light page with a conversation that scrolls behind a fixed composer. The scenarios (--bigislands, --chatswitch, --stalepin,
+     --haloscope, --readthrottle) drive it through window.addCards / window.switchChat / window.addProbes. -->
+<style>
+  :root { --bg: PAGE_BG; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: #1f1e1d; font: 15px/1.5 system-ui, sans-serif; }
+  header { position: fixed; top: 0; left: 0; right: 0; height: 52px; z-index: 5; display: flex; align-items: center; padding: 0 24px; background: var(--bg); }
+  #scroller { position: fixed; inset: 0; overflow-y: auto; }
+  #col { width: 760px; margin: 0 auto; padding: 70px 0 120px; }
+  .msg { padding: 6px 0; }
+  /* an island that sets no colour of its own: it inherits the text colour, which Headroom forces on everything else */
+  .card { background: #fff; border-radius: 10px; padding: 8px 12px; margin: 6px 0; }
+  .backdrop { position: fixed; inset: 0; z-index: -1; background: #fff; }
+  #composer { position: fixed; left: 0; right: 0; bottom: 0; z-index: 5; padding: 10px 0 14px; background: var(--bg); }
+  #plate { width: 760px; margin: 0 auto; padding: 4px 30px; box-sizing: border-box; background: var(--bg); }
+  #input { height: 56px; border-radius: 18px; background: #fff; border: 1px solid #ddd; display: flex; align-items: center; padding: 0 16px; }
+  #edit { flex: 1; outline: none; min-height: 22px; }
+</style>
+</head>
+<body>
+<header id="hdr"><b>Islands fixture</b></header>
+<div id="scroller"><div id="col">
+  <div class="msg">A first message.</div>
+  <div class="card" id="morph">A card that later becomes a page backdrop.</div>
+</div></div>
+<div id="composer"><div id="plate"><div id="input"><div contenteditable="true" id="edit" aria-label="Write a message"></div></div></div></div>
+<script>
+  let seq = 0;
+  // n white cards in one go (one mutation record, one frame)
+  window.addCards = (n) => {
+    const f = document.createDocumentFragment();
+    for (let i = 0; i < n; i++) { const d = document.createElement('div'); d.className = 'card'; d.textContent = 'Card ' + (++seq); f.appendChild(d); }
+    document.getElementById('col').appendChild(f);
+    return n;
+  };
+  // a new conversation: the whole subtree is replaced (a single-page app switching chats); cards, code and text
+  window.switchChat = (n) => {
+    const col = document.getElementById('col'); col.textContent = '';
+    const f = document.createDocumentFragment();
+    for (let i = 0; i < n; i++) {
+      const d = document.createElement('div'); d.className = 'card'; d.innerHTML = '<span>Reply ' + (++seq) + '</span> <code>x = ' + i + '</code>'; f.appendChild(d);
+      const m = document.createElement('div'); m.className = 'msg'; m.textContent = 'Message ' + seq; f.appendChild(m);
+    }
+    col.appendChild(f);
+  };
+  // things that hug the message box (760 px wide, 30 px past it on each side) and sit under the composer, as content that scrolls behind it
+  window.addProbes = () => {
+    const box = 'position:fixed;left:420px;width:760px;top:800px;height:90px;z-index:2;box-sizing:border-box;margin:0;';
+    for (const where of ['scroller', 'body']) {
+      const host = where === 'body' ? document.body : document.getElementById('col');
+      const add = (kind, el, css) => { el.setAttribute('data-probe', where + ':' + kind); el.style.cssText = box + (css || ''); host.appendChild(el); };
+      const t = document.createElement('table'); t.innerHTML = '<tbody><tr><td>cell</td><td>cell</td></tr></tbody>'; add('table', t, 'border:1px solid #888;border-collapse:collapse');
+      add('hr', document.createElement('hr'), 'border:0;border-top:2px solid #888');
+      const b = document.createElement('blockquote'); b.textContent = 'quoted'; add('blockquote', b, 'border-left:4px solid #888;padding:4px 12px');
+      const c = document.createElement('code'); c.textContent = 'x = 1'; c.style.display = 'block'; add('code', c, 'display:block;border:1px solid #888');
+      const p = document.createElement('div'); p.textContent = 'a paragraph of text'; add('text', p, 'border:1px solid #888');
+      // no text, not a content tag, paler than the page: only the scroll-container rule (or, in the body, nothing) separates it from a plate
+      add('empty', document.createElement('div'), 'background:#f0f0fa');
+    }
+  };
+</script>
+</body>
+</html>

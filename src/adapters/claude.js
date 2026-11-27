@@ -28,19 +28,23 @@
       });
       ctx.onRequest((d) => {
         if (d.method === 'POST' && /\/completion(\?|$)/.test(d.url)) {
-          AM.emit('send');
           clearTimeout(this.t1);
           clearTimeout(this.t2);
-          this.t1 = setTimeout(() => this.refresh(), 5000);
-          this.t2 = setTimeout(() => this.refresh(), 45000);
+          this.t1 = setTimeout(() => { this.refreshChat(); this.refresh(); }, 5000);
+          this.t2 = setTimeout(() => { this.refreshChat(); this.refresh(); }, 45000);
         }
       });
+      this.refreshChat();
       this.refresh();
-      setInterval(() => ctx.visible() && this.refresh(), 60000);
-      document.addEventListener('visibilitychange', () => ctx.visible() && this.refresh());
+      AM.every(() => ctx.visible() && this.refresh(), 60000);
+      document.addEventListener('visibilitychange', () => {
+        if (!ctx.visible()) return;
+        this.refresh();
+        if (Date.now() - (this.chatAt || 0) > 5 * 60e3) this.refreshChat(); // the chat may have moved on in another tab
+      });
       // claude.ai is a single-page app: watch for switching chats.
       this.path = location.pathname;
-      setInterval(() => {
+      AM.every(() => {
         if (location.pathname !== this.path) {
           this.path = location.pathname;
           this.refreshChat();
@@ -52,9 +56,12 @@
       return (location.pathname.match(/\/chat\/([0-9a-f-]{36})/i) || [])[1] || null;
     },
 
+    // The whole conversation is fetched only when the open chat changes, after a send, or when the tab comes back after a
+    // while. It used to be fetched on every 60 s usage poll, which for a long chat is megabytes a minute per tab.
     async refreshChat() {
       const id = this.chatId();
       if (!id) return this.ctx.setChat(null);
+      this.chatAt = Date.now();
       try {
         const org = await this.orgId();
         const conv = await this.ctx.getJSON(
@@ -69,15 +76,19 @@
       if (this.org) return this.org;
       const c = document.cookie.match(/(?:^|;\s*)lastActiveOrg=([^;]+)/);
       if (c) return (this.org = decodeURIComponent(c[1]));
-      const orgs = await this.ctx.getJSON('/api/organizations');
-      const list = Array.isArray(orgs) ? orgs : [];
-      const pick = list.find((o) => (o.capabilities || []).includes('chat')) || list[0];
-      if (!pick) throw new Error('no organization');
-      return (this.org = pick.uuid || pick.id);
+      // the usage and the chat refresh both ask at start-up: share one lookup instead of making two
+      if (!this.orgLookup) {
+        this.orgLookup = this.ctx.getJSON('/api/organizations').then((orgs) => {
+          const list = Array.isArray(orgs) ? orgs : [];
+          const pick = list.find((o) => (o.capabilities || []).includes('chat')) || list[0];
+          if (!pick) throw new Error('no organization');
+          return (this.org = pick.uuid || pick.id);
+        }).finally(() => { this.orgLookup = null; });
+      }
+      return this.orgLookup;
     },
 
     async refresh() {
-      this.refreshChat();
       try {
         const org = await this.orgId();
         this.parse(await this.ctx.getJSON(`/api/organizations/${org}/usage`));

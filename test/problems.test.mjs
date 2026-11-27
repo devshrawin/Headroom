@@ -110,11 +110,12 @@ test('Claude: a 401 on the usage call is a sign-in problem', async () => {
   assert.ok(problems.some((p) => p.kind === 'signin'), JSON.stringify(problems));
 });
 
-test('Kimi: no readable sign-in cookie is reported', async () => {
+test('Kimi: no kimi-auth cookie reads as signed out ("sign in"), not as a broken reader', async () => {
   const { adapter, problems } = loadAdapter('src/adapters/kimi.js', { cookie: '' });
   problems.length = 0;
   await adapter.refresh();
-  assert.ok(problems.some((p) => p.kind === 'error' && /sign-in/i.test(p.text)));
+  assert.ok(problems.some((p) => p.kind === 'signin' && /sign in/i.test(p.text)), JSON.stringify(problems));
+  assert.ok(!problems.some((p) => p.kind === 'error'));
 });
 
 // ---------- Perplexity signed out (item 8) ----------
