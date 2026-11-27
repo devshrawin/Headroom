@@ -2,6 +2,13 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.5.0 — 2026-11-27
+
+### Added
+- **Fluid background.** Settings → Weather → **Background** now chooses between the real-weather sky and a dark fluid simulation: coloured smoke that swirls, glows and follows your cursor (and drifts on its own when the cursor is idle). It needs no place or forecast. The fluid draws on its own canvas above the sky canvas; the existing sky code keeps doing the rest for it (clearing the page backdrops and the plate around the message box, picking white text, the frosted-strips option, putting the page back exactly when it is switched off). The sky shader itself does not draw while the fluid is on. Sky strength dims the fluid toward the page colour. If the fluid cannot start (no WebGL2 or float textures) the weather sky is used instead.
+- The fluid is a trimmed port of Pavel Dobryakov's WebGL Fluid Simulation (MIT licence; the notice is kept in `src/core/fluid-sim.js` and `THIRD_PARTY_NOTICES.md`), lighter than the original (128 / 512 simulation and dye resolution, 12 pressure iterations, 30 frames a second, the same resolution governor as the sky), with no control panel, no audio, no network. It pauses in hidden tabs, and with reduced motion it shows a single still frame and ignores the cursor. The renderer is injected only when the fluid is chosen, so there is no new permission.
+- New setting `weatherStyle` ('sky' by default, or 'fluid'), included in export and import.
+
 ## 1.4.6 — 2026-11-27
 
 From an external fix round on 1.4.5 (three files changed: `src/core/weather-sky.js`, `src/options/options.js`, `manifest.json`; no permission changes). See section 8 of `docs/audit-2026-11-26/report.md` and the imported tests in `tests/headroom-1.4.6/`.

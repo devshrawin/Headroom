@@ -160,6 +160,12 @@ test('background: loadWeather is refused without a sender tab, and injects only 
   assert.equal(replies[1].ok, true);
   assert.equal(bg.executed.length, 1);
   assert.equal(JSON.stringify(bg.executed[0].files), JSON.stringify(['src/core/sky-palette.js', 'src/core/weather-sky.js']));
+  // the fluid look adds its renderer; anything else a page-side script might send still gets only the sky (the lists are fixed here)
+  fn({ type: 'headroom:loadWeather', style: 'fluid' }, { tab: { id: 3 }, frameId: 0 }, (r) => replies.push(r));
+  fn({ type: 'headroom:loadWeather', style: 'src/evil.js' }, { tab: { id: 3 }, frameId: 0 }, (r) => replies.push(r));
+  await bg.settle();
+  assert.equal(JSON.stringify(bg.executed[1].files), JSON.stringify(['src/core/sky-palette.js', 'src/core/weather-sky.js', 'src/core/fluid-sim.js']));
+  assert.equal(JSON.stringify(bg.executed[2].files), JSON.stringify(['src/core/sky-palette.js', 'src/core/weather-sky.js']));
 });
 
 test('background: a 20-minute alarm is created when a place is saved, and the weather is fetched at once', async () => {

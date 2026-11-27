@@ -22,7 +22,7 @@ test('export holds settings only, with a version and a timestamp', () => {
   assert.deepEqual(file.settings.thresholds, [60, 95]);
   assert.equal('usage' in file.settings, false);
   assert.equal('debug.log' in file.settings, false);
-  assert.deepEqual(Object.keys(file.settings).sort(), ['chatStats', 'customSites', 'debug', 'frostedStrips', 'meterStyle', 'notify', 'quotas', 'thresholds', 'weather', 'weatherStrength', 'weatherUnits', 'widget']);
+  assert.deepEqual(Object.keys(file.settings).sort(), ['chatStats', 'customSites', 'debug', 'frostedStrips', 'meterStyle', 'notify', 'quotas', 'thresholds', 'weather', 'weatherStrength', 'weatherStyle', 'weatherUnits', 'widget']);
 });
 
 test('export then import round-trips the settings', () => {
@@ -184,4 +184,13 @@ test('the in-extension privacy links all point at the policy URL that the store 
     assert.ok(read(f).includes(url), f + ' links the policy');
     assert.ok(!/github\.io/.test(read(f)), f + ' has no github.io link (the Pages site is not published)');
   }
+});
+
+test('weatherStyle: the weather sky by default; only "fluid" selects the fluid; junk falls back; it round-trips through export/import', () => {
+  assert.equal(AM.mergeSettings(null).weatherStyle, 'sky');
+  assert.equal(AM.mergeSettings({ weatherStyle: 'fluid' }).weatherStyle, 'fluid');
+  for (const bad of ['Fluid', 'plasma', '', 1, null, undefined, {}, ['fluid']]) assert.equal(AM.mergeSettings({ weatherStyle: bad }).weatherStyle, 'sky', String(bad));
+  const file = AM.buildExport(AM.mergeSettings({ weatherStyle: 'fluid' }), '1.5.0');
+  assert.equal(AM.mergeSettings(AM.parseImport(JSON.stringify(file)).settings).weatherStyle, 'fluid');
+  assert.equal(AM.parseImport(JSON.stringify({ app: 'headroom', settings: { weatherStyle: 'plasma' } })).settings.weatherStyle, undefined, 'an unknown style is dropped on import');
 });

@@ -879,6 +879,11 @@ void main(){
     let resizeScanT = 0;
     const onResizeScan = () => { win.clearTimeout(resizeScanT); resizeScanT = win.setTimeout(() => clearBackdrops(true), 250); };
     (doc.documentElement).appendChild(canvas);
+    // The "fluid" background (Settings > Weather > Background): a second canvas, drawn by fluid-sim.js, sits above this one. This
+    // sky keeps doing everything else for it (clearing the page backdrops, the message-box plate, the text colour, the clean-up
+    // when it is switched off) but draws nothing: its night palette is the dark colour the ink is decided against, so text is white.
+    // If the fluid cannot start (no WebGL2/float textures), the sky simply draws as usual.
+    const fluid = opts.fluid && AM.FluidSim ? AM.FluidSim.mount({ strength: opts.strength, onLost: () => onLost() }) : null;
 
     const reduceMq = win.matchMedia('(prefers-reduced-motion: reduce)');
     let W = 0, H = 0, raf = 0, last = 0, lost = false;
@@ -917,7 +922,7 @@ void main(){
     // follows the sky instead, see decideInk.)
     let lastOp = -1;
     function setOpacity() {
-      if (lastOp === 1) return;
+      if (lastOp === 1 || fluid) return; // with the fluid the sky canvas stays transparent: the page colour shows through at low strength
       lastOp = 1; canvas.style.opacity = '1'; canvas.style.filter = 'none';
     }
     function applyTone() {
@@ -1020,11 +1025,12 @@ void main(){
     const scheduleRead = () => { win.clearTimeout(readT); readT = win.setTimeout(readDark, 300); };
 
     function setState(st) {
+      if (fluid) st = { season: 'summer', weather: 'clear', tod: 0, live: false, windX: 0, windY: 0 }; // the fixed dark palette
       sky = { season: st.season, weather: st.weather, hour: st.tod, rise: st.rise, set: st.set, live: !!st.live, seasonForced: !!st.seasonForced, t0: performance.now(), wind: [st.windX * 2.2, st.windY || 0] };
       if (reduceMq.matches) curU = null; // no easing without motion: show the new state at once
       if (reduceMq.matches || !raf) frame(performance.now(), .05);
     }
-    function setStrength(v) { strength = clamp(v, .2, 1); tone = null; applyTone(); }
+    function setStrength(v) { strength = clamp(v, .2, 1); if (fluid) fluid.setStrength(strength); tone = null; applyTone(); }
 
     function frame(now, dt) {
       simT += dt;
@@ -1067,6 +1073,7 @@ void main(){
       else curInk += (ink - curInk) * kSlow;
       shX += (curU.uWind[0] + .45) * dt; shY += curU.uWind[1] * dt; // always a gentle drift, more with real wind
       if (doc.hidden) return; // nothing is drawn while the tab is hidden
+      if (fluid) return; // the fluid draws its own canvas; the sky only decided the ink above
       const set1 = (n, v) => { const l = U[n]; if (l == null) return; if (typeof v === 'number') gl.uniform1f(l, v); else if (v.length === 2) gl.uniform2fv(l, v); else gl.uniform3fv(l, v); };
       set1('uRes', [W, H]); set1('uTime', 37 + simT);
       for (const key in curU) set1(key, curU[key]);
@@ -1130,6 +1137,7 @@ void main(){
         doc.removeEventListener('visibilitychange', onVis);
         reduceMq.removeEventListener('change', onMotion);
         canvas.removeEventListener('webglcontextlost', onLost);
+        if (fluid) { try { fluid.destroy(); } catch {} }
         let ext = null;
         try { ext = gl.getExtension('WEBGL_lose_context'); } catch {}
         canvas.remove();

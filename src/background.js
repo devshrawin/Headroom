@@ -53,9 +53,10 @@ async function checkThresholds(entry, settings) {
 let queue = Promise.resolve();
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg && msg.type === 'headroom:loadWeather') {
-    // The weather sky's renderer, injected into the asking frame like the rest of the content scripts.
+    // The weather sky's renderer (or, with style 'fluid', the sky plus the fluid renderer), injected into the asking frame like the
+    // rest of the content scripts. The file lists are fixed here: a page can never choose what gets injected.
     if (!sender.tab || sender.tab.id == null) { sendResponse({ ok: false, error: 'no tab' }); return; }
-    chrome.scripting.executeScript({ target: { tabId: sender.tab.id, frameIds: [sender.frameId || 0] }, files: AM.WEATHER_FILES })
+    chrome.scripting.executeScript({ target: { tabId: sender.tab.id, frameIds: [sender.frameId || 0] }, files: msg.style === 'fluid' ? AM.FLUID_FILES : AM.WEATHER_FILES })
       .then(() => sendResponse({ ok: true }))
       .catch((e) => sendResponse({ ok: false, error: String((e && e.message) || e) }));
     return true;

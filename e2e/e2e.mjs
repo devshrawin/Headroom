@@ -66,6 +66,7 @@ try {
     return {
       bg,
       sky: !!canvas, skyOpacity: canvas && canvas.style.opacity,
+      fluid: !!document.querySelector('canvas[data-headroom=fluid]'), ink: document.documentElement.getAttribute('data-hr-ink'),
       widget: !!host,
       trackColour: trk && getComputedStyle(trk).backgroundColor,
       wrapClass: wrap && wrap.className,
@@ -156,6 +157,44 @@ try {
       await set(false);
       out.frostOff = await snap();
     }
+  }
+  // (l) the fluid background: it really draws (bright pixels on screen after a few seconds), reacts to the cursor, and switching the
+  // style or the weather off takes the right canvas away and leaves nothing behind
+  if (args.fluidpixels) {
+    const lab = await ctx.newPage();
+    await lab.goto('about:blank');
+    const bright = async () => {
+      const b64 = (await page.screenshot({ clip: { x: 10, y: 70, width: 190, height: 640 } })).toString('base64');
+      return lab.evaluate(async (b64) => {
+        const img = new Image(); img.src = 'data:image/png;base64,' + b64; await img.decode();
+        const cv = document.createElement('canvas'); cv.width = img.width; cv.height = img.height;
+        const g = cv.getContext('2d'); g.drawImage(img, 0, 0);
+        const d = g.getImageData(0, 0, cv.width, cv.height).data;
+        let n = 0, max = 0, sum = 0;
+        for (let i = 0; i < d.length; i += 4) { const m = Math.max(d[i], d[i + 1], d[i + 2]); if (m > 60) n++; sum += m; if (m > max) max = m; }
+        return { brightShare: +(n / (d.length / 4)).toFixed(4), mean: +(sum / (d.length / 4)).toFixed(1), max };
+      }, b64);
+    };
+    // Cursor-driven: the few splats it starts with fade, and after that only the cursor moves it. So the strip on the left of
+    // the page (no page content there) is nearly black when idle, and a sweep of the cursor down that strip lights it up.
+    await page.waitForTimeout(9000);
+    out.fluidIdle = await bright();
+    await page.mouse.move(40, 120);
+    for (let k = 0; k < 4; k++) for (let i = 0; i < 24; i++) await page.mouse.move(40 + (i % 2) * 120, 120 + k * 130 + i * 5);
+    await page.waitForTimeout(400);
+    out.fluidSwept = await bright();
+  }
+  if (args.styleswitch) {
+    const set = async (patch) => { await sw.evaluate(async (patch) => { const { settings } = await chrome.storage.local.get('settings'); await chrome.storage.local.set({ settings: { ...settings, ...patch } }); }, patch); await page.waitForTimeout(3500); };
+    const look = () => page.evaluate(() => ({ fluid: !!document.querySelector('canvas[data-headroom=fluid]'), sky: !!document.querySelector('canvas[data-headroom=weather]'), marks: document.querySelectorAll('[data-hr-sky],[data-hr-halo],[data-hr-halo-p],[data-hr-halo-o],[data-hr-island],[data-hr-frost]').length, rootAttrs: [...document.documentElement.attributes].map((a) => a.name).filter((n) => n.startsWith('data-hr')) }));
+    out.switch = {};
+    out.switch.start = await look();
+    await set({ weatherStyle: 'sky' });
+    out.switch.toSky = await look();
+    await set({ weatherStyle: 'fluid' });
+    out.switch.backToFluid = await look();
+    await set({ weather: false });
+    out.switch.off = await look();
   }
   // (c) stability: in a steady page nothing is marked / unmarked over and over
   out.markFlips = await page.evaluate(() => new Promise((res) => {

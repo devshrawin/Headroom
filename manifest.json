@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "minimum_chrome_version": "111",
   "name": "Headroom",
-  "version": "1.4.6",
+  "version": "1.5.0",
   "description": "See your AI usage limit as a thin bar on the chat sites you use, with the live weather as a sky behind the chat.",
   "permissions": [
     "storage",

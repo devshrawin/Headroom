@@ -93,7 +93,8 @@ async function weatherPage() {
   return `
   <h1 class="page-h">Weather</h1><p class="page-d">${PAGES[0].desc}</p>
   <section class="card">
-    ${row('Show the weather', 'A sky behind the chat on the AI sites you use. It never blocks the page or your clicks.', sw('weather', 'On', S.weather))}
+    ${row('Show the weather', 'A background behind the chat on the AI sites you use. It never blocks the page or your clicks.', sw('weather', 'On', S.weather))}
+    ${row('Background', 'The real weather as a living sky, or a dark fluid that swirls and follows your cursor (it needs no place).', seg('weatherStyle', [['sky', 'Weather sky'], ['fluid', 'Fluid']], S.weatherStyle, 'Background style'))}
     ${row('Your place', 'Where the weather is for. Pick one of the two ways.', `
       <div>${placeHtml}</div>
       <div class="row"><button class="btn primary" type="button" data-act="locate">Use my location</button><span class="muted">asks Chrome once</span></div>

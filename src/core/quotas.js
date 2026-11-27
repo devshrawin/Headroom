@@ -42,6 +42,9 @@
 
   // The weather sky is injected into a tab only when the weather is switched on (see content.js / background.js).
   AM.WEATHER_FILES = ['src/core/sky-palette.js', 'src/core/weather-sky.js']; // the palette first: the sky reads it
+  // The fluid background (Settings > Weather > Background) draws its own canvas and borrows everything else (clearing the page
+  // backdrops, the text colour, the message-box plate) from the sky, so it is the same files plus its own renderer.
+  AM.FLUID_FILES = [...AM.WEATHER_FILES, 'src/core/fluid-sim.js'];
 
   AM.siteScripts = (host) => {
     const matches = [`https://${host}/*`];
@@ -103,6 +106,7 @@
     weatherPlace: null, // { name, lat, lon }: where the weather is for, coordinates rounded to two decimals
     weatherUnits: 'c', // 'c' | 'f'
     weatherStrength: 1, // 0.2 .. 1: how strongly the sky shows through the page
+    weatherStyle: 'sky', // 'sky' (the real weather) | 'fluid' (a dark, cursor-following fluid simulation)
     frostedStrips: false, // blur the page behind the cleared header and composer strips (off by default)
     weatherForce: null, // Settings → "Try a look": { weather?, season?, tod? } instead of the real thing
     quotas: AM.DEFAULT_QUOTAS,
@@ -142,6 +146,7 @@
     weatherPlace: cleanPlace(s && s.weatherPlace),
     weatherUnits: s && s.weatherUnits === 'f' ? 'f' : 'c',
     weatherStrength: typeof (s && s.weatherStrength) === 'number' && isFinite(s.weatherStrength) ? Math.min(1, Math.max(0.2, s.weatherStrength)) : 1,
+    weatherStyle: s && s.weatherStyle === 'fluid' ? 'fluid' : 'sky',
     frostedStrips: !!(s && s.frostedStrips === true),
     weatherForce: cleanForce(s && s.weatherForce),
     thresholds: cleanThresholds(s && s.thresholds),

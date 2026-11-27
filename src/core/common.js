@@ -323,7 +323,7 @@
   AM.buildExport = (settings, version, now = new Date()) => {
     const s = AM.mergeSettings(settings);
     const keep = {};
-    for (const k of ['widget', 'chatStats', 'meterStyle', 'notify', 'thresholds', 'debug', 'weather', 'weatherUnits', 'weatherStrength', 'frostedStrips', 'quotas', 'customSites']) keep[k] = s[k]; // never the place: that is where you are
+    for (const k of ['widget', 'chatStats', 'meterStyle', 'notify', 'thresholds', 'debug', 'weather', 'weatherUnits', 'weatherStrength', 'weatherStyle', 'frostedStrips', 'quotas', 'customSites']) keep[k] = s[k]; // never the place: that is where you are
     return { app: 'headroom', format: 1, version: version || '', exportedAt: now.toISOString(), settings: keep };
   };
 
@@ -344,6 +344,7 @@
     for (const k of ['widget', 'chatStats', 'notify', 'debug', 'weather', 'frostedStrips']) if (typeof s[k] === 'boolean') out[k] = s[k];
     if (['bar-top', 'bar-bottom', 'bar-left', 'bar-right'].includes(s.meterStyle)) out.meterStyle = s.meterStyle;
     if (s.weatherUnits === 'c' || s.weatherUnits === 'f') out.weatherUnits = s.weatherUnits;
+    if (s.weatherStyle === 'sky' || s.weatherStyle === 'fluid') out.weatherStyle = s.weatherStyle;
     if (typeof s.weatherStrength === 'number' && isFinite(s.weatherStrength)) out.weatherStrength = Math.min(1, Math.max(0.2, s.weatherStrength));
     if (Array.isArray(s.thresholds)) {
       const t = s.thresholds.filter((n) => num(n) && n > 0 && n <= 100).slice(0, 10);

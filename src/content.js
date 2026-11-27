@@ -117,15 +117,16 @@
 
   // Weather (Settings → Weather): the real weather as a living sky behind the page. Its renderer is injected on demand;
   // the data is fetched by the background script and kept in storage ('weather.data'), so tabs never fetch anything.
-  AM.loadWeather = () => new Promise((resolve, reject) => {
+  AM.loadWeather = (style) => new Promise((resolve, reject) => {
     try {
-      chrome.runtime.sendMessage({ type: 'headroom:loadWeather' }, (r) => {
+      chrome.runtime.sendMessage({ type: 'headroom:loadWeather', style: style === 'fluid' ? 'fluid' : 'sky' }, (r) => {
         if (chrome.runtime.lastError || !r || !r.ok) reject(new Error((r && r.error) || 'could not load the weather'));
         else resolve();
       });
     } catch (e) { reject(e); }
   });
   let sky = null;
+  let skyFluid = false; // which look the mounted sky has
   let skyToken = 0;
   // An orphaned copy (the extension was reloaded or updated) must hand the page back: no sky left running with nobody to turn it off.
   (AM.onShutdown = AM.onShutdown || []).push(() => { skyToken++; if (sky) { try { sky.destroy(); } catch {} sky = null; } });
@@ -134,7 +135,10 @@
   let skyWaitingVisible = false;
   const applyWeather = async () => {
     const token = ++skyToken;
-    const show = adapter && settings.weather && settings.weatherPlace && (weatherData || settings.weatherForce);
+    // The fluid background needs no place and no forecast; the weather sky does.
+    const fluid = settings.weatherStyle === 'fluid';
+    const show = adapter && settings.weather && (fluid || (settings.weatherPlace && (weatherData || settings.weatherForce)));
+    if (sky && skyFluid !== fluid) { sky.destroy(); sky = null; } // the other look was chosen: start over
     if (!show) {
       if (sky) { sky.destroy(); sky = null; }
       return;
@@ -153,12 +157,13 @@
       return;
     }
     try {
-      if (!AM.WeatherSky) await AM.loadWeather();
+      if (!AM.WeatherSky || (fluid && !AM.FluidSim)) await AM.loadWeather(fluid ? 'fluid' : 'sky');
       if (token !== skyToken || !AM.WeatherSky) return;
       if (!sky) {
         sky = AM.WeatherSky.mount({
           strength: settings.weatherStrength,
           frost: settings.frostedStrips,
+          fluid,
           // The renderer has destroyed itself after a lost graphics context: try again, at most 3 times per page load.
           onLost: () => {
             sky = null;
@@ -166,8 +171,9 @@
           },
         });
         if (!sky) return;
+        skyFluid = fluid;
       } else { sky.setStrength(settings.weatherStrength); if (sky.setFrost) sky.setFrost(settings.frostedStrips); }
-      sky.setState(AM.WEATHER.skyState(weatherData, Date.now(), settings.weatherForce));
+      sky.setState(fluid ? {} : AM.WEATHER.skyState(weatherData, Date.now(), settings.weatherForce));
     } catch (e) { console.warn('[Headroom] weather', e); }
   };
 
@@ -277,7 +283,7 @@
     const changed = (k) => JSON.stringify(settings[k]) !== JSON.stringify(prev[k]);
     // Only the weather keys restart the sky, and only limit rules or sites call the provider again. Before, every change
     // (dragging the bar, moving the strength slider) re-fetched usage and the whole open chat in every AI tab.
-    if (['weather', 'weatherPlace', 'weatherStrength', 'weatherForce', 'frostedStrips'].some(changed)) applyWeather();
+    if (['weather', 'weatherPlace', 'weatherStrength', 'weatherForce', 'weatherStyle', 'frostedStrips'].some(changed)) applyWeather();
     if (['quotas', 'customSites'].some(changed)) refreshAdapter();
     publish();
   });
