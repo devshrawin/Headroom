@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Sky lab: text on the sky, in the places a chat app puts it</title>
+<style>
+  :root { --bg: PAGE_BG; --card: CARD_BG; --text: TEXT; --muted: MUTED; --link: LINK; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--bg); color: var(--text); font: 15px/1.55 system-ui, sans-serif; }
+  .app { display: flex; height: 100vh; }
+  aside { width: 250px; flex: none; background: var(--bg); padding: 56px 16px 16px; box-sizing: border-box; }
+  aside .item { padding: 6px 8px; color: var(--muted); }
+  aside .item.cur { color: var(--text); font-weight: 600; }
+  .main { flex: 1; display: flex; flex-direction: column; min-width: 0; }
+  header { flex: none; height: 52px; display: flex; align-items: center; padding: 0 24px; background: var(--bg); font-weight: 600; }
+  .scroller { flex: 1; overflow-y: auto; }
+  .col { max-width: 760px; margin: 0 auto; padding: 8px 24px; }
+  .muted { color: var(--muted); font-size: 13px; }
+  a { color: var(--link); }
+  .bubble { background: var(--card); border-radius: 14px; padding: 10px 14px; margin: 10px 0 10px auto; width: fit-content; max-width: 70%; }
+  .card { background: var(--card); border-radius: 10px; padding: 12px; margin: 10px 0; }
+  pre { background: #1e1e2e; color: #cdd6f4; border-radius: 8px; padding: 10px; margin: 10px 0; }
+  code.inline { background: rgba(127,127,127,.18); padding: 0 4px; border-radius: 4px; }
+  .composer { flex: none; padding: 8px 24px 10px; }
+  .box { max-width: 760px; margin: 0 auto; background: var(--card); border-radius: 18px; padding: 14px 16px; }
+  .labels { max-width: 760px; margin: 6px auto 0; display: flex; justify-content: space-between; }
+  /* a sidebar row that only gets a background under the pointer, after a short fade (as in most chat apps) */
+  aside .item.hov { transition: background-color .15s; border-radius: 0; }
+  aside .item.hov:hover { background: var(--card); }
+  /* a card drawn by the element's own ::before, behind its text */
+  .pcard { position: relative; padding: 10px 14px; margin: 10px 0; }
+  .pcard::before { content: ""; position: absolute; inset: 0; z-index: -1; background: var(--card); border-radius: 10px; }
+  .pcard { z-index: 0; }
+</style>
+</head>
+<body>
+<div class="app">
+  <aside id="side"><div class="item cur" id="sideCur">Headroom audit</div><div class="item" id="sideMuted">Trip planning</div><div class="item hov" id="hov">Recipe ideas</div></aside>
+  <div class="main">
+    <header id="hdr">Headroom extension audit and fixes</header>
+    <div class="scroller"><div class="col">
+      <p class="muted" id="thinking">Thinking 14s · Read a file common.js</p>
+      <p id="p1">The sky now keeps its full colour, and the text that sits on it switches between near-black and white so it stays readable.</p>
+      <div class="bubble" id="bubble">Can you make the sky more vivid?</div>
+      <p id="p2">Here is a paragraph with a <a href="#" id="link">link to the report</a> and some <code class="inline">inline code</code> in it.</p>
+      <div class="card" id="card">Tool output card: this text keeps the site's own colour on the card's own background.</div>
+      <pre id="pre">const sky = vivid(true);</pre>
+      <div class="pcard" id="pcard">A card drawn by a pseudo-element behind this text.</div>
+      <p id="p3">A last paragraph near the bottom of the conversation, close to the message box.</p>
+    </div></div>
+    <div class="composer"><div class="box" id="box"><span contenteditable="true" id="edit">Write a message…</span></div>
+      <div class="labels"><span class="muted" id="auto">Auto</span><span class="muted" id="model">Opus 5.5 · High</span></div></div>
+  </div>
+</div>
+</body>
+</html>

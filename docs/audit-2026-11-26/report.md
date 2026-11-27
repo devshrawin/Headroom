@@ -327,3 +327,55 @@ This section is written by the developer who took the audit over. The 1.4.4 fixe
 **Decision: delete.** Reasons: the toolbar popup these helpers served was removed in 1.4.1, so nothing in the shipped extension calls them; they were still copied into every page's content scripts; the only things referencing them were their own unit tests (plus event emitters that nothing listened to); and the audit's search showed no other caller. Keeping dead code has a cost (every tab loads it, and tests keep it looking alive) and deleting it is recoverable from git history, so the risk is low.
 
 What was removed: `AM.splitMeters`, `AM.cardSource`, `AM.sortEntries`, `AM.isStale`, `AM.STALE_MS` (core/common.js), `AM.fmtTokens` (core/parsers.js), `AM.bus`, `AM.emit` and the three `emit` calls in the Claude adapter, the banner watcher and the estimator (core/store.js). If a future popup or panel needs a multi-service overview again, restore them from the 1.4.0 commit.
+
+
+---
+
+## 8. Follow-up (1.4.6, 27 Nov 2026)
+
+After 1.4.5 the owner still saw a pale square plate behind the message box on the live page. An external fix round produced 1.4.6 on top of 1.4.5; it changes three files (`src/core/weather-sky.js`, `src/options/options.js`, `manifest.json`), no permissions. The delivered `headroom-1.4.6.zip` was compared byte for byte with the repository's 1.4.5: only those three files differ, and the repository's own 1.4.5 additions (frosted strips, governor hysteresis, `AM.every`, the 429 scope and the rest) are all still there.
+
+### 8.1 What 1.4.6 changed
+
+- **The plate or frame around the message box.** A new halo pass finds the message box (the outermost rounded, painted ancestor of the textarea or contenteditable, if it is composer-sized) and switches off background, border and box-shadow on the elements that hug it: its ancestors no more than 72 px wider on each side, their wide square children, and whatever `elementsFromPoint` hits just outside it. It also switches off the box's own `::before`/`::after` and outlines of 4 px or more. The marks go on before any paint appears, so a frame that only shows on scroll or focus is already off. The pass runs every 1.5 s and in the next animation frame after scroll and focus events. The on-screen pass now reads fresh styles every time (it used to miss `:focus-within` and scroll-state paint), and a rounded `::before`/`::after` card is no longer cleared as a page-coloured strip.
+- **A vivid sky that does not wash anything out.** Removed: the white wash (`uLift`, `uVeil`), the night fade, the brightness and saturation filters on the canvas, and the night page inversion (`data-hr-night`, "pure" mode). New shader stage `inkSafe()` in OKLab: chroma x1.4 (up to x2.2 for near-greys); gamut mapping that only reduces chroma, so hue never shifts; and a lightness band chosen by the text colour (dark text keeps the sky at L >= .64, white text at L <= .50, 0.10 knee). Stars, the sun and moon discs and the lightning bolt are drawn after the band. Sky strength is blended inside the shader toward the page colour (`uMix`, `uPage`); the canvas is always at opacity 1.
+- **Automatic text colour.** `decideInk()` picks dark or white text, whichever needs the smaller lightness change to the sky (sampled at the top, middle and horizon, including clouds, fog and Sky strength; a switch needs a 0.02 margin held for 2.5 s) and writes `data-hr-ink` on `<html>`; a CSS rule then sets the text colour of non-island elements. Islands (`data-hr-island`) are elements with their own paint: background alpha >= .5, a background image or gradient, or a painted `::before`/`::after`. They keep the site's colours, found in the first scan and then through a MutationObserver and pointer, focus and transition events (hover backgrounds). An island that would inherit the forced colour gets its original colour pinned inline; the pin goes when it stops being an island and when the sky is switched off.
+- `options.js`: a new description for Sky strength. `manifest.json`: version 1.4.6.
+
+### 8.2 Test results
+
+| Suite | Result |
+|---|---|
+| Repository unit tests (`npm test`) | 168 / 168 |
+| Audit unit tests (`e2e/audit-unit.test.mjs`) | 16 / 16 |
+| End-to-end scenarios (`e2e/run-all.mjs`) | 7 / 7, all baseline values unchanged |
+| Plates and frames around the message box (`e2e/plates.mjs`, 13 variants, at rest, 0.2 s and 2.2 s after a scroll, and flicker) | 13 / 13 on 1.4.6. Run on the 1.4.5 build it fails (for example `fborder`); the delivery's own run of its Python original measured 2 / 13 on 1.4.5 |
+| Text colour over time (`e2e/ink.mjs`: hover, streaming, pseudo-element cards, theme switch) | 10 / 10 |
+| "Weather off restores the page" (marks, root attributes, pinned colours, canvas, sheet) | nothing left behind |
+| Sky lab, 70 states (7 weathers x 5 times x light and dark page), from the delivered `results/lab14[56].json`; not re-run here because it is Python | worst text contrast on the sky 6.34 : 1, none below 4.5 (1.4.5: worst 1.00, 65 of 70 below 4.5). Mean sky chroma .0600 against .0323 |
+
+Test changes: the "palette and shader agree on every uniform" test listed `uVeil` and `uLift`; it now lists the new uniforms (`uInk`, `uVivid`, `uPage`, `uMix`) and asserts that the two removed ones stay removed. No other test asserted the removed behaviour (nothing in the repository asserted canvas opacity or filters at night, `data-hr-night` or the "pure" inversion).
+
+### 8.3 Notes
+
+- The Python suites (`plates.py`, `ink_behaviour.py`) cannot run on the owner's machine (Python is blocked), so they were ported to Node (`e2e/plates.mjs`, `e2e/ink.mjs`) with the same measurements and thresholds, and both are part of `e2e/run-all.mjs` and so of CI. The originals, the patch, the fixtures and the results are kept as delivered in `tests/headroom-1.4.6/`. `sky_lab.py` is kept for a machine that has Python.
+- One deliberate deviation in the ink port: the Python test looked once, 450 ms after the pointer moved, at the hover row. Under software WebGL the text colour sometimes needs about 0.8 s to follow the pointer (on a slow frame; it takes about 0.2 s otherwise), so the port polls for up to 2.5 s and reports how long it took (`hoverMs`, `unhoverMs`). The colour always corrected itself; the check still fails if it never does.
+- Phase 1 (the live check on claude.ai, ChatGPT and Gemini) is still the owner's: header, message box (typing, scrolling), light and dark theme, day and night.
+
+### 8.4 Review of the delivery before pushing (27 Nov 2026)
+
+A second reviewer read the 1.4.5 to 1.4.6 change and the new test code. By the owner's instruction 1.4.6 is applied **as delivered**; the owner uploads the delivered zip after a live check, so the findings below are recorded here and **not fixed in the delivered `weather-sky.js`**. They are the first things to look at in a follow-up round.
+
+Should fix in `src/core/weather-sky.js`:
+1. **Island queue dropped above 6000 elements.** When more than 6000 elements are queued in one frame the loop stops and the rest of the queue is cleared; after the first scan the full walk no longer looks at islands, so those cards can keep the forced text colour (white on white at night). Suggested: keep the unprocessed elements queued and schedule another frame.
+2. **Stale pins and a leak.** `data-hr-island` is removed in several places (about lines 504, 667, 673, 698) without un-pinning the element's text colour, and detached elements are never removed from the `pinned` map, which keeps whole old conversation trees alive after chat switches in a single-page app. Suggested: un-pin wherever the island mark is removed, and prune disconnected entries in `clearBackdrops`.
+3. **The halo pass reaches into the conversation.** Its last step marks any element just outside the message box that is not rounded or interactive; once the plate is cleared that includes conversation content scrolling behind the composer (tables, rules, blockquotes, inline code), so their borders and backgrounds vanish near the composer and return as marks expire. Suggested: limit that step to elements outside the conversation's scroll container, or inside the composer's own subtree.
+4. **The ink band applies before `data-hr-ink` is set.** During the first full walk, which can take seconds on a big chat, the site's own text sits on a sky banded for the other text colour. Suggested: keep the shader's ink at 0 until the ink is active. (This also shows in the e2e big-chat scenario, where `data-hr-ink` is still unset when the check runs.)
+
+Worth knowing: `readDark` (any `<head>` child or `<html>`/`<body>` attribute change) un-pins and re-pins every island with the sheet toggled, a full style recalculation on chats with thousands of islands; a single text colour erases link colour (WCAG 1.4.1); nothing handles `forced-colors: active` or `prefers-contrast: more` (consider not mounting the sky there); the moon, sun and lightning are drawn after the lightness band, so white text over the moon disc can be hard to read; `__hrDeep` is set as a property on page nodes (a WeakSet would leave nothing behind). Dead `data-hr-night` reads remain in `core/page-tone.js` and `weather-sky.js` (nothing sets the attribute any more; harmless).
+
+Privacy: only computed styles and geometry are read, no text content, and there is no network call. The 1.4.5 features in the same file (quality governor, frosted strips, shutdown path, exports) are all still in place and wired.
+
+What to test on the live site first: claude.ai at night (white ink) on a long chat, then switch chats and look for white-on-white cards; scroll a table behind the composer; toggle the site's dark theme; stream a long code reply; turn the sky off and check that no `[style*=color]` is left on the page.
+
+Changes made in the repository in response (test code only, nothing shipped): the "weather off restores the page" check now lives in `e2e/ink.mjs`, where the ink is active (it asserts that ink and islands existed first, then that no marks, root attributes, pinned colours or canvas remain); the earlier version in `e2e/run-all.mjs` could pass on nothing and was removed; `e2e/plates.mjs` and `e2e/ink.mjs` resolve the default extension path from the file and delete their temporary browser profile.

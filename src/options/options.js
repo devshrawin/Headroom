@@ -103,7 +103,7 @@ async function weatherPage() {
     ${row('Right now', 'Refreshed every 20 minutes in the background.', `${now}${err ? `<div class="note warn">Could not reach the weather service: ${esc(err.error)}</div>` : ''}<div class="row"><button class="btn sm" type="button" data-act="refresh" ${place ? '' : 'disabled'}>Refresh now</button></div>`)}
     ${row('Frosted strips', 'Blur the page behind the header and the strip around the message box, so text scrolling under them stays hidden while the sky still shows. Off by default.', sw('frostedStrips', 'On', S.frostedStrips))}
     ${row('Units', '', seg('weatherUnits', [['c', '°C'], ['f', '°F']], S.weatherUnits, 'Temperature units'))}
-    ${row('Sky strength', 'How strongly the sky shows through the page. Lower it if text is hard to read.', `<input type="range" min="20" max="100" step="5" value="${Math.round(S.weatherStrength * 100)}" data-k="weatherStrength" data-div="100" aria-label="Sky strength"><div class="muted" id="strv">${Math.round(S.weatherStrength * 100)}%</div>`)}
+    ${row('Sky strength', 'How strongly the sky shows through the page. Text on the sky switches between dark and white on its own, so it stays readable at any setting.', `<input type="range" min="20" max="100" step="5" value="${Math.round(S.weatherStrength * 100)}" data-k="weatherStrength" data-div="100" aria-label="Sky strength"><div class="muted" id="strv">${Math.round(S.weatherStrength * 100)}%</div>`)}
   </section>
   <section class="card">
     <div class="card-h">Try a look</div>

@@ -118,7 +118,8 @@ try {
   if (args.off) {
     await sw.evaluate(async () => { const { settings } = await chrome.storage.local.get('settings'); await chrome.storage.local.set({ settings: { ...settings, weather: false } }); });
     await page.waitForTimeout(1500);
-    out.off = await page.evaluate(() => ({ canvas: !!document.querySelector('canvas[data-headroom]'), marks: document.querySelectorAll('[data-hr-sky]').length, rootStyle: document.documentElement.getAttribute('style') || '', sheet: !!document.querySelector('style[data-headroom=weather]'), hdr: getComputedStyle(document.getElementById('hdr')).backgroundColor }));
+    out.beforeOff = await page.evaluate(() => ({ ink: document.documentElement.getAttribute('data-hr-ink'), islands: document.querySelectorAll('[data-hr-island]').length, inlineColours: [...document.querySelectorAll('body [style*="color"]')].length }));
+    out.off = await page.evaluate(() => ({ canvas: !!document.querySelector('canvas[data-headroom]'), marks: document.querySelectorAll('[data-hr-sky],[data-hr-halo],[data-hr-halo-p],[data-hr-halo-o],[data-hr-island],[data-hr-frost]').length, rootStyle: document.documentElement.getAttribute('style') || '', rootAttrs: [...document.documentElement.attributes].map((a) => a.name).filter((n) => n.startsWith('data-hr')), inlineColours: [...document.querySelectorAll('body [style*="color"]')].length, sheet: !!document.querySelector('style[data-headroom=weather]'), hdr: getComputedStyle(document.getElementById('hdr')).backgroundColor }));
   }
   // (i) the fetch hook keeps fetch's own behaviour: Request objects, errors, `this`
   if (args.fetchsem) {

@@ -2,6 +2,21 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
+## 1.4.6 — 2026-11-27
+
+From an external fix round on 1.4.5 (three files changed: `src/core/weather-sky.js`, `src/options/options.js`, `manifest.json`; no permission changes). See section 8 of `docs/audit-2026-11-26/report.md` and the imported tests in `tests/headroom-1.4.6/`.
+
+### Fixed
+- The white plate or frame around the message box is gone. A new "halo" pass finds the message box (the outermost rounded, painted ancestor of the textarea or contenteditable, if it is composer-sized) and switches off the background, border and box-shadow of the elements that hug it (its ancestors no more than 72 px wider on each side, their wide square children, and whatever sits just outside it), plus the box's own `::before`/`::after` and outlines of 4 px or more. The marks are set before any paint appears, so a frame that only shows on scroll or on focus is already off. It runs every 1.5 s and on the next animation frame after a scroll or focus event.
+- The on-screen pass reads fresh styles every time; before, its cache missed `:focus-within` and scroll-state paint.
+- A rounded `::before`/`::after` card is no longer cleared as a page-coloured strip.
+- Sky strength is now blended inside the shader toward the page colour, and the canvas is always at opacity 1.
+
+### Changed
+- The sky is vivid again and text stays readable by choosing the text colour, not by washing the sky out. Removed: the white wash (`uLift`, `uVeil`), the night fade, the brightness and saturation filters on the canvas, and the night page inversion (`data-hr-night`, "pure" mode). A new shader stage works in OKLab: chroma boost (x1.4, up to x2.2 for near-greys), gamut mapping that only reduces chroma (hue never shifts), and a lightness band chosen by the text colour (dark text keeps the sky at L >= .64, white text at L <= .50, with a 0.10 knee). Stars, the sun and moon discs and the lightning bolt are drawn after the band.
+- Automatic text colour: the sky picks dark or white text, whichever needs the smaller lightness change (sampled at the top, middle and horizon, including clouds, fog and Sky strength; a switch needs a 0.02 margin held for 2.5 s) and writes it as `data-hr-ink` on `<html>`. Elements with their own paint ("islands": background alpha >= .5, a background image or gradient, or a painted `::before`/`::after`) keep the site's colours, found in the first scan and then through a MutationObserver and pointer, focus and transition events (hover backgrounds). Turning the sky off removes every mark and every pinned colour.
+- Settings → Sky strength has a new description: text stays readable at any setting.
+
 ## 1.4.5 — 2026-11-26
 
 Contains the whole external audit of 1.4.3 (its fixes were built as an unpublished 1.4.4) and the follow-up recommendations. See `docs/audit-2026-11-26/report.md`.

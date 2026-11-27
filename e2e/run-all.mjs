@@ -5,7 +5,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
-const EXT = path.resolve(process.argv[2] || path.join(here, '..'));
+const EXT = path.resolve(process.argv.slice(2).find((a) => !a.startsWith('--')) || path.join(here, '..'));
 let failed = 0;
 const fail = (m) => { failed++; console.log('  FAIL ' + m); };
 
@@ -69,8 +69,27 @@ for (const s of scenarios) {
     if (q.some((v, i) => i && v > q[i - 1])) fail(`${s.name}: canvas width went up inside the cooldown: ${q}`);
     if (q.length > 4) fail(`${s.name}: canvas resized ${q.length - 1} times in 12 s: ${q}`);
   }
-  if (s.name === 'big-chat' && d.off) { eq('weather off clears marks', d.off.marks, 0); eq('weather off removes canvas', d.off.canvas, false); eq('weather off removes sheet', d.off.sheet, false); }
+  if (s.name === 'big-chat' && d.off) { eq('weather off clears marks', d.off.marks, 0); eq('weather off removes canvas', d.off.canvas, false); eq('weather off removes sheet', d.off.sheet, false); eq('weather off leaves no root attributes', d.off.rootAttrs, []); eq('weather off unpins every text colour', d.off.inlineColours, 0); }
   console.log(`${s.name}: ${failed === bad0 ? 'ok' : 'FAILED'}`);
+}
+
+// The 1.4.6 pixel suites: every way a plate or frame can be painted around the message box (screenshots measured at rest and
+// after a scroll), and the automatic text colour over time. "--fast" skips them (about 5 minutes).
+if (!process.argv.includes('--fast')) {
+  const suites = [
+    ['plates', 'plates.mjs', (d) => (d._errors || []).length === 0 && Object.values(d._summary || {}).length > 0 && Object.values(d._summary).every(Boolean), (d) => Object.entries(d._summary || {}).filter(([, v]) => !v).map(([k]) => k).join(', ') || (d._errors || []).join('; ')],
+    ['ink', 'ink.mjs', (d) => d.pass === true, (d) => Object.entries(d.checks || {}).filter(([, v]) => !v).map(([k]) => k).join(', ')],
+  ];
+  for (const [name, file, passed, why] of suites) {
+    let d;
+    for (let attempt = 1; attempt <= 2 && !d; attempt++) {
+      const r = spawnSync(process.execPath, [path.join(here, file), EXT, '--json'], { encoding: 'utf8', timeout: 900000, maxBuffer: 1 << 26 });
+      try { d = JSON.parse(r.stdout); } catch { console.log(`${name}: no JSON (attempt ${attempt})\n${(r.stderr || '').slice(0, 400)}`); }
+    }
+    if (!d) { fail(name + ' crashed'); continue; }
+    if (passed(d)) console.log(`${name}: ok`);
+    else { console.log(`${name}: FAILED`); fail(`${name}: ${why(d)}`); }
+  }
 }
 
 console.log(failed ? `\n${failed} failure(s)` : '\nall green');

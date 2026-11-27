@@ -19,8 +19,8 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 
 ## 2. Upload
 
-- [ ] Build the zip: `npm run store-zip` (writes `release/<date>/headroom-<version>.zip`, for 1.4.5 that is `release/2026-11-26/headroom-1.4.5.zip`; it refuses to build if something is wrong).
-- [ ] Dev console → **New item** (or the existing item's **Package** tab) → upload `release/2026-11-26/headroom-1.4.5.zip`.
+- [ ] Build the zip: `npm run store-zip` (writes `release/<date>/headroom-<version>.zip`, for 1.4.6 that is `release/2026-11-27/headroom-1.4.6.zip`; it refuses to build if something is wrong).
+- [ ] Dev console → **New item** (or the existing item's **Package** tab) → upload `release/2026-11-27/headroom-1.4.6.zip`.
 
 ## 3. Store listing tab
 
@@ -43,7 +43,7 @@ Prepared in Stage 5 (2026-10-31). Everything that can be done from the repo is d
 
 ## 6. After publishing
 
-- [ ] Tag the release in git (`v1.4.5`) and add the store link to the README. I will not tag or publish anything without you saying so.
+- [ ] Tag the release in git (`v1.4.6`) and add the store link to the README. I will not tag or publish anything without you saying so.
 - [ ] Keep the "Verified live" column in the README honest as you check the remaining providers.
 
 ## Known small things (not blockers)
