@@ -2,12 +2,32 @@
 
 All notable changes to Headroom (called AI Meter before 1.0.0). Versions follow `manifest.json`.
 
-## 1.5.0 — 2026-11-27
+## 2.0.0 — 2026-11-27
+
+The big one: a redesigned Settings and Welcome, a second background (Fluid), and the message-box fixes of 1.4.6 and 1.4.7, together.
 
 ### Added
-- **Fluid background.** Settings → Weather → **Background** now chooses between the real-weather sky and a dark fluid simulation: coloured smoke that swirls, glows and follows your cursor (and drifts on its own when the cursor is idle). It needs no place or forecast. The fluid draws on its own canvas above the sky canvas; the existing sky code keeps doing the rest for it (clearing the page backdrops and the plate around the message box, picking white text, the frosted-strips option, putting the page back exactly when it is switched off). The sky shader itself does not draw while the fluid is on. Sky strength dims the fluid toward the page colour. If the fluid cannot start (no WebGL2 or float textures) the weather sky is used instead.
+- **Redesigned Settings page** (sidebar with live one-line summaries and three groups, grid of cards that goes to two and three columns on wide screens, a Weather hero card with two preview cards for the background, a mini window that shows the bar on the chosen edge, one card per service in Limits). Responsive from 360 px to 3440 px, light and dark. No new permissions, no remote assets, no inline script; every setting key, `data-*` hook and id is unchanged. Designed by an outside designer; see `docs/redesign-2.0/NOTES.md` for the rationale, breakpoints and every markup hook.
+- **Redesigned Welcome page**: full-width bands, a "five things to know" overview, five steps with pictures that scale with the window and alternate sides, step 4 showing the weather sky and the fluid together.
+- **Fluid background** and the `weatherStyle` setting: see 1.5.0 below (it ships here as part of 2.0.0). It is chosen on the new Settings page, and hides the sky-only cards (place, forecast, "try a look") while it is selected.
+
+### Changed
+- Version 2.0.0. Includes everything in 1.4.5, 1.4.6, 1.4.7 and the unreleased 1.5.0 below.
+- Row titles: "Recording" (debug log) and "Alerts" (notifications).
+
+## 1.5.0 — 2026-11-27 (ships as part of 2.0.0)
+
+### Added
+- **Fluid background.** Settings → Weather → **Background** now chooses between the real-weather sky and a dark fluid simulation: coloured smoke that swirls, glows and follows your cursor. It needs no place or forecast. The fluid draws on its own canvas above the sky canvas; the existing sky code keeps doing the rest for it (clearing the page backdrops and the plate around the message box, picking white text, the frosted-strips option, putting the page back exactly when it is switched off). The sky shader itself does not draw while the fluid is on. Sky strength dims the fluid toward the page colour. If the fluid cannot start (no WebGL2 or float textures) the page gets a plain daytime sky instead. Sky strength sets how bright the fluid is (its canvas always stays opaque black, so white text is readable on light pages too).
 - The fluid is a trimmed port of Pavel Dobryakov's WebGL Fluid Simulation (MIT licence; the notice is kept in `src/core/fluid-sim.js` and `THIRD_PARTY_NOTICES.md`), lighter than the original (128 / 512 simulation and dye resolution, 12 pressure iterations, 30 frames a second, the same resolution governor as the sky), with no control panel, no audio, no network. It pauses in hidden tabs, and with reduced motion it shows a single still frame and ignores the cursor. The renderer is injected only when the fluid is chosen, so there is no new permission.
 - New setting `weatherStyle` ('sky' by default, or 'fluid'), included in export and import.
+- The fluid reacts only to the cursor (a few seed splats at the start, nothing on its own afterwards), is capped in brightness so white text stays readable, and is covered by end-to-end tests (it draws, a cursor sweep lights it up, switching styles and switching off leave nothing behind, the plate/strip regression cases also pass on it).
+
+## 1.4.7 — 2026-11-27
+
+### Fixed
+- The pale panels at the left and right of the message box (on a dark page, a white strip beside the input) are cleared. They are the composer's own full-width strip behind the column: far wider than the box, painted in a colour that is not the page colour, so neither the "hugs the box" rule nor the page-colour rule saw it. The halo pass now also clears composer strips (wide, square-cornered, stuck to the top or bottom edge of the window, at most 40% of its height) that contain the box or sit right behind it, whatever their colour.
+- New regression cases `wide@far` (ivory page, white strip) and `wide@dark` (near-black page, white strip) in `e2e/plates.mjs`: on 1.4.6 the margins stay 100% white, on 1.4.7 0%. `e2e/plates.mjs` also takes `--shots=<dir>` to keep the screenshots.
 
 ## 1.4.6 — 2026-11-27
 

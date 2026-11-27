@@ -9,7 +9,7 @@ Everything below is written to paste into the Chrome Web Store developer dashboa
 | Name | Headroom: AI usage limit and weather |
 | Category | Productivity |
 | Language | English |
-| Package version | 1.5.0 |
+| Package version | 2.0.0 |
 | Privacy policy URL | `https://github.com/devshrawin/Headroom/blob/main/docs/privacy.md` (no GitHub Pages needed: the repo is public, so GitHub shows `docs/privacy.md` as a page. It must be merged to `main` first, or it shows the old policy. Open it in a private window to check it loads without signing in) |
 | Support URL | `https://github.com/devshrawin/Headroom/issues` |
 | Homepage URL | `https://github.com/devshrawin/Headroom` |
@@ -98,7 +98,7 @@ The **Use my location** button in Settings → Weather uses Chrome's normal loca
 **No.** All code ships in the package, including the weather sky (one shader, no images). Nothing is downloaded and executed.
 
 ### One-line justifications (paste-ready, for the Privacy practices tab)
-Short versions of the sections above, for the single-line boxes. Every one is true of the 1.5.0 build.
+Short versions of the sections above, for the single-line boxes. Every one is true of the 2.0.0 build.
 
 | Permission | One line |
 |---|---|
@@ -149,8 +149,8 @@ The store description keeps only the short line at its end. The full list of com
 
 ## Before you submit
 
-- [ ] `manifest.json` and `package.json` both say the version you are uploading (1.5.0)
-- [ ] Zip built with `npm run store-zip`, upload `release/2026-11-27/headroom-1.5.0.zip`; tag the release `v1.5.0` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
+- [ ] `manifest.json` and `package.json` both say the version you are uploading (2.0.0)
+- [ ] Zip built with `npm run store-zip`, upload `release/2026-11-27/headroom-2.0.0.zip`; tag the release `v2.0.0` (it refuses to build if versions disagree, a file is missing or something that should not ship is included)
 - [ ] Privacy policy URL is live and loads without sign-in
 - [ ] Single-purpose statement and every permission justification pasted
 - [ ] Images uploaded from `docs/store/assets/` (5 screenshots, small tile, optional marquee)

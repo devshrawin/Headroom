@@ -25,6 +25,7 @@ const scenarios = [
   { name: 'weather-off', args: ['--settings={"weatherPlace":null}'], tone: 'tone-light', sky: false },
   { name: 'big-chat', args: ['--msgs=4000', '--perf', '--off'], tone: 'tone-light', sky: true },
   { name: 'frosted-strips', args: ['--frost'], tone: 'tone-light', sky: true, frost: true },
+  { name: 'fluid', args: ['--fluidpixels', '--styleswitch', '--settings={"weatherStyle":"fluid"}'], tone: 'tone-light', sky: true, fluid: true },
   { name: 'quality-settles', args: ['--quality'], tone: 'tone-light', sky: true, settle: true },
 ];
 
@@ -63,6 +64,18 @@ for (const s of scenarios) {
     want('frost returns when the menu closes', d.frostMenuGone, ['hdr', 'cOuter', 'cInner']);
     want('frost off removes every blur', d.frostOff, []);
   }
+  if (s.fluid) { // 2.0: the fluid background: it draws, only the cursor moves it, white ink, and style switches / switching off clean up
+    eq('the fluid canvas is mounted', d.fluid, true);
+    eq('the text is white on the fluid', d.ink, 'light');
+    const idle = (d.fluidIdle || {}).max, swept = (d.fluidSwept || {}).max;
+    if (!(typeof idle === 'number' && typeof swept === 'number' && swept - idle >= 40)) fail(`${s.name}: a cursor sweep should light up the empty strip (idle max ${idle}, swept max ${swept})`);
+    const sw = d.switch || {};
+    const look = (what, got, want) => { if (!got || got.fluid !== want.fluid || got.sky !== want.sky || (want.clean && (got.marks !== 0 || got.rootAttrs.length))) fail(`${s.name}: ${what}: ${JSON.stringify(got)}, want ${JSON.stringify(want)}`); };
+    look('starts on the fluid', sw.start, { fluid: true, sky: true });
+    look('switching to the weather sky removes the fluid canvas', sw.toSky, { fluid: false, sky: true });
+    look('switching back brings the fluid back', sw.backToFluid, { fluid: true, sky: true });
+    look('switching the weather off leaves nothing behind', sw.off, { fluid: false, sky: false, clean: true });
+  }
   if (s.settle) { // R2: the canvas resolution only ever steps down inside the 30 s cooldown, and settles (no bouncing)
     const q = d.quality || [];
     if (!q.length) fail(`${s.name}: no canvas sizes sampled`);
@@ -78,12 +91,13 @@ for (const s of scenarios) {
 if (!process.argv.includes('--fast')) {
   const suites = [
     ['plates', 'plates.mjs', (d) => (d._errors || []).length === 0 && Object.values(d._summary || {}).length > 0 && Object.values(d._summary).every(Boolean), (d) => Object.entries(d._summary || {}).filter(([, v]) => !v).map(([k]) => k).join(', ') || (d._errors || []).join('; ')],
+    ['plates on the fluid', 'plates.mjs', (d) => (d._errors || []).length === 0 && Object.values(d._summary || {}).length > 0 && Object.values(d._summary).every(Boolean), (d) => Object.entries(d._summary || {}).filter(([, v]) => !v).map(([k]) => k).join(', ') || (d._errors || []).join('; '), ['bg,fborder@far,wide@far,wide@dark', '--fluid']],
     ['ink', 'ink.mjs', (d) => d.pass === true, (d) => Object.entries(d.checks || {}).filter(([, v]) => !v).map(([k]) => k).join(', ')],
   ];
-  for (const [name, file, passed, why] of suites) {
+  for (const [name, file, passed, why, extra = []] of suites) {
     let d;
     for (let attempt = 1; attempt <= 2 && !d; attempt++) {
-      const r = spawnSync(process.execPath, [path.join(here, file), EXT, '--json'], { encoding: 'utf8', timeout: 900000, maxBuffer: 1 << 26 });
+      const r = spawnSync(process.execPath, [path.join(here, file), EXT, ...extra, '--json'], { encoding: 'utf8', timeout: 900000, maxBuffer: 1 << 26 });
       try { d = JSON.parse(r.stdout); } catch { console.log(`${name}: no JSON (attempt ${attempt})\n${(r.stderr || '').slice(0, 400)}`); }
     }
     if (!d) { fail(name + ' crashed'); continue; }

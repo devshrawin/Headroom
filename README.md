@@ -45,6 +45,7 @@ Estimate limits change often and differ by plan — set yours in **Settings → 
 Settings → **Weather**. Choose where you are with **Use my location** (Chrome asks once) or by typing a city. From then on every AI site you use gets a sky behind the chat that follows the real weather.
 
 - **What it shows.** Clear, partly cloudy, overcast, drizzle, rain, thunderstorm, snow and fog, with the sun and moon at the real hour (from the real sunrise and sunset), clouds that move the way the real wind blows, and falling leaves (autumn) or petals (spring). India gets a monsoon, not four temperate seasons.
+- **Two backgrounds (2.0).** Settings → Weather → **Background** picks the real-weather sky or a dark **fluid** that swirls and follows your cursor (it needs no place and no forecast, and only moves when you move the mouse). Both sit behind the page, never block clicks, pause in hidden tabs and honour reduced motion; text on top turns white or near-black on its own. The fluid is a trimmed port of Pavel Dobryakov's MIT-licensed WebGL Fluid Simulation (see `THIRD_PARTY_NOTICES.md`); a standalone demo is `tools/fluid-demo/index.html`.
 - **How it is drawn.** One WebGL fragment shader in `src/core/weather-sky.js`, no images, no downloads. It sits behind the page (the page's big opaque backgrounds are made transparent while it is on), so text and images keep their own colours by day. At night on a light page, the page is flipped to a dark look and its images are flipped back so they look normal; **Sky strength** in Settings turns it up or down. It never blocks the page or your clicks (`pointer-events: none`), draws at most 30 frames a second, at the screen's pixel density (capped) and steps its resolution down by itself on a slow graphics card, pauses when the tab is hidden, stays still if your system asks for reduced motion, and its code is injected into a tab only when the weather is on.
 - **Where the data comes from.** The background script asks [Open-Meteo](https://open-meteo.com) (free, no key, no account) for the forecast every 20 minutes and keeps it in `chrome.storage.local`; tabs only read it. Only the place's **coordinates rounded to two decimals** (about 1 km) are sent, to `api.open-meteo.com`. The place is stored on your computer and is never part of a settings backup.
 - **One click off.** The details panel on the page has **Turn off weather** and a settings gear that opens Settings. Settings → Weather → **Try a look** shows any weather, season or hour for testing.
@@ -105,7 +106,8 @@ src/
     widget.js          on-page meter bar (shadow DOM)
     weather-data.js    weather codes, seasons, sun times, the look of the sky (pure functions)
     sky-palette.js     hour x season x weather to sky colours and amounts (pure functions)
-    weather-sky.js     the weather sky renderer (WebGL), injected on demand
+    weather-sky.js     the weather sky renderer (WebGL), injected on demand; also clears the page backdrops and picks the text colour
+    fluid-sim.js       the optional "Fluid" background (WebGL fluid simulation that follows the cursor), injected on demand
   adapters/            one file per provider; generic.js = counting sites + user-added sites
   options/  welcome/          settings page, first-run guide
   (no images: the weather sky is drawn by one shader)
@@ -119,6 +121,7 @@ docs/                         privacy policy, store listing and checklist, secur
 
 ```bash
 npm test            # node --test, no dependencies to install
+(cd e2e && npm ci && node run-all.mjs)   # end-to-end: the unpacked extension in real Chromium against a mocked claude.ai (needs Playwright's Chromium)
 npm run store-zip   # release/<date>/headroom-<version>.zip, the file you upload to the Web Store
 ```
 

@@ -715,12 +715,21 @@ void main(){
     function hugBox(box, b, vw, vh) {
       const limH = b.height + vh * .5;
       const hugs = (r) => r.left >= b.left - HUG && r.right <= b.right + HUG && r.height <= limH;
+      // a wide strip of the composer: stuck to the top or bottom edge of the window, at most 40% of its height
+      const edgeStrip = (r) => r.width >= vw * .4 && r.height >= 16 && r.height <= vh * .4 && (r.bottom >= vh - 10 || r.top <= 10);
       const outline = (el, cs) => { if (cs.outlineStyle !== 'none' && parseFloat(cs.outlineWidth) >= 4) keepHalo(el, HALO_O); };
       // 1. the box's ancestors that hug it: its plate, frame, column, the composer strip
       const ancestors = [];
       for (let a = box.parentElement, i = 0; a && a !== doc.body && a !== rootEl && i < 10; a = a.parentElement, i++) {
-        if (!hugs(a.getBoundingClientRect()) || a.closest(OVERLAY_SEL)) break;
-        ancestors.push(a); keepHalo(a, HALO); outline(a, win.getComputedStyle(a));
+        if (a.closest(OVERLAY_SEL)) break;
+        const ar = a.getBoundingClientRect();
+        if (hugs(ar)) { ancestors.push(a); keepHalo(a, HALO); outline(a, win.getComputedStyle(a)); continue; }
+        // The composer's own full-width strip behind the column (on claude.ai the pale panels at the left and right of the message
+        // box): far wider than the box, so it does not hug it, but it is a wide square strip stuck to the window's edge and the box
+        // sits inside it. Its colour does not matter (it need not match the page colour).
+        const acs = win.getComputedStyle(a);
+        if (edgeStrip(ar) && radiusOf(acs) < 6) { keepHalo(a, HALO); outline(a, acs); continue; }
+        break;
       }
       // 2. square plates next to it: wide children of those ancestors (painted or not yet: a :focus-within plate is still bare)
       for (const a of ancestors) {
@@ -752,8 +761,8 @@ void main(){
           if (box.contains(e) || e.closest(OVERLAY_SEL)) continue;
           const r = e.getBoundingClientRect();
           if (r.width * r.height >= vw * vh * .5) break;
-          if (e.contains(box)) { if (hugs(r)) keepHalo(e, HALO); continue; }
-          if (!hugs(r) || e.matches(INTERACTIVE) || e.closest(INTERACTIVE)) continue;
+          if (e.contains(box)) { if (hugs(r) || edgeStrip(r)) keepHalo(e, HALO); continue; }
+          if ((!hugs(r) && !edgeStrip(r)) || e.matches(INTERACTIVE) || e.closest(INTERACTIVE)) continue;
           const cs = win.getComputedStyle(e);
           if (radiusOf(cs) >= 6) continue;
           keepHalo(e, HALO); outline(e, cs);
@@ -887,7 +896,7 @@ void main(){
 
     const reduceMq = win.matchMedia('(prefers-reduced-motion: reduce)');
     let W = 0, H = 0, raf = 0, last = 0, lost = false;
-    let strength = clamp(opts.strength == null ? 1 : opts.strength, .2, 1);
+    let strength = fluid ? 1 : clamp(opts.strength == null ? 1 : opts.strength, .2, 1);
     let dark = pageIsDark();
     let tone = null;
 
@@ -1030,7 +1039,7 @@ void main(){
       if (reduceMq.matches) curU = null; // no easing without motion: show the new state at once
       if (reduceMq.matches || !raf) frame(performance.now(), .05);
     }
-    function setStrength(v) { strength = clamp(v, .2, 1); if (fluid) fluid.setStrength(strength); tone = null; applyTone(); }
+    function setStrength(v) { const s = clamp(v, .2, 1); if (fluid) fluid.setStrength(s); strength = fluid ? 1 : s; tone = null; applyTone(); } // (the fluid dims itself; its canvas stays opaque black, so the ink never needs the page colour)
 
     function frame(now, dt) {
       simT += dt;
@@ -1089,7 +1098,7 @@ void main(){
       if (destroyed || lost) return;
       if (lastRaf && gov.raf(now - lastRaf, now)) resize(true); // quality steps back up (with a cooldown, see makeGovernor)
       lastRaf = now;
-      if (now - last >= 33) { // 30 frames a second is plenty for a sky
+      if (now - last >= (fluid ? 1000 : 33)) { // 30 frames a second is plenty for a sky (once a second for the fluid: this loop only decides the ink)
         const gap = last ? now - last : 33;
         const dt = last ? Math.min(.1, gap / 1000) : .033;
         last = now;

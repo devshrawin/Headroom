@@ -88,6 +88,7 @@
     varying vec2 vUv;
     ${shading ? 'varying vec2 vL;\n    varying vec2 vR;\n    varying vec2 vT;\n    varying vec2 vB;' : ''}
     uniform sampler2D uTexture;
+    uniform float uGain;
     ${bloom ? 'uniform sampler2D uBloom;' : ''}
     ${shading ? 'uniform vec2 texelSize;' : ''}
 
@@ -111,6 +112,7 @@
       vec3 bloom = texture2D(uBloom, vUv).rgb;
       bloom = pow(bloom.rgb, vec3(1.0 / 2.2));
       C += bloom;` : ''}
+      C *= uGain; // Sky strength: how bright the fluid is (the canvas itself stays opaque black, so text is always on a dark ground)
       // A background, not a light show: the page's text is white on top of this, so the brightness is capped where text stays
       // readable (encoded luminance .42 is about 5:1 against white). Scaling keeps the hue.
       float lum = dot(C, vec3(0.2126, 0.7152, 0.0722));
@@ -416,7 +418,7 @@
     canvas.setAttribute('aria-hidden', 'true');
     canvas.setAttribute('data-headroom', 'fluid');
     let strength = clamp(+opts.strength || 1, 0.2, 1);
-    Object.assign(canvas.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', zIndex: '-1', pointerEvents: 'none', opacity: String(strength), background: 'black' });
+    Object.assign(canvas.style, { position: 'fixed', inset: '0', width: '100%', height: '100%', zIndex: '-1', pointerEvents: 'none', opacity: '1', background: 'black' });
 
     let gl = null;
     let ext = null;
@@ -796,6 +798,7 @@
       displayProgram.bind();
       if (shading) gl.uniform2f(displayProgram.uniforms.texelSize, 1.0 / width, 1.0 / height);
       gl.uniform1i(displayProgram.uniforms.uTexture, density.read.attach(0));
+      gl.uniform1f(displayProgram.uniforms.uGain, strength);
       if (bloomOn) gl.uniform1i(displayProgram.uniforms.uBloom, bloom.attach(1));
       blit(null);
     }
@@ -906,10 +909,17 @@
       if (now - last >= FRAME_MS) {
         const gap = last ? now - last : FRAME_MS;
         last = now;
-        applyInput(now);
-        step(Math.min(gap / 1000, DT_MAX));
-        render();
-        if (gov && gov.drawn(gap, now)) resize();
+        try {
+          applyInput(now);
+          step(Math.min(gap / 1000, DT_MAX));
+          render();
+          if (gov && gov.drawn(gap, now)) resize();
+        } catch (e) { // never leave a frozen frame behind: hand the page back and let the caller decide
+          try { console.warn('[Headroom] fluid', e); } catch {}
+          api.destroy();
+          if (opts.onLost) opts.onLost();
+          return;
+        }
       }
       raf = win.requestAnimationFrame(tick);
     }
@@ -939,7 +949,8 @@
         if (!doc.hidden) settle();
       } else start();
     };
-    const onWinResize = () => resize();
+    let resizeT = 0;
+    const onWinResize = () => { win.clearTimeout(resizeT); resizeT = win.setTimeout(() => { resizeT = 0; if (!destroyed && !lost) resize(); }, 150); };
 
     let api = null;
     // no preventDefault: the context stays gone, and the caller puts the page back as it was
@@ -949,7 +960,7 @@
       canvas,
       setStrength(v) {
         strength = clamp(+v || strength, 0.2, 1);
-        canvas.style.opacity = String(strength);
+        if (!destroyed && !lost && (reduced || !raf)) { try { render(); } catch {} } // a still frame (reduced motion, hidden tab) shows the new brightness at once
       },
       destroy() {
         if (destroyed) return;
@@ -962,6 +973,7 @@
         win.removeEventListener('touchcancel', onTouchEnd);
         root.removeEventListener('mouseleave', onMouseLeave);
         win.removeEventListener('resize', onWinResize);
+        win.clearTimeout(resizeT);
         doc.removeEventListener('visibilitychange', onVis);
         reduceMq.removeEventListener('change', onMotion);
         canvas.removeEventListener('webglcontextlost', onLost);
